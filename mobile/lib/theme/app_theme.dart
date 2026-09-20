@@ -18,7 +18,7 @@ class AppTheme {
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
-      cardTheme: const CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
       ),

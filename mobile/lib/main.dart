@@ -17,7 +17,7 @@ class TapLensApp extends StatelessWidget {
       title: '触镜 TapLens',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const HomePage(report: demoReport),
+      home: HomePage(report: demoReport),
     );
   }
 }

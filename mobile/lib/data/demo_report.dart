@@ -1,6 +1,6 @@
 import '../models/analysis_report.dart';
 
-const demoReport = AnalysisReport(
+final demoReport = AnalysisReport(
   title: '助学金申请二维码',
   target: 'https://campus.example/aid → loan.example/apply',
   riskLevel: RiskLevel.high,

@@ -115,7 +115,7 @@ class _HeroCard extends StatelessWidget {
                   Text(
                     '检查二维码、链接和 Deep Link 的目标与风险。',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.onPrimary.withOpacity(0.85),
+                          color: colors.onPrimary.withValues(alpha: 0.85),
                         ),
                   ),
                 ],
