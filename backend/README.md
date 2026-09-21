@@ -15,6 +15,7 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - 云端证据 Schema 与 fixture 校验；
 - Playwright 本地无害页面最小实验脚本。
 - 云端目标URL、私网、链路本地、保留地址和DNS解析结果预检。
+- 云任务HTTP创建、查询、删除与鉴权截图接口；
 - 云任务持久化与 `queued → running → succeeded/failed → expired` 状态机；
 - 创建任务与扣减额度的SQLite原子事务；
 - 任务进入终态后清除临时目标URL，证据到期后清除。
@@ -22,7 +23,7 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - 对每个HTTP请求重新执行目标授权，阻止业务写请求、下载、弹窗和外部协议；
 - 只采集脱敏URL、请求域名、跳转、表单字段、标题、文本摘要和截图。
 
-云任务HTTP接口、后台执行器、正式Playwright证据采集和生产部署尚未实现。
+已提供独立worker，可从SQLite队列取出任务、运行受限Playwright采集并组装正式云证据。多worker生产级队列、运行中进程崩溃恢复和生产部署尚未实现。
 
 ## 本地运行
 
@@ -45,6 +46,15 @@ curl http://127.0.0.1:8000/api/v1/health
 cd backend
 .venv/bin/pytest
 ```
+
+HTTP服务只负责持久化排队任务。另开一个终端启动worker：
+
+```bash
+cd backend
+.venv/bin/python scripts/run_worker.py
+```
+
+本地只处理当前队列并退出可使用`.venv/bin/python scripts/run_worker.py --once`。正式环境必须配置`TAPLENS_PUBLIC_BASE_URL`，使证据中的截图地址指向对外HTTPS服务。
 
 ## Playwright 最小实验
 

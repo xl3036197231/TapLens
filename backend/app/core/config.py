@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, SecretStr, model_validator
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     database_path: Path = Field(default_factory=lambda: BACKEND_ROOT / "data/taplens.db")
+    artifact_directory: Path = Field(default_factory=lambda: BACKEND_ROOT / "data/artifacts")
+    artifact_ttl_minutes: int = Field(default=30, ge=1, le=1440)
+    public_base_url: str = "http://127.0.0.1:8000"
     jwt_secret: SecretStr = SecretStr("development-only-change-me")
     access_token_minutes: int = Field(default=60, ge=5, le=1440)
     daily_quota_limit: int = Field(default=10, ge=1, le=1000)
@@ -39,6 +43,18 @@ class Settings(BaseSettings):
             ZoneInfo(self.quota_timezone)
         except ZoneInfoNotFoundError as exc:
             raise ValueError("quota_timezone must be a valid IANA timezone") from exc
+        public_url = urlsplit(self.public_base_url)
+        if (
+            public_url.scheme not in {"http", "https"}
+            or not public_url.netloc
+            or public_url.path not in {"", "/"}
+            or public_url.query
+            or public_url.fragment
+        ):
+            raise ValueError("public_base_url must be an HTTP(S) origin without path or query")
+        if self.environment == "production" and public_url.scheme != "https":
+            raise ValueError("production requires an HTTPS public_base_url")
+        self.public_base_url = self.public_base_url.rstrip("/")
         return self
 
 

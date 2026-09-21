@@ -69,6 +69,8 @@
 
 用户名当前草案为3～32位ASCII字母、数字或下划线；密码为8～128个字符。用户名按大小写无关方式判重。
 
+注册成功后**不自动登录**，APP必须继续调用`POST /api/v1/auth/login`获取JWT。
+
 ## 4. 登录
 
 ### `POST /api/v1/auth/login`
@@ -126,42 +128,104 @@
 {
   "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
   "status": "queued",
-  "quota_remaining": 7
+  "remaining": 7
 }
 ```
 
-创建前必须进行scheme、主机和IP检查；DNS解析后以及每次跳转后都要重新检查。命中私网、链路本地、保留地址或云元数据地址时返回 `CLOUD_PRIVATE_ADDRESS_BLOCKED`，且不扣除成功额度。
+响应同时返回：
+
+```http
+Location: /api/v1/deep-scans/f49c9d64-7b9a-48a5-9864-6c65736d0001
+Retry-After: 2
+```
+
+创建前必须进行scheme、主机和IP检查；DNS解析后以及每次跳转后都要重新检查。命中私网、链路本地、保留地址或云元数据地址时返回 `CLOUD_PRIVATE_ADDRESS_BLOCKED`。
+
+额度规则已确定：
+
+- 请求JSON、URL或安全预检失败，没有创建任务，不扣额度；
+- 服务器成功创建任务并返回`202 Accepted`时立即扣除1次；
+- 任务后续超时、Playwright失败或服务端采集异常不退还额度，因为已消耗云端沙箱资源；
+- `remaining`是本次任务已扣除后的剩余次数，与`GET /api/v1/quota`的同名字段语义一致。
 
 ## 7. 查询任务
 
 ### `GET /api/v1/deep-scans/{task_id}`
 
-需要登录，只允许任务所有者查询。A建议每1秒轮询一次，最长15秒；终态为 `succeeded`、`failed` 或 `expired`。
+需要登录，只允许任务所有者查询。APP应优先遵循响应中的`Retry-After: 2`，即每2秒轮询；单次前台等待建议不超过20秒。超过20秒后APP可退到后台，之后继续查询，不得因为本地等待超时就重复创建任务。
 
-- `queued`、`running`：返回符合云证据Schema的进行中数据；
-- `succeeded`：返回完整 `cloud-evidence`；
-- `failed`：返回包含稳定错误码与限制说明的 `cloud-evidence`；
-- `expired`：返回 `410 Gone` 和 `CLOUD_TASK_EXPIRED`。
+`queued`：
 
-## 8. 删除任务
+```json
+{
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "status": "queued",
+  "created_at": "2026-09-21T01:29:57Z",
+  "started_at": null,
+  "completed_at": null,
+  "expires_at": null,
+  "duration_ms": null,
+  "cloud_evidence": null,
+  "error": null
+}
+```
+
+`running`的结构与上述相同，`started_at`为非空、`status`为`running`，`cloud_evidence`仍为`null`。当前版本不暴露未完成的部分证据，避免APP处理随轮询变化的数组。完整响应见`shared/fixtures/http/deep-scan-running.response.json`。
+
+`succeeded`时`cloud_evidence`为完整且通过`cloud-evidence.schema.json`校验的对象，`error`为`null`；完整HTTP响应见`shared/fixtures/http/deep-scan-succeeded.response.json`。
+
+`failed`时`cloud_evidence`为包含限制说明的失败证据，顶层`error`同时提供方便APP分支的稳定错误码：
+
+```json
+{
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0002",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "status": "failed",
+  "created_at": "2026-09-21T01:34:45Z",
+  "started_at": "2026-09-21T01:34:46Z",
+  "completed_at": "2026-09-21T01:35:00Z",
+  "expires_at": "2026-09-21T02:05:00Z",
+  "duration_ms": 15000,
+  "cloud_evidence": {"schema_version": "1.0", "status": "failed"},
+  "error": {
+    "code": "CLOUD_TASK_TIMEOUT",
+    "message": "云端深度分析失败",
+    "retryable": true,
+    "details": null
+  }
+}
+```
+
+上例为了简洁省略了`cloud_evidence`内容，完整HTTP响应见`shared/fixtures/http/deep-scan-failed.response.json`。`expired`不再返回任务对象，而是`410 Gone`和`CLOUD_TASK_EXPIRED`。
+
+APP必须把`task_id`和`analysis_id`保存在本地任务记录中。断网、APP退到后台或JWT刷新后，使用原`task_id`恢复查询；服务器任务不依赖原轮询连接。
+
+## 8. 获取截图
+
+### `GET /api/v1/deep-scans/{task_id}/screenshot`
+
+使用与查询任务相同的`Authorization: Bearer <JWT>`，只允许任务所有者访问，成功返回`image/png`和`Cache-Control: private, no-store`。`cloud_evidence.screenshot.download_url`指向该地址，不是可公开转发的签名URL。
+
+- 任务尚在排队或执行：`409 CLOUD_SCREENSHOT_NOT_READY`，可重试；
+- 任务没有截图、文件已清理或不属于当前用户：`404`；
+- 截图与任务证据默认30分钟过期，过期后返回`410 CLOUD_ARTIFACT_EXPIRED`。
+
+## 9. 删除任务
 
 ### `DELETE /api/v1/deep-scans/{task_id}`
 
 需要登录，只允许任务所有者删除。删除任务元数据中的临时引用、截图和浏览器临时目录，成功返回 `204 No Content`。重复删除不能泄漏任务是否属于其他用户。
 
-## 9. 保存任务元数据
+## 10. 任务元数据
 
-### `POST /api/v1/task-metadata`
+当前版本不提供独立的`POST /api/v1/task-metadata`。云任务自带所有必要时间和状态字段；客户端Token数字等比赛统计信息是可选后续能力，不影响主流程，也不作为可信计费数据。
 
-只保存用户ID、时间、任务状态、沙箱耗时和客户端上报的Token数字，不保存URL、证据、完整报告或DeepSeek Key。Token数字仅用于测试统计，不作为可信计费数据。
+## 11. 已确定参数
 
-## 10. A审核前待确认
-
-- JWT有效期以及是否使用刷新令牌；
-- 用户名、密码长度与允许字符；
-- 每日额度按UTC还是Asia/Shanghai重置；
-- 创建失败、任务失败分别何时扣除额度；
-- A的轮询间隔与最大等待时间；
-- 截图采用鉴权临时URL还是单独下载接口；
-- 任务删除后的幂等响应；
-- `task-metadata`是否必须独立接口，或并入任务完成流程。
+- JWT默认1小时，当前版本不发刷新令牌；
+- 用户名3～32位ASCII字母、数字或下划线，密码8～128个字符；
+- 额度按`Asia/Shanghai`的自然日重置，`resets_at`用UTC返回；
+- 轮询间隔2秒，前台建议最长等待20秒；
+- 证据和截图默认保留30分钟；
+- 删除接口对已删除、不存在或不属于当前用户的任务统一返回`204`，不泄漏所有权。

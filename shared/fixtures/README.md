@@ -9,6 +9,7 @@ fixtures/
 ├── inputs/          # A提供：URL、Deep Link、脱敏文本输入
 ├── local/           # C提供：本地正常、超时、崩溃和证据不足
 ├── cloud/           # B提供：排队、成功、失败和过期任务
+├── http/            # B提供：Flutter直接解析的HTTP响应
 └── reports/         # D提供：低、中、高风险和证据不足报告
 ```
 

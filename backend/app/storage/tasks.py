@@ -85,6 +85,42 @@ class TaskRepository:
             ).fetchone()
         return row_to_task(row) if row is not None else None
 
+    def list_queued(self, *, limit: int = 10) -> list[CloudScanTask]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM cloud_scan_tasks
+                WHERE status = 'queued'
+                ORDER BY created_at ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [row_to_task(row) for row in rows]
+
+    def list_due_for_expiry(self, now: datetime) -> list[UUID]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id
+                FROM cloud_scan_tasks
+                WHERE status IN ('succeeded', 'failed')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ?
+                """,
+                (now.isoformat(),),
+            ).fetchall()
+        return [UUID(row["id"]) for row in rows]
+
+    def delete_for_owner(self, task_id: UUID, user_id: UUID) -> bool:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM cloud_scan_tasks WHERE id = ? AND user_id = ?",
+                (str(task_id), str(user_id)),
+            )
+            return cursor.rowcount == 1
+
     def transition(
         self,
         task_id: UUID,

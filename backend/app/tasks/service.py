@@ -3,7 +3,11 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from app.core.errors import AppError
-from app.sandbox.url_policy import UnsafeTargetError, validate_target_url
+from app.sandbox.url_policy import (
+    UnsafeTargetError,
+    resolve_and_validate_target,
+    validate_target_url,
+)
 from app.storage.tasks import (
     InvalidTaskTransitionError,
     QuotaExceededError,
@@ -37,6 +41,7 @@ class TaskService:
     ) -> CloudScanTask:
         try:
             validated = validate_target_url(target_url)
+            resolve_and_validate_target(validated)
         except UnsafeTargetError as exc:
             raise AppError(
                 code=exc.code,
@@ -132,6 +137,9 @@ class TaskService:
                 status_code=404,
             )
         return task
+
+    def delete_for_owner(self, task_id: UUID, user_id: UUID) -> bool:
+        return self.repository.delete_for_owner(task_id, user_id)
 
     def expire_due(self, now: datetime | None = None) -> int:
         return self.repository.expire_due(now or datetime.now(UTC))

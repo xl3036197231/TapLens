@@ -1,0 +1,12 @@
+{
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "status": "running",
+  "created_at": "2026-09-21T01:29:57Z",
+  "started_at": "2026-09-21T01:29:58Z",
+  "completed_at": null,
+  "expires_at": null,
+  "duration_ms": null,
+  "cloud_evidence": null,
+  "error": null
+}

@@ -7,6 +7,7 @@ import pytest
 from app.auth.passwords import PasswordService
 from app.core.errors import AppError
 from app.storage.database import Database
+from app.storage.quota import QuotaRepository
 from app.storage.tasks import TaskRepository
 from app.storage.users import UserRecord, UserRepository
 from app.tasks.models import TaskStatus
@@ -78,6 +79,8 @@ def test_invalid_target_does_not_consume_quota(tmp_path) -> None:
             now=NOW,
         )
 
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 0
     valid = service.create(
         user_id=user_id,
         analysis_id=uuid4(),
@@ -86,6 +89,28 @@ def test_invalid_target_does_not_consume_quota(tmp_path) -> None:
     )
     assert captured.value.code == "CLOUD_PRIVATE_ADDRESS_BLOCKED"
     assert valid.status == TaskStatus.QUEUED
+
+
+def test_dns_validation_failure_does_not_consume_quota(tmp_path, monkeypatch) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=1)
+
+    def reject_dns(_):
+        from app.sandbox.url_policy import UnsafeTargetError
+
+        raise UnsafeTargetError("CLOUD_PRIVATE_ADDRESS_BLOCKED", "DNS解析到私网地址")
+
+    monkeypatch.setattr("app.tasks.service.resolve_and_validate_target", reject_dns)
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=uuid4(),
+            target_url="https://public.example/path",
+            now=NOW,
+        )
+
+    assert captured.value.code == "CLOUD_PRIVATE_ADDRESS_BLOCKED"
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 0
 
 
 def test_invalid_transition_is_rejected(tmp_path) -> None:
