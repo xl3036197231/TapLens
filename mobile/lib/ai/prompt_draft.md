@@ -1,6 +1,6 @@
 # TapLens AI Prompt 草案（Day 1）
 
-状态：`DRAFT`，待 A、B、C 审核 `analysis-report.schema.json`、本地证据和云端证据字段后冻结。
+状态：`READY-FOR-INTEGRATION`，A、B、C 的正式契约已合并到 `main`；实际 AI 调用仍不在今日范围内。
 
 ## System Prompt
 
@@ -16,6 +16,8 @@
 6. 当证据不足、页面无法访问或第三方 APP 私有协议无法确认时，必须使用 `risk_level=insufficient_evidence` 或 `consistency=unknown`，不能把“未发现”写成“安全”。
 7. 只返回符合 `analysis-report.schema.json` 的 JSON，不要输出 Markdown、解释文字、代码围栏或额外字段。
 8. `token_usage` 由手机客户端根据接口返回值填写；模型不得伪造 Token 用量。若客户端未提供用量，使用 0。
+9. `risk_level=insufficient_evidence` 必须同时使用 `uncertainty.status=insufficient`；证据不足不能输出低风险或一致。
+10. 当 `token_usage.request_count=0` 时，四个 Token 数值必须为 0 且 `model=null`；当请求数为 1 时，`model` 必须是 `deepseek-flash`。
 
 ## User Prompt 模板
 
@@ -48,6 +50,8 @@
 - `Lxx` 只能对应 `source=local`，`Cxx` 只能对应 `source=cloud`；
 - `differences[].id` 是否唯一；
 - `token_usage.request_count` 是否为 0 或 1；
+- `risk_level` 与 `uncertainty.status` 是否保持一致；
+- `request_count=0` 时 Token 数值是否全为 0 且模型为空；
 - 规则硬风险是否被模型降级；
 - 校验失败时丢弃 AI 结论，但保留本地/云端证据并回退到规则报告。
 
