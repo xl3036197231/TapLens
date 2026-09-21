@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
+  "status": "succeeded",
+  "generated_at": "2026-09-21T01:30:00Z",
+  "duration_ms": 2680,
+  "initial_url": "https://start.example/aid",
+  "final_url": "https://loan.example/apply",
+  "redirects": [
+    {
+      "from_url": "https://start.example/aid",
+      "to_url": "https://loan.example/apply",
+      "status_code": 302
+    }
+  ],
+  "requests": [
+    {
+      "origin": "https://loan.example",
+      "method": "GET",
+      "resource_type": "document",
+      "status_code": 200
+    }
+  ],
+  "forms": [
+    {
+      "action": "https://loan.example/submit",
+      "method": "POST",
+      "fields": [
+        {"name": "identity_number", "type": "text", "sensitive": true},
+        {"name": "phone", "type": "tel", "sensitive": true}
+      ]
+    }
+  ],
+  "blocked_actions": [
+    {
+      "type": "form_submit",
+      "target": "https://loan.example/submit",
+      "reason": "云端深度分析不提交业务表单"
+    }
+  ],
+  "page": {
+    "title": "低息助学贷款申请",
+    "text_summary": "页面引导访客填写身份信息并申请贷款。"
+  },
+  "screenshot": {
+    "artifact_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
+    "download_url": "https://api.example/api/v1/deep-scans/f49c9d64-7b9a-48a5-9864-6c65736d0001/screenshot",
+    "expires_at": "2026-09-21T02:00:00Z"
+  },
+  "evidence": [
+    {
+      "id": "C01",
+      "kind": "redirect",
+      "title": "云端跳转链",
+      "detail": "测试短链接最终跳转到贷款申请页面。"
+    },
+    {
+      "id": "C02",
+      "kind": "form",
+      "title": "敏感表单字段",
+      "detail": "页面表单包含身份证号与手机号字段。"
+    }
+  ],
+  "limitations": [],
+  "error": null,
+  "expires_at": "2026-09-21T02:00:00Z"
+}

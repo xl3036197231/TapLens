@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0002",
+  "status": "failed",
+  "generated_at": "2026-09-21T01:35:00Z",
+  "duration_ms": 15000,
+  "initial_url": "https://timeout.example/",
+  "final_url": null,
+  "redirects": [],
+  "requests": [],
+  "forms": [],
+  "blocked_actions": [],
+  "page": null,
+  "screenshot": null,
+  "evidence": [
+    {
+      "id": "C01",
+      "kind": "error",
+      "title": "云端任务超时",
+      "detail": "页面在限制时间内未完成加载，未取得足够动态证据。"
+    }
+  ],
+  "limitations": ["任务超时，未获取最终页面、表单和截图。"],
+  "error": {
+    "code": "CLOUD_TASK_TIMEOUT",
+    "message": "云端深度分析超时",
+    "retryable": true,
+    "details": null
+  },
+  "expires_at": "2026-09-21T02:05:00Z"
+}

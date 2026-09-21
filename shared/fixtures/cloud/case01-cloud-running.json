@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "task_id": "f49c9d64-7b9a-48a5-9864-6c65736d0001",
+  "status": "running",
+  "generated_at": "2026-09-21T01:29:58Z",
+  "duration_ms": null,
+  "initial_url": "https://start.example/aid",
+  "final_url": null,
+  "redirects": [],
+  "requests": [],
+  "forms": [],
+  "blocked_actions": [],
+  "page": null,
+  "screenshot": null,
+  "evidence": [],
+  "limitations": [],
+  "error": null,
+  "expires_at": null
+}
