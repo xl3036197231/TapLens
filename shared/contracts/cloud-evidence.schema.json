@@ -3,6 +3,7 @@
   "$id": "https://taplens.example/schemas/cloud-evidence.schema.json",
   "title": "TapLens Cloud Evidence",
   "description": "DRAFT: Playwright云端深度分析返回给手机端的脱敏证据。",
+  "$comment": "common.schema.json发布后，UUID、时间、状态、证据ID和错误对象应改为引用公共定义。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -34,10 +35,10 @@
     },
     "generated_at": {"type": "string", "format": "date-time"},
     "duration_ms": {"type": ["integer", "null"], "minimum": 0, "maximum": 30000},
-    "initial_url": {"type": "string", "format": "uri", "maxLength": 2048},
+    "initial_url": {"$ref": "#/$defs/http_url"},
     "final_url": {
       "oneOf": [
-        {"type": "string", "format": "uri", "maxLength": 2048},
+        {"$ref": "#/$defs/http_url"},
         {"type": "null"}
       ]
     },
@@ -98,18 +99,35 @@
   },
   "allOf": [
     {
-      "if": {"properties": {"status": {"const": "failed"}}},
-      "then": {"properties": {"error": {"$ref": "#/$defs/error"}}}
+      "if": {
+        "properties": {"status": {"enum": ["failed", "expired"]}},
+        "required": ["status"]
+      },
+      "then": {"properties": {"error": {"$ref": "#/$defs/error"}}},
+      "else": {"properties": {"error": {"type": "null"}}}
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "succeeded"}},
+        "required": ["status"]
+      },
+      "then": {"properties": {"final_url": {"$ref": "#/$defs/http_url"}}}
     }
   ],
   "$defs": {
+    "http_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 2048
+    },
     "redirect": {
       "type": "object",
       "additionalProperties": false,
       "required": ["from_url", "to_url", "status_code"],
       "properties": {
-        "from_url": {"type": "string", "format": "uri", "maxLength": 2048},
-        "to_url": {"type": "string", "format": "uri", "maxLength": 2048},
+        "from_url": {"$ref": "#/$defs/http_url"},
+        "to_url": {"$ref": "#/$defs/http_url"},
         "status_code": {"type": ["integer", "null"], "minimum": 100, "maximum": 599}
       }
     },
@@ -118,7 +136,7 @@
       "additionalProperties": false,
       "required": ["origin", "method", "resource_type", "status_code"],
       "properties": {
-        "origin": {"type": "string", "format": "uri", "maxLength": 300},
+        "origin": {"$ref": "#/$defs/http_url"},
         "method": {"type": "string", "enum": ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE", "OTHER"]},
         "resource_type": {"type": "string", "maxLength": 40},
         "status_code": {"type": ["integer", "null"], "minimum": 100, "maximum": 599}
@@ -141,7 +159,7 @@
       "properties": {
         "action": {
           "oneOf": [
-            {"type": "string", "format": "uri", "maxLength": 2048},
+            {"$ref": "#/$defs/http_url"},
             {"type": "null"}
           ]
         },
@@ -178,7 +196,7 @@
       "required": ["artifact_id", "download_url", "expires_at"],
       "properties": {
         "artifact_id": {"type": "string", "format": "uuid"},
-        "download_url": {"type": "string", "format": "uri", "maxLength": 2048},
+        "download_url": {"$ref": "#/$defs/http_url"},
         "expires_at": {"type": "string", "format": "date-time"}
       }
     },

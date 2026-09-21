@@ -55,3 +55,26 @@ def test_failed_cloud_evidence_requires_error_object() -> None:
     errors = list(validator().iter_errors(document))
 
     assert errors
+
+
+def test_cloud_evidence_rejects_non_http_target() -> None:
+    document = deepcopy(load_json(EXAMPLE_PATH))
+    document["initial_url"] = "file:///etc/passwd"
+
+    errors = list(validator().iter_errors(document))
+
+    assert any("does not match" in error.message for error in errors)
+
+
+def test_successful_cloud_evidence_cannot_include_error() -> None:
+    document = deepcopy(load_json(EXAMPLE_PATH))
+    document["error"] = {
+        "code": "CLOUD_TASK_TIMEOUT",
+        "message": "不应出现在成功响应中",
+        "retryable": True,
+        "details": None,
+    }
+
+    errors = list(validator().iter_errors(document))
+
+    assert errors
