@@ -2,7 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://taplens.example/schemas/cloud-evidence.schema.json",
   "title": "TapLens Cloud Evidence",
-  "description": "DRAFT: Playwright云端深度分析返回给手机端的脱敏证据。",
+  "description": "FROZEN-v1：Playwright云端深度分析返回给手机端的脱敏证据。",
+  "$comment": "UUID、时间、状态、证据ID和错误对象统一引用 common.schema.json。",
   "type": "object",
   "additionalProperties": false,
   "required": [
