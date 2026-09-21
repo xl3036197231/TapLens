@@ -31,6 +31,33 @@ class Database:
                     PRIMARY KEY (user_id, quota_date),
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS cloud_scan_tasks (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    analysis_id TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN ('queued', 'running', 'succeeded', 'failed', 'expired')
+                    ),
+                    target_url TEXT,
+                    evidence_json TEXT,
+                    error_code TEXT,
+                    created_at TEXT NOT NULL,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    expires_at TEXT,
+                    duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_cloud_scan_tasks_owner_created
+                    ON cloud_scan_tasks(user_id, created_at DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_cloud_scan_tasks_status
+                    ON cloud_scan_tasks(status);
+
+                CREATE INDEX IF NOT EXISTS idx_cloud_scan_tasks_expiry
+                    ON cloud_scan_tasks(expires_at);
                 """
             )
 

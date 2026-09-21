@@ -15,8 +15,11 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - 云端证据 Schema 与 fixture 校验；
 - Playwright 本地无害页面最小实验脚本。
 - 云端目标URL、私网、链路本地、保留地址和DNS解析结果预检。
+- 云任务持久化与 `queued → running → succeeded/failed → expired` 状态机；
+- 创建任务与扣减额度的SQLite原子事务；
+- 任务进入终态后清除临时目标URL，证据到期后清除。
 
-每日额度、任务状态机、认证后接口保护和生产沙箱尚未实现。
+云任务HTTP接口、后台执行器、正式Playwright证据采集和生产部署尚未实现。
 
 ## 本地运行
 
