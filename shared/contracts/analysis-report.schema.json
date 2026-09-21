@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taplens.example/schemas/analysis-report.schema.json",
+  "title": "TapLens analysis report",
+  "description": "手机端规则与可选 AI 研判合并后的最终分析报告。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "created_at",
+    "risk_level",
+    "consistency",
+    "title",
+    "target",
+    "summary",
+    "claim",
+    "observed_behavior",
+    "differences",
+    "recommendations",
+    "evidence",
+    "uncertainty",
+    "sources",
+    "token_usage"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "./common.schema.json#/$defs/schema_version"
+    },
+    "analysis_id": {
+      "$ref": "./common.schema.json#/$defs/analysis_id"
+    },
+    "created_at": {
+      "$ref": "./common.schema.json#/$defs/timestamp"
+    },
+    "risk_level": {
+      "$ref": "./common.schema.json#/$defs/risk_level"
+    },
+    "consistency": {
+      "$ref": "./common.schema.json#/$defs/consistency"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "display", "redacted"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["url", "deep_link", "qr_payload"]
+        },
+        "display": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "redacted": {
+          "type": "boolean",
+          "description": "是否已在手机端完成敏感参数遮盖。"
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "subject",
+        "purpose",
+        "requested_data",
+        "intended_target"
+      ],
+      "properties": {
+        "summary": {
+          "type": ["string", "null"],
+          "maxLength": 1000
+        },
+        "subject": {
+          "type": ["string", "null"],
+          "maxLength": 300
+        },
+        "purpose": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        },
+        "requested_data": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "intended_target": {
+          "type": ["string", "null"],
+          "maxLength": 500
+        }
+      }
+    },
+    "observed_behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "subjects",
+        "purposes",
+        "collected_data",
+        "destinations",
+        "actions",
+        "evidence_ids"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500
+        },
+        "subjects": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "purposes": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "collected_data": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "destinations": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "actions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/evidence_id_array"
+        }
+      }
+    },
+    "differences": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/difference"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "reasons", "missing_evidence"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["known", "partial", "insufficient"]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "missing_evidence": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local", "cloud", "ai"],
+      "properties": {
+        "local": {
+          "type": "boolean"
+        },
+        "cloud": {
+          "type": "boolean"
+        },
+        "ai": {
+          "type": "boolean"
+        }
+      }
+    },
+    "token_usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_count",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "model"
+      ],
+      "properties": {
+        "request_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model": {
+          "type": ["string", "null"],
+          "enum": ["deepseek-flash", null]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^[LC][0-9]{2,}$",
+      "description": "只能引用本地 Lxx 或云端 Cxx 证据。"
+    },
+    "evidence_id_array": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/evidence_id"
+      }
+    },
+    "difference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "dimension", "severity", "description", "evidence_ids"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^D[0-9]{2,}$"
+        },
+        "dimension": {
+          "type": "string",
+          "enum": ["subject", "purpose", "data", "target", "action"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "critical"]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/evidence_id_array"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "title", "detail"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/evidence_id"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["local", "cloud"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      }
+    }
+  }
+}
