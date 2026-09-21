@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taplens.example/schemas/analysis-input.schema.json",
+  "title": "TapLens analysis input",
+  "description": "Flutter APP 统一交给本地预检和云端分析的脱敏输入。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "source",
+    "captured_at",
+    "claims_text",
+    "targets",
+    "privacy",
+    "client"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "./common.schema.json#/$defs/schema_version"
+    },
+    "analysis_id": {
+      "$ref": "./common.schema.json#/$defs/analysis_id"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "camera",
+        "gallery",
+        "paste",
+        "share",
+        "open_with"
+      ],
+      "description": "用户把内容交给 TapLens 的入口。"
+    },
+    "captured_at": {
+      "$ref": "./common.schema.json#/$defs/timestamp"
+    },
+    "claims_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000,
+      "description": "OCR 或用户补充的页面宣称；没有时为 null。"
+    },
+    "targets": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/target"
+      },
+      "description": "需要解析或分析的链接、Deep Link 或二维码载荷。"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "client": {
+      "$ref": "#/$defs/client"
+    }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "targets": {
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "claims_text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "value",
+        "label",
+        "redacted"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "url",
+            "deep_link",
+            "qr_payload"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "description": "已清理控制字符的链接或二维码文本；不得放入账号、密码或原始海报图片。"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "redacted": {
+          "type": "boolean",
+          "description": "是否已在手机端完成敏感字段遮盖或清理。"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "redaction_applied",
+        "redaction_count",
+        "raw_image_sent"
+      ],
+      "properties": {
+        "redaction_applied": {
+          "type": "boolean"
+        },
+        "redaction_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_image_sent": {
+          "const": false,
+          "description": "首版只发送脱敏后的文本或载荷，不把原始图片上传到云端。"
+        }
+      }
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "app_version",
+        "platform"
+      ],
+      "properties": {
+        "app_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "platform": {
+          "const": "android"
+        }
+      }
+    }
+  }
+}

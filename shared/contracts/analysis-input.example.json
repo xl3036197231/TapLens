@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "source": "gallery",
+  "captured_at": "2026-09-21T06:00:00Z",
+  "claims_text": "校园助学金申请，填写姓名和学号即可。",
+  "targets": [
+    {
+      "type": "url",
+      "value": "https://start.example/aid",
+      "label": "扫码申请",
+      "redacted": true
+    }
+  ],
+  "privacy": {
+    "redaction_applied": true,
+    "redaction_count": 0,
+    "raw_image_sent": false
+  },
+  "client": {
+    "app_version": "0.1.0",
+    "platform": "android"
+  }
+}
