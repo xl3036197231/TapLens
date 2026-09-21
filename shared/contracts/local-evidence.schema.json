@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taplens.example/schemas/local-evidence.schema.json",
+  "title": "TapLens local evidence",
+  "description": "手机端静态预检产生的、已脱敏且可追溯的证据。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "processed_at",
+    "processing_status",
+    "target",
+    "observations",
+    "evidence",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {"$ref": "./common.schema.json#/$defs/schema_version"},
+    "analysis_id": {"$ref": "./common.schema.json#/$defs/analysis_id"},
+    "processed_at": {"$ref": "./common.schema.json#/$defs/timestamp"},
+    "processing_status": {"$ref": "./common.schema.json#/$defs/local_processing_status"},
+    "target": {"$ref": "#/$defs/target"},
+    "observations": {"$ref": "#/$defs/observations"},
+    "evidence": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"$ref": "./common.schema.json#/$defs/error"}
+    }
+  },
+  "$defs": {
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_type",
+        "display_value",
+        "scheme",
+        "host",
+        "path",
+        "parameters",
+        "package_name",
+        "fallback_url",
+        "extras",
+        "candidate_apps"
+      ],
+      "properties": {
+        "input_type": {"type": "string", "enum": ["url", "deep_link", "intent"]},
+        "display_value": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "scheme": {"type": "string", "minLength": 1, "maxLength": 64},
+        "host": {"type": ["string", "null"], "maxLength": 255},
+        "path": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {"type": "array", "items": {"type": "string", "maxLength": 1000}}
+        },
+        "package_name": {"type": ["string", "null"], "maxLength": 255},
+        "fallback_url": {"type": ["string", "null"], "maxLength": 4096},
+        "extras": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "maxLength": 1000}
+        },
+        "candidate_apps": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {"$ref": "#/$defs/candidate_app"}
+        }
+      }
+    },
+    "candidate_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_name", "label", "matches_expected"],
+      "properties": {
+        "package_name": {"type": "string", "minLength": 1, "maxLength": 255},
+        "label": {"type": "string", "minLength": 1, "maxLength": 200},
+        "matches_expected": {"type": ["boolean", "null"]}
+      }
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launched_external_app", "network_accessed", "parser_version"],
+      "properties": {
+        "launched_external_app": {"const": false},
+        "network_accessed": {"const": false},
+        "parser_version": {"type": "string", "const": "android-static-v1"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "title", "detail"],
+      "properties": {
+        "id": {"$ref": "./common.schema.json#/$defs/local_evidence_id"},
+        "kind": {
+          "type": "string",
+          "enum": ["input", "url", "deep_link", "package", "fallback", "parameter"]
+        },
+        "title": {"type": "string", "minLength": 1, "maxLength": 200},
+        "detail": {"type": "string", "minLength": 1, "maxLength": 2000}
+      }
+    }
+  }
+}
