@@ -9,7 +9,9 @@ description = "TapLens account, quota and isolated web analysis service"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "argon2-cffi>=25.1,<26.0",
   "fastapi>=0.115,<1.0",
+  "PyJWT>=2.10,<3.0",
   "pydantic-settings>=2.7,<3.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]

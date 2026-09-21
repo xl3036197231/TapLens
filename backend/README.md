@@ -7,12 +7,16 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 第一阶段已提供：
 
 - `GET /api/v1/health`；
+- `POST /api/v1/auth/register`和`POST /api/v1/auth/login`；
+- SQLite用户表、大小写无关的用户名唯一约束；
+- Argon2id密码哈希和HS256短期访问令牌；
 - 环境变量配置；
 - 后端最小测试；
 - 云端证据 Schema 与 fixture 校验；
 - Playwright 本地无害页面最小实验脚本。
+- 云端目标URL、私网、链路本地、保留地址和DNS解析结果预检。
 
-账号、JWT、额度、任务状态机和生产沙箱尚未实现。
+每日额度、任务状态机、认证后接口保护和生产沙箱尚未实现。
 
 ## 本地运行
 

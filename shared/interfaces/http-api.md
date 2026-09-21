@@ -59,11 +59,36 @@
 
 成功：`201 Created`。密码只接收HTTPS请求，使用Argon2id哈希，绝不写入日志。
 
+```json
+{
+  "user_id": "2e1e585a-d36c-4b62-9086-76841b1f0001",
+  "username": "demo_user",
+  "created_at": "2026-09-21T02:00:00Z"
+}
+```
+
+用户名当前草案为3～32位ASCII字母、数字或下划线；密码为8～128个字符。用户名按大小写无关方式判重。
+
 ## 4. 登录
 
 ### `POST /api/v1/auth/login`
 
 请求字段与注册相同。成功时返回JWT及过期时间；不在响应中返回密码哈希。
+
+```json
+{
+  "access_token": "<JWT>",
+  "token_type": "bearer",
+  "expires_at": "2026-09-21T03:00:00Z",
+  "user": {
+    "user_id": "2e1e585a-d36c-4b62-9086-76841b1f0001",
+    "username": "demo_user",
+    "created_at": "2026-09-21T02:00:00Z"
+  }
+}
+```
+
+用户名不存在和密码错误均返回相同的 `AUTH_INVALID_CREDENTIALS`，不暴露账号是否存在。
 
 ## 5. 查询额度
 
@@ -80,7 +105,7 @@
 }
 ```
 
-额度按服务器确定的UTC日界线计算；冻结前需由A确认界面文案是否显示本地日期。
+额度日界线可由服务器配置，当前开发默认使用 `Asia/Shanghai`；`resets_at` 始终以UTC时间返回。冻结前需由A确认界面如何显示本地日期。
 
 ## 6. 创建深度分析任务
 
