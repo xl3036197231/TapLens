@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 from app.tasks.schemas import DeepScanTaskResponse
 
@@ -10,6 +11,7 @@ from app.tasks.schemas import DeepScanTaskResponse
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 HTTP_FIXTURE_DIRECTORY = REPOSITORY_ROOT / "shared/fixtures/http"
 CLOUD_SCHEMA_PATH = REPOSITORY_ROOT / "shared/contracts/cloud-evidence.schema.json"
+COMMON_SCHEMA_PATH = REPOSITORY_ROOT / "shared/contracts/common.schema.json"
 
 
 @pytest.mark.parametrize(
@@ -24,9 +26,15 @@ def test_deep_scan_http_fixture_matches_models_and_contract(fixture_path: Path) 
     if cloud_evidence is None:
         return
     schema = json.loads(CLOUD_SCHEMA_PATH.read_text(encoding="utf-8"))
+    common_schema = json.loads(COMMON_SCHEMA_PATH.read_text(encoding="utf-8"))
+    registry = Registry().with_resource(
+        common_schema["$id"],
+        Resource.from_contents(common_schema),
+    )
     errors = list(
         Draft202012Validator(
             schema,
+            registry=registry,
             format_checker=FormatChecker(),
         ).iter_errors(cloud_evidence)
     )

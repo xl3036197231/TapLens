@@ -5,10 +5,12 @@ from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = REPOSITORY_ROOT / "shared/contracts/cloud-evidence.schema.json"
+COMMON_SCHEMA_PATH = REPOSITORY_ROOT / "shared/contracts/common.schema.json"
 EXAMPLE_PATH = REPOSITORY_ROOT / "shared/contracts/cloud-evidence.example.json"
 FIXTURE_DIRECTORY = REPOSITORY_ROOT / "shared/fixtures/cloud"
 
@@ -19,8 +21,17 @@ def load_json(path: Path) -> Any:
 
 def validator() -> Draft202012Validator:
     schema = load_json(SCHEMA_PATH)
+    common_schema = load_json(COMMON_SCHEMA_PATH)
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+    registry = Registry().with_resource(
+        common_schema["$id"],
+        Resource.from_contents(common_schema),
+    )
+    return Draft202012Validator(
+        schema,
+        registry=registry,
+        format_checker=FormatChecker(),
+    )
 
 
 @pytest.mark.parametrize(

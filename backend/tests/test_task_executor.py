@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 
 from app.auth.passwords import PasswordService
 from app.sandbox.collector import CollectorError, CollectorResult
@@ -19,6 +20,7 @@ from app.tasks.service import TaskService
 
 NOW = datetime(2026, 9, 21, 2, 0, tzinfo=UTC)
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "shared/contracts/cloud-evidence.schema.json"
+COMMON_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "shared/contracts/common.schema.json"
 
 
 class SuccessfulCollector:
@@ -126,7 +128,16 @@ def build_executor(tmp_path, collector):
 
 def validate_cloud_evidence(document: dict[str, object]) -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    common_schema = json.loads(COMMON_SCHEMA_PATH.read_text(encoding="utf-8"))
+    registry = Registry().with_resource(
+        common_schema["$id"],
+        Resource.from_contents(common_schema),
+    )
     errors = list(
-        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(document)
+        Draft202012Validator(
+            schema,
+            registry=registry,
+            format_checker=FormatChecker(),
+        ).iter_errors(document)
     )
     assert errors == [], "\n".join(error.message for error in errors)

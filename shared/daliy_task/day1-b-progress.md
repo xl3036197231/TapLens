@@ -2,7 +2,6 @@
 
 > 负责人：B  
 > 分支：`feat/b-backend-bootstrap`  
-> 当前提交：`c0f9b2a`  
 > 更新日期：2026-09-21
 
 ## 1. 已完成
@@ -19,7 +18,10 @@
 - 实现独立 worker，可读取排队任务、运行采集并组装 `cloud-evidence`。
 - 实现成功、超时、浏览器失败和证据组装失败处理。
 - 补齐 queued、running、succeeded、failed 四种 Flutter 联调响应。
-- 已通过 69 项自动化测试。
+- 云端证据 Schema 已改为引用 A 的 `common.schema.json`。
+- 已增加 A/B/D 契约串联、证据编号、来源、风险状态和 Token 用量语义测试。
+- 已增加“注册 → 登录 → 创建云任务 → 执行 → 查询成功结果”端到端测试。
+- 当前 A+B+D 合并基线的 pytest 结果为 `78 passed, 1 skipped`。
 
 ## 2. 已回应 A 的审核意见
 
@@ -52,10 +54,9 @@
 
 ## 4. 当前阻塞与下一步
 
-- 等待 A 将 `common.schema.json` 合并进 `main`。
-- A 合并后，B 需要同步 `main`，把 `cloud-evidence.schema.json` 中重复的 UUID、时间、状态、证据 ID 和错误对象改为引用 `common.schema.json`。
-- 等待 A 复审 HTTP 接口和联调 fixture；通过后再将云证据契约从 `DRAFT` 改为 `FROZEN-v1`。
-- 后续还需完成运行中 worker 崩溃恢复、生产级队列和公网 HTTPS 部署。
+- C 尚未上传 `local-evidence.schema.json`和示例，因此本地证据与 D 报告的联调测试暂时跳过。
+- C 合并后，B 只需在四分支完整代码上重新运行全部 pytest，并确认该测试不再跳过。
+- 今日 B 不扩展公网部署、生产队列、worker 恢复或真正 AI 调用。
 
 ## 5. 当前不需要其他成员等待的部分
 

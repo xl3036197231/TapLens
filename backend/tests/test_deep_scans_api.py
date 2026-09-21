@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -7,11 +8,76 @@ from httpx import ASGITransport, AsyncClient, Response
 
 from app.core.config import Settings
 from app.main import create_app
+from app.sandbox.collector import CollectorResult
 from app.storage.tasks import TaskRepository
+from app.tasks.executor import TaskExecutor
 from app.tasks.service import TaskService
 
 
 TEST_SECRET = "test-secret-that-is-long-enough-for-deep-scan-tests"
+
+
+class FlowCollector:
+    async def collect(self, *, task_id: str, target_url: str) -> CollectorResult:
+        return CollectorResult(
+            final_url="https://result.example/page",
+            title="Flow result",
+            text_summary="Controlled end-to-end test result.",
+            redirects=[],
+            requests=[{
+                "origin": "https://result.example",
+                "method": "GET",
+                "resource_type": "document",
+                "status_code": 200,
+            }],
+            forms=[],
+            blocked_actions=[],
+            screenshot_path=Path(f"/tmp/{task_id}.png"),
+            limitations=[],
+        )
+
+
+def test_register_login_create_execute_and_query_complete_flow(tmp_path) -> None:
+    app = build_test_app(tmp_path)
+    credentials = {"username": "Flow_User", "password": "correct-horse"}
+
+    registration = request(app, "POST", "/api/v1/auth/register", json=credentials)
+    assert registration.status_code == 201
+    login = request(app, "POST", "/api/v1/auth/login", json=credentials)
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+
+    created = request(
+        app,
+        "POST",
+        "/api/v1/deep-scans",
+        token=token,
+        json={"analysis_id": str(uuid4()), "url": "https://8.8.8.8/flow"},
+    )
+    assert created.status_code == 202
+    assert created.json()["remaining"] == 1
+    task_id = UUID(created.json()["task_id"])
+
+    repository = TaskRepository(app.state.database)
+    service = TaskService(
+        repository=repository,
+        daily_limit=2,
+        quota_timezone=ZoneInfo("Asia/Shanghai"),
+    )
+    executor = TaskExecutor(
+        repository=repository,
+        service=service,
+        collector=FlowCollector(),
+        public_base_url="https://api.example",
+    )
+    assert asyncio.run(executor.execute(task_id)) is True
+
+    result = request(app, "GET", f"/api/v1/deep-scans/{task_id}", token=token)
+    assert result.status_code == 200
+    assert result.json()["status"] == "succeeded"
+    assert result.json()["cloud_evidence"]["task_id"] == str(task_id)
+    assert result.json()["cloud_evidence"]["status"] == "succeeded"
+    assert result.json()["error"] is None
 
 
 def test_create_and_poll_deep_scan(tmp_path) -> None:
