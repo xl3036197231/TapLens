@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "22222222-2222-4222-8222-222222222222",
+  "created_at": "2026-09-21T08:31:00Z",
+  "risk_level": "high",
+  "consistency": "contradictory",
+  "title": "助学金宣传与实际贷款页面不一致",
+  "target": {
+    "type": "url",
+    "display": "https://go.example.test/apply?student_id=REDACTED",
+    "redacted": true
+  },
+  "summary": "实际页面进入第三方贷款流程，并索取宣传未说明的敏感信息。",
+  "claim": {
+    "summary": "校园助学金申请",
+    "subject": "某大学资助中心",
+    "purpose": "申请助学金",
+    "requested_data": ["姓名", "学号"],
+    "intended_target": "学校资助服务"
+  },
+  "observed_behavior": {
+    "summary": "页面跳转至第三方贷款域名，并出现身份证号和手机号字段。",
+    "subjects": ["第三方贷款平台"],
+    "purposes": ["贷款申请"],
+    "collected_data": ["身份证号", "手机号"],
+    "destinations": ["loan.example.test"],
+    "actions": ["redirect", "sensitive_form"],
+    "evidence_ids": ["L01", "L02", "C01"]
+  },
+  "differences": [
+    {
+      "id": "D01",
+      "dimension": "purpose",
+      "severity": "critical",
+      "description": "助学金申请与贷款申请目的不一致。",
+      "evidence_ids": ["L01", "C01"]
+    },
+    {
+      "id": "D02",
+      "dimension": "data",
+      "severity": "critical",
+      "description": "额外索取身份证号和手机号。",
+      "evidence_ids": ["L02", "C01"]
+    }
+  ],
+  "recommendations": [
+    "不要填写敏感信息。",
+    "通过学校官方渠道重新核验入口。"
+  ],
+  "evidence": [
+    {
+      "id": "L01",
+      "source": "local",
+      "title": "最终地址",
+      "detail": "本地预检记录最终地址为 loan.example.test。"
+    },
+    {
+      "id": "L02",
+      "source": "local",
+      "title": "敏感字段",
+      "detail": "检测到身份证号和手机号字段，提交动作被阻止。"
+    },
+    {
+      "id": "C01",
+      "source": "cloud",
+      "title": "跳转链",
+      "detail": "云端预检确认页面进入第三方贷款流程。"
+    }
+  ],
+  "uncertainty": {
+    "status": "known",
+    "summary": "关键目的和敏感字段均有证据支持。",
+    "reasons": [],
+    "missing_evidence": []
+  },
+  "sources": {
+    "local": true,
+    "cloud": true,
+    "ai": false
+  },
+  "token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  }
+}
