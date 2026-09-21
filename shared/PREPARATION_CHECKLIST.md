@@ -4,10 +4,10 @@
 
 ## A：Flutter与整合
 
-- [ ] 确认正式 Android application ID，替换临时 `com.example.taplens_mobile`；
+- [x] 确认正式 Android application ID 为 com.taplens.app，临时包名已替换；
 - [ ] 补充仓库根目录 `.gitignore`；
-- [ ] 创建 `common.schema.json`，交由B、C、D共同确认；
-- [ ] 创建 `analysis-input.schema.json` 和正常/异常示例；
+- [x] 创建 common.schema.json，交由B、C、D共同确认；
+- [x] 创建 analysis-input.schema.json 和正常示例；异常示例待契约评审后补入 fixture；
 - [ ] 确认B的HTTP API能覆盖登录、额度和云任务状态；
 - [ ] 确认C的MethodChannel输入输出能被Flutter解析；
 - [ ] 确认D的报告结构能被结果页完整展示；

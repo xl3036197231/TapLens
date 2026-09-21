@@ -21,3 +21,4 @@ flutter run
 - `lib/models/analysis_report.dart`：报告数据模型和风险枚举
 - `lib/data/demo_report.dart`：第一天联调固定报告
 - `test/widget_test.dart`：首屏最小组件测试
+Official Android application ID: `com.taplens.app`. Deep Link allow-lists and APK identity checks must use this package name.

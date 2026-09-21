@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taplens.example/schemas/common.schema.json",
+  "title": "TapLens common contract definitions",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "首版共享契约版本。字段变化必须先更新版本并完成评审。"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RFC 4122 UUID 字符串。"
+    },
+    "analysis_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "task_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC ISO 8601 时间；推荐使用 Z 结尾。"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "insufficient_evidence"
+      ]
+    },
+    "consistency": {
+      "type": "string",
+      "enum": [
+        "consistent",
+        "partially_inconsistent",
+        "contradictory",
+        "unknown"
+      ]
+    },
+    "cloud_task_status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "expired"
+      ]
+    },
+    "local_processing_status": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "partial",
+        "failed"
+      ]
+    },
+    "local_evidence_id": {
+      "type": "string",
+      "pattern": "^L[0-9]{2,}$",
+      "description": "手机侧证据编号，例如 L01。"
+    },
+    "cloud_evidence_id": {
+      "type": "string",
+      "pattern": "^C[0-9]{2,}$",
+      "description": "云端证据编号，例如 C01。"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "details"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^(APP|AUTH|QUOTA|CLOUD|LOCAL|DEEPLINK|AI|REPORT)_[A-Z0-9_]+$"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "details": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}
