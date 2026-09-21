@@ -9,7 +9,7 @@
             android:name=".LocalSafetyTestActivity"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.example.taplens_mobile.DEBUG_LOCAL_SAFETY"/>
+                <action android:name="com.taplens.app.DEBUG_LOCAL_SAFETY"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>

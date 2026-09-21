@@ -1,11 +1,11 @@
-package com.example.taplens_mobile
+package com.taplens.app
 
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 object NativeBridge : MethodChannel.MethodCallHandler {
-    const val CHANNEL_NAME = "com.example.taplens_mobile/local_safety"
+    const val CHANNEL_NAME = "com.taplens.app/local_safety"
 
     val dayOneSamples = listOf(
         "https://scholarship.example.test/apply?source=poster",

@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50001",
+  "processed_at": "2026-09-21T08:00:00Z",
+  "processing_status": "succeeded",
+  "target": {
+    "input_type": "intent",
+    "display_value": "intent://open/course?id=42#Intent;scheme=taplens-campus;package=com.example.fakecampus;S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback;S.student_id=REDACTED;end",
+    "scheme": "taplens-campus",
+    "host": "open",
+    "path": "/course",
+    "parameters": {"id": ["42"]},
+    "package_name": "com.example.fakecampus",
+    "fallback_url": "https://safe.example.test/fallback",
+    "extras": {"student_id": "REDACTED"},
+    "candidate_apps": []
+  },
+  "observations": {
+    "launched_external_app": false,
+    "network_accessed": false,
+    "parser_version": "android-static-v1"
+  },
+  "evidence": [
+    {"id": "L01", "kind": "deep_link", "title": "目标 Scheme", "detail": "taplens-campus"},
+    {"id": "L02", "kind": "package", "title": "Intent 指定包名", "detail": "com.example.fakecampus"},
+    {"id": "L03", "kind": "fallback", "title": "失败回退地址", "detail": "https://safe.example.test/fallback"}
+  ],
+  "errors": []
+}

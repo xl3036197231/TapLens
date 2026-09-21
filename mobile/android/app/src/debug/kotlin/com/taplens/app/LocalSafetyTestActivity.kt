@@ -1,4 +1,4 @@
-package com.example.taplens_mobile
+package com.taplens.app
 
 import android.app.Activity
 import android.os.Bundle
