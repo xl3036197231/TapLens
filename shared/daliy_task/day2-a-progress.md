@@ -1,8 +1,8 @@
 # A 第二天工作进度
 
-> 负责人：A  
-> 分支：`feat/a-day2-app`  
-> 代码提交：`3169e5a`  
+> 负责人：A
+> 分支：`feat/a-mobile-function`
+> 最新提交：`cd74f7c`
 > 日期：2026-09-22
 
 ## 今日已完成
@@ -17,7 +17,7 @@
 - 增加云端 HTTP 客户端：健康检查、登录、额度、创建任务、查询任务和轮询。
 - 增加云端分析页面，可配置局域网后端地址并展示额度、任务状态和错误。
 - 后端客户端不会接收或发送 DeepSeek Key。
-- 增加正式报告解析、本地证据转换和 HTTP 任务轮询测试。
+- 增加正式报告解析、本地证据转换、HTTP 任务轮询和首页到本地预检到报告的交互测试。
 
 ## 验证结果
 
@@ -28,15 +28,27 @@ flutter analyze
 No issues found!
 
 ./tool/test.sh -r expanded
-All tests passed!（6 项）
+All tests passed!（8 项）
 ```
+
+本次 8 项测试覆盖：
+
+- 首页入口进入本地安全预检。
+- URL 预览结果展示“未启动外部应用、未访问网络”的安全边界。
+- 固定演示报告打开、风险等级、建议和证据范围展示。
+- 云端分析页缺少密码时的可理解提示。
+- 登录和额度响应模型转换。
+- 云任务从 queued 轮询到 succeeded。
+- 正式报告模型转换。
+- Deep Link 本地证据字段和非法输入错误处理。
 
 ## 当前环境限制
 
 - Android Debug APK 编译已尝试。
 - Gradle Wrapper 下载 Gradle 发行包时发生网络超时，暂时无法在当前环境完成 APK 编译。
-- 真机安装需要 Android SDK/Gradle 下载恢复后继续。
-- 云端分析页已经具备接口和轮询代码，但需要 B 提供可访问的后端地址和可用测试账号才能进行真实请求。
+- 真机安装和真实 MethodChannel 执行需要 Android SDK/Gradle 下载恢复后继续。
+- Flutter 项目当前未配置 Web 平台，执行 `flutter build web --release` 会提示先运行 `flutter create . --platforms web`；这不影响目标 Android 客户端。
+- 云端分析页已经具备接口和轮询代码，但需要 B 提供可访问的后端地址和可用测试账号才能进行真实请求；当前 HTTP 测试使用 MockClient。
 
 ## 与 C、D 的关系
 
