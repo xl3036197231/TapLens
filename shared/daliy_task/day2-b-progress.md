@@ -1,8 +1,8 @@
 # B Day 2 工作进度
 
-> 负责人：B  
-> 分支：`feat/b-backend-bootstrap`  
-> 更新日期：2026-09-22  
+> 负责人：B
+> 分支：`feat/b-backend-bootstrap`
+> 更新日期：2026-09-22
 > 当前阶段：B 云端采集完成，等待 A/C 真机整链路
 
 ## 1. 已完成的前置工作
