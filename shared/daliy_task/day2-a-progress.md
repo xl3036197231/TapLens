@@ -2,7 +2,7 @@
 
 > 负责人：A
 > 分支：`feat/a-mobile-function`
-> 最新提交：`0eb92a9`
+> 最新提交：`93d9713`
 > 日期：2026-09-22
 
 ## 今日已完成
@@ -22,6 +22,7 @@
 - 解析候选包名和期望包名字段；敏感参数、Intent extra 和云端提交值会先脱敏。
 - 本地预检页展示本地证据编号和详情，方便 D 的报告引用。
 - 每次本地预检生成独立 UUID，避免不同扫描共用示例 analysis_id。
+- 云端任务成功后，APP 根据 B 的 cloud_evidence 生成实际报告，不再只打开固定演示报告。
 
 ## 验证结果
 
@@ -32,10 +33,10 @@ flutter analyze
 No issues found!
 
 ./tool/test.sh -r expanded
-All tests passed!（10 项）
+All tests passed!（11 项）
 ```
 
-本次 10 项测试覆盖：
+本次 11 项测试覆盖：
 
 - 首页入口进入本地安全预检。
 - URL 预览结果展示“未启动外部应用、未访问网络”的安全边界。
@@ -47,6 +48,7 @@ All tests passed!（10 项）
 - Deep Link 本地证据字段和非法输入错误处理。
 - local-evidence JSON 的 Lxx 编号、契约字段和错误对象。
 - 敏感查询参数和 Intent extra 的脱敏传递。
+- B 的 cloud_evidence 到手机分析报告的投影。
 
 ## 当前环境限制
 
