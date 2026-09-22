@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../services/local_safety_service.dart';
 
 class LocalEvidence {
@@ -23,7 +25,7 @@ class LocalEvidence {
 
   factory LocalEvidence.fromResult(
     LocalSafetyResult result, {
-    String analysisId = '6b368c4b-4d97-4a87-bd62-b3d8c2d50001',
+    String? analysisId,
     DateTime? processedAt,
   }) {
     final evidence = <LocalEvidenceItem>[];
@@ -129,7 +131,7 @@ class LocalEvidence {
 
     return LocalEvidence(
       schemaVersion: '1.0',
-      analysisId: analysisId,
+      analysisId: analysisId ?? _newAnalysisId(),
       processedAt: (processedAt ?? DateTime.now()).toUtc(),
       processingStatus: result.isSuccess ? 'succeeded' : 'failed',
       target: LocalEvidenceTarget.fromResult(result),
@@ -278,6 +280,22 @@ class LocalEvidenceError {
       'details': details,
     };
   }
+}
+
+String _newAnalysisId() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex =
+      bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  return [
+    hex.substring(0, 8),
+    hex.substring(8, 12),
+    hex.substring(12, 16),
+    hex.substring(16, 20),
+    hex.substring(20, 32),
+  ].join('-');
 }
 
 String _displayValues(String key, List<String> values) {
