@@ -1,10 +1,10 @@
 # TapLens AI 客户端边界（D 维护）
 
-状态：`DRAFT`。待 A、C 审核报告字段和硬风险降级规则后，再标记为 `FROZEN-v1`。
+状态：`READY-FOR-DAY2-INTEGRATION`。真实 API 调用、Keystore 适配和页面接入仍由手机端整合阶段完成。
 
 ## 所在位置
 
-DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。A 负责把 AI 模块接入页面流程和 Keystore；D 负责请求结构、Prompt、响应校验和错误映射。
+DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。D 提供请求、Mock、响应校验和错误映射；A 负责把 AI 模块接入页面流程和 Android Keystore。
 
 ## 请求边界
 
@@ -42,6 +42,16 @@ DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。A
 | `AI_INVALID_JSON` | 返回无法解析为 JSON | 否 | 丢弃 AI 结论，显示规则报告 |
 | `REPORT_INVALID_EVIDENCE_ID` | 引用了不存在的 Lxx/Cxx | 否 | 丢弃 AI 结论，显示规则报告 |
 | `REPORT_HARD_RISK_DOWNGRADED` | AI 试图降低规则硬风险 | 否 | 使用规则风险等级和报告 |
+
+## Day 2 本地实现
+
+- `mobile/lib/ai/ai_client.dart`：稳定的请求、响应、用量和错误类型；
+- `mobile/lib/ai/deepseek_ai_client.dart`：手机直连 DeepSeek，不经过后端；
+- `mobile/lib/ai/mock_ai_client.dart`：离线演示和失败回退测试；
+- `mobile/lib/ai/analysis_report_guard.dart`：JSON、证据编号、风险状态和 Token 约束；
+- `mobile/lib/ai/ai_report_service.dart`：校验失败、超时或 Key 错误时回退规则报告。
+
+客户端不得记录 `apiKey`、Authorization 头或完整请求。Day 2 的测试只使用 `shared/fixtures/ai/` 中的脱敏报告内容。
 
 ## Key 生命周期
 

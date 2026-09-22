@@ -18,6 +18,7 @@ from referencing import Registry, Resource
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "shared" / "contracts"
 REPORTS = ROOT / "shared" / "fixtures" / "reports"
+AI_FIXTURES = ROOT / "shared" / "fixtures" / "ai"
 
 
 def schema_registry() -> Registry:
@@ -61,7 +62,8 @@ def main() -> int:
     report_validator = validator_for(CONTRACTS / "analysis-report.schema.json")
 
     failures: list[str] = []
-    for report_path in sorted(REPORTS.glob("*.json")):
+    report_paths = sorted(REPORTS.glob("*.json")) + [AI_FIXTURES / "mock-success-report.json"]
+    for report_path in report_paths:
         report = load_json(report_path)
         schema_errors = errors_for(report_validator, report)
         if schema_errors:
@@ -103,7 +105,7 @@ def main() -> int:
     print("REPORT CONTRACT CHECK PASSED")
     print(f"local evidence ids: {sorted(local_ids)}")
     print(f"cloud evidence ids: {sorted(cloud_ids)}")
-    print(f"reports checked: {len(list(REPORTS.glob('*.json')))}")
+    print(f"reports checked: {len(report_paths)}")
     return 0
 
 

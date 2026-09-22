@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="case-id" content="day2-short-link-high-risk">
+  <meta name="data-policy" content="test-only-no-submit">
+  <title>Example Campus single sign-on</title>
+  <style>
+    body { font-family: sans-serif; max-width: 32rem; margin: 3rem auto; padding: 0 1rem; }
+    label { display: block; margin-top: 1rem; }
+    input { box-sizing: border-box; display: block; padding: .6rem; width: 100%; }
+    .notice { background: #fff3cd; padding: .8rem; }
+  </style>
+</head>
+<body>
+  <h1>Example Campus login</h1>
+  <p class="notice">Training fixture only. Never enter a real password.</p>
+  <form method="post" action="./blocked-submit" autocomplete="off">
+    <label>Student ID <input name="student_id" value="REDACTED" /></label>
+    <label>Password <input name="password" type="password" value="TEST_ONLY" /></label>
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>

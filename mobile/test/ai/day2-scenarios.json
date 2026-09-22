@@ -1,0 +1,32 @@
+[
+  {
+    "case_id": "day2-short-link-high-risk",
+    "site_root": "mobile/test/ai/day2_site",
+    "entry_file": "short-link.html",
+    "redirect_chain": ["short-link.html", "campus-login.html"],
+    "expected_risk_level": "high",
+    "expected_evidence_kinds": ["redirect", "form", "page"],
+    "expected_cloud_ids": ["C01", "C02"],
+    "expected_report": "shared/fixtures/reports/day2-short-link-high-risk.json"
+  },
+  {
+    "case_id": "day2-safe-info",
+    "site_root": "mobile/test/ai/day2_site",
+    "entry_file": "safe-info.html",
+    "redirect_chain": ["safe-info.html"],
+    "expected_risk_level": "low",
+    "expected_evidence_kinds": ["page"],
+    "expected_cloud_ids": ["C01"],
+    "expected_report": "shared/fixtures/reports/low-risk.json"
+  },
+  {
+    "case_id": "day2-insufficient",
+    "site_root": "mobile/test/ai/day2_site",
+    "entry_file": "insufficient-evidence.html",
+    "redirect_chain": ["insufficient-evidence.html"],
+    "expected_risk_level": "insufficient_evidence",
+    "expected_evidence_kinds": ["page", "error"],
+    "expected_cloud_ids": [],
+    "expected_report": "shared/fixtures/reports/insufficient-evidence.json"
+  }
+]
