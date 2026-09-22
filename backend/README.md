@@ -56,6 +56,10 @@ cd backend
 
 本地只处理当前队列并退出可使用`.venv/bin/python scripts/run_worker.py --once`。正式环境必须配置`TAPLENS_PUBLIC_BASE_URL`，使证据中的截图地址指向对外HTTPS服务。
 
+## 局域网手机联调
+
+开发机和手机处于同一可信 Wi-Fi 时，可让服务监听 `0.0.0.0:8000`，并由 A 把 Flutter 的开发环境基础地址配置为 `http://<开发机局域网IP>:8000/api/v1`。完整环境变量、启动命令、注册到轮询流程及失败场景见 `shared/interfaces/backend-lan-integration.md`。该方式仅用于开发联调，不是公网部署方案。
+
 ## Playwright 最小实验
 
 安装可选依赖和 Chromium：
@@ -71,7 +75,7 @@ cd backend
 
 ## 安全约束
 
-- 不接收或记录 DeepSeek Key；
+- 不接收或记录 DeepSeek Key；请求对象会拒绝包括 `deepseek_key` 在内的未声明字段，错误响应不回显字段值；
 - 不把真实密钥写入 `.env.example`；
 - 不记录完整敏感查询参数或Authorization头；
 - 正式云任务必须在访问前后进行IP检查并阻止私网、保留地址和云元数据地址；

@@ -56,6 +56,27 @@ def test_registration_rejects_case_insensitive_duplicate(tmp_path) -> None:
     }
 
 
+def test_registration_rejects_unknown_fields_without_echoing_them(tmp_path) -> None:
+    app = build_test_app(tmp_path)
+    secret = "sk-test-must-never-be-accepted"
+
+    response = request(
+        app,
+        "POST",
+        "/api/v1/auth/register",
+        json={
+            "username": "Strict_User",
+            "password": "correct-horse",
+            "deepseek_key": secret,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "AUTH_REQUEST_INVALID"
+    assert secret not in response.text
+    assert UserRepository(app.state.database).find_by_normalized_username("strict_user") is None
+
+
 def test_login_returns_decodable_access_token(tmp_path) -> None:
     app = build_test_app(tmp_path)
     credentials = {"username": "Student_01", "password": "correct-horse"}
