@@ -2,7 +2,7 @@
 
 > 负责人：A
 > 分支：`feat/a-mobile-function`
-> 最新提交：`9f7c5f8`
+> 最新提交：f71738b
 > 日期：2026-09-22
 
 ## 今日已完成
@@ -70,3 +70,25 @@ All tests passed!（11 项）
 - 该提交包含 D 的正式 analysis-report Schema、三份风险报告示例、AI 客户端说明和证据引用清单。
 - 50eeda0 已经是当前 feat/a-mobile-function 的祖先提交，D 的这部分成果已在 A 分支中，无需重复合并。
 - A 已使用 D 的报告示例初始化报告模型，并把 B 返回的 cloud_evidence 投影到同一个报告页面。
+
+## 2026-09-23 继续推进结果
+
+- A 分支已同步 D 的 AI 模块，并把 DeepSeekAiClient、AiReportService、证据守卫和规则报告回退接入云端报告页。
+- 报告页在发起 AI 请求前明确提示“一次调用可能消耗额度”，用户确认后才发送；DeepSeek Key 通过 Android Keystore 加密存储，不进入 B 的后端请求。
+- AI 输入只包含脱敏 URL、云端 Cxx 证据和规则硬风险；模型失败、证据编号错误或降级高风险时自动保留规则报告。
+- 修复 Android 调试测试 Activity 在当前 Kotlin 工具链下的兼容性问题：使用 setTextIsSelectable(true)。
+- 移除没有原生 NDK 代码时的强制 NDK 版本约束，Debug 构建不再因为 NDK 自动下载卡住。
+
+## 最新验证
+
+- Flutter 3.47.2 已安装到 D:\FlutterSDK\flutter，Android SDK 在 D:\AndroidSDK。
+- flutter analyze：无错误，仅保留原有提示级 lint。
+- AI 客户端、报告守卫和报告模型测试：17 passed。
+- gradlew assembleDebug --no-daemon：构建成功，APK 位于 mobile/build/app/outputs/flutter-apk/app-debug.apk（本地构建副本）。
+- APK 已安装到 TapLens_API35 Android 35 模拟器，主界面启动成功。
+- 模拟器原生调试入口已验证 URL、普通 Deep Link 和 intent:// 三个样例；能解析目标包名 com.example.fakecampus、回退地址和脱敏 student_id。
+
+## 仍需联调
+
+- 没有使用真实 DeepSeek Key，因此真实模型请求、余额和限流场景仍需由用户在手机报告页确认后测试。
+- 云端短链接主案例仍需要 B 后端在局域网启动并提供可用测试账号；当前已完成客户端调用链和报告页 AI 接入。

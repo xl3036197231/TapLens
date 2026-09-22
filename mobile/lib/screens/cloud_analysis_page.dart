@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../ai/ai_report_service.dart';
+import '../ai/cloud_ai_report_input.dart';
+import '../ai/deepseek_ai_client.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../services/cloud_scan_client.dart';
@@ -104,7 +107,40 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       if (mounted) setState(() => _loading = false);
     }
   }
-
+  Future<AiReportExecution> _runAiAnalysis({
+    required String apiKey,
+    required Map<String, dynamic> cloudEvidence,
+    required AnalysisReport ruleReport,
+  }) async {
+    final payload = CloudAiReportInput.buildPayload(
+      url: _urlController.text.trim(),
+      cloudEvidence: cloudEvidence,
+      ruleReport: ruleReport,
+    );
+    final availableEvidenceIds = (cloudEvidence['evidence'] is List
+            ? (cloudEvidence['evidence'] as List)
+            : const <Object>[])
+        .whereType<Map>()
+        .map((item) => item['id'])
+        .whereType<String>()
+        .toSet();
+    final result = await AiReportService(DeepSeekAiClient()).analyzeOrFallback(
+      apiKey: apiKey,
+      sanitizedPayload: payload,
+      availableEvidenceIds: availableEvidenceIds,
+      ruleReport: CloudAiReportInput.buildRuleReport(ruleReport),
+      hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
+    );
+    final report = AnalysisReport.fromJson(result.report);
+    final error = result.error;
+    return AiReportExecution(
+      report: report,
+      usedFallback: result.usedFallback,
+      message: error == null
+          ? null
+          : 'AI 未采用模型（${error.code.name}），已保留规则报告。',
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final quota = _quota;
@@ -211,12 +247,22 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => ReportPage(
-                            report: AnalysisReport.fromCloudEvidence(
-                              task.cloudEvidence ?? const {},
+                          builder: (_) {
+                            final cloudEvidence =
+                                task.cloudEvidence ?? const <String, dynamic>{};
+                            final ruleReport = AnalysisReport.fromCloudEvidence(
+                              cloudEvidence,
                               fallbackTarget: _urlController.text.trim(),
-                            ),
-                          ),
+                            );
+                            return ReportPage(
+                              report: ruleReport,
+                              aiRunner: (apiKey) => _runAiAnalysis(
+                                apiKey: apiKey,
+                                cloudEvidence: cloudEvidence,
+                                ruleReport: ruleReport,
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
