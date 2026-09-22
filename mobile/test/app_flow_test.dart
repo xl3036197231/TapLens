@@ -1,10 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taplens_mobile/main.dart';
 import 'package:taplens_mobile/screens/cloud_analysis_page.dart';
 
 void main() {
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
+    const channel = MethodChannel('com.taplens.app/local_safety');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'analyzeLink') {
+        return <String, dynamic>{
+          'input_type': 'url',
+          'scheme': 'https',
+          'host': 'scholarship.example.test',
+          'path': '/apply',
+          'parameters': <String, List<String>>{
+            'source': <String>['poster'],
+          },
+          'extras': <String, String>{},
+          'candidate_apps': <Map<String, dynamic>>[],
+          'launched_external_app': false,
+          'network_accessed': false,
+        };
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);

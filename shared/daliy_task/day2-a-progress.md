@@ -83,7 +83,7 @@ All tests passed!（11 项）
 
 - Flutter 3.47.2 已安装到 D:\FlutterSDK\flutter，Android SDK 在 D:\AndroidSDK。
 - flutter analyze：无错误，仅保留原有提示级 lint。
-- AI 客户端、报告守卫和报告模型测试：17 passed。
+- 完整 Flutter 测试：26 passed（含 AI 客户端、报告守卫、报告模型、首页流程和云端凭据提示）。
 - gradlew assembleDebug --no-daemon：构建成功，APK 位于 mobile/build/app/outputs/flutter-apk/app-debug.apk（本地构建副本）。
 - APK 已安装到 TapLens_API35 Android 35 模拟器，主界面启动成功。
 - 模拟器原生调试入口已验证 URL、普通 Deep Link 和 intent:// 三个样例；能解析目标包名 com.example.fakecampus、回退地址和脱敏 student_id。
