@@ -14,11 +14,16 @@
 - FastAPI 参数校验错误改为统一 `error` 对象；账号与云任务分别使用 `AUTH_REQUEST_INVALID`、`CLOUD_REQUEST_INVALID`。
 - 补齐局域网启动、A 的开发地址配置、注册到轮询命令和失败场景验证说明。
 - 保持 SSRF 私网阻断，不为尚未确定的 D 本地站点全局放开安全限制。
+- 增加仅限 `development/test` 的精确本机 Origin 白名单；只允许带端口的 `127.0.0.1`，生产环境禁止配置。
+- 增加受控测试站启动器，以真正的 HTTP `302` 提供 `/go/campus → /campus-login.html`，不依赖 HTML 或 JavaScript 跳转。
+- 增加真实 Playwright 集成测试，确认 `C01` 为跳转、`C02` 为敏感表单，POST 被阻止且表单值不进入证据。
+- 增加从健康检查、注册、登录、额度、创建任务到轮询结果的 `api_smoke_test.py`。
 
 ## 2. 测试记录
 
 - 同步最新 `main` 后基线：`79 passed`。
-- 本次变更后的最终结果：`81 passed in 2.75s`，无失败、无跳过项。
+- 第一批前置安全改动：`81 passed in 2.75s`，无失败、无跳过项。
+- 本机站点白名单与真实 Playwright 集成后的结果：`92 passed in 2.56s`，无失败、无跳过项。
 
 ## 3. A/C/D 现在需要读取
 

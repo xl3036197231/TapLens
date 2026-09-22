@@ -73,6 +73,32 @@ cd backend
 
 脚本只读取仓库中的 `fixtures/demo_page.html`，用于验证一次性 BrowserContext、标题、表单字段和截图采集。它不是正式公网沙箱，不能据此开放任意URL。
 
+## 受控本机站点联调
+
+仅在 `development` 或 `test` 环境可配置精确的本机 Origin：
+
+```text
+TAPLENS_TEST_ALLOWED_ORIGINS=http://127.0.0.1:8765
+```
+
+生产环境配置该字段会拒绝启动；其他主机、协议或端口仍由 SSRF 规则拦截。启动一个带真实 HTTP 302 的受控静态站：
+
+```bash
+cd backend
+.venv/bin/python scripts/run_test_site.py \
+  --directory /absolute/path/to/controlled/site \
+  --port 8765
+```
+
+默认入口 `http://127.0.0.1:8765/go/campus` 返回 `302` 到 `/campus-login.html`。HTTP 服务和 worker 必须使用相同的 `TAPLENS_TEST_ALLOWED_ORIGINS`。启动两者后可验证完整 API 流程：
+
+```bash
+.venv/bin/python scripts/api_smoke_test.py \
+  --target-url http://127.0.0.1:8765/go/campus
+```
+
+该放行只用于仓库内无害页面，不得指向第三方站点，也不得作为公网部署配置。
+
 ## 安全约束
 
 - 不接收或记录 DeepSeek Key；请求对象会拒绝包括 `deepseek_key` 在内的未声明字段，错误响应不回显字段值；

@@ -25,11 +25,13 @@ class TaskService:
         daily_limit: int,
         quota_timezone: ZoneInfo,
         artifact_ttl: timedelta = timedelta(minutes=30),
+        allowed_test_origins: tuple[str, ...] = (),
     ) -> None:
         self.repository = repository
         self.daily_limit = daily_limit
         self.quota_timezone = quota_timezone
         self.artifact_ttl = artifact_ttl
+        self.allowed_test_origins = allowed_test_origins
 
     def create(
         self,
@@ -40,8 +42,14 @@ class TaskService:
         now: datetime | None = None,
     ) -> CloudScanTask:
         try:
-            validated = validate_target_url(target_url)
-            resolve_and_validate_target(validated)
+            validated = validate_target_url(
+                target_url,
+                allowed_test_origins=self.allowed_test_origins,
+            )
+            resolve_and_validate_target(
+                validated,
+                allowed_test_origins=self.allowed_test_origins,
+            )
         except UnsafeTargetError as exc:
             raise AppError(
                 code=exc.code,

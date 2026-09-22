@@ -34,6 +34,7 @@ def task_service(request: Request) -> TaskService:
         daily_limit=settings.daily_quota_limit,
         quota_timezone=ZoneInfo(settings.quota_timezone),
         artifact_ttl=timedelta(minutes=settings.artifact_ttl_minutes),
+        allowed_test_origins=settings.allowed_test_origins,
     )
 
 
