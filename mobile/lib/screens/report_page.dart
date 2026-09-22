@@ -11,6 +11,7 @@ class ReportPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final riskColor = _riskColor(colors, report.riskLevel);
+    final tokenCount = report.totalTokens;
 
     return Scaffold(
       appBar: AppBar(title: const Text('分析报告')),
@@ -34,7 +35,10 @@ class ReportPage extends StatelessWidget {
                           children: [
                             Text(
                               report.riskLevel.label,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     color: riskColor,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -62,16 +66,42 @@ class ReportPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _CompareCard(report: report),
+              if (report.recommendations.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: '建议怎么做',
+                  icon: Icons.shield_outlined,
+                  child: _BulletGroup(
+                      title: '立即行动', items: report.recommendations),
+                ),
+              ],
+              if (report.uncertaintySummary.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: '证据范围',
+                  icon: Icons.info_outline_rounded,
+                  child: Text(report.uncertaintySummary),
+                ),
+              ],
               const SizedBox(height: 12),
               _SectionCard(
                 title: '证据',
                 icon: Icons.fact_check_outlined,
                 child: Column(
                   children: [
-                    for (final item in report.evidence) _EvidenceTile(item: item),
+                    for (final item in report.evidence)
+                      _EvidenceTile(item: item),
                   ],
                 ),
               ),
+              if (tokenCount != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'AI 本次使用约 $tokenCount tokens',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () {},
@@ -100,7 +130,8 @@ class _SectionCard extends StatelessWidget {
   final IconData icon;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard(
+      {required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -112,9 +143,11 @@ class _SectionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+                Icon(icon,
+                    size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 12),
@@ -170,7 +203,8 @@ class _BulletGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        Text(title,
+            style: TextStyle(color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: 4),
         for (final item in items)
           Padding(
