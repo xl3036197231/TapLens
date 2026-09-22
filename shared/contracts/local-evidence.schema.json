@@ -12,6 +12,7 @@
     "processing_status",
     "target",
     "observations",
+    "preflight",
     "evidence",
     "errors"
   ],
@@ -22,6 +23,7 @@
     "processing_status": {"$ref": "./common.schema.json#/$defs/local_processing_status"},
     "target": {"$ref": "#/$defs/target"},
     "observations": {"$ref": "#/$defs/observations"},
+    "preflight": {"$ref": "#/$defs/preflight"},
     "evidence": {
       "type": "array",
       "maxItems": 100,
@@ -45,6 +47,7 @@
         "path",
         "parameters",
         "package_name",
+        "expected_package_name",
         "fallback_url",
         "extras",
         "candidate_apps"
@@ -60,6 +63,7 @@
           "additionalProperties": {"type": "array", "items": {"type": "string", "maxLength": 1000}}
         },
         "package_name": {"type": ["string", "null"], "maxLength": 255},
+        "expected_package_name": {"type": ["string", "null"], "maxLength": 255},
         "fallback_url": {"type": ["string", "null"], "maxLength": 4096},
         "extras": {
           "type": "object",
@@ -88,8 +92,103 @@
       "required": ["launched_external_app", "network_accessed", "parser_version"],
       "properties": {
         "launched_external_app": {"const": false},
-        "network_accessed": {"const": false},
+        "network_accessed": {"type": "boolean"},
         "parser_version": {"type": "string", "const": "android-static-v1"}
+      }
+    },
+    "preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted",
+        "status",
+        "initial_url",
+        "final_url",
+        "title",
+        "forms",
+        "external_protocols",
+        "blocked_actions",
+        "screenshot_path",
+        "error"
+      ],
+      "properties": {
+        "attempted": {"type": "boolean"},
+        "status": {
+          "type": "string",
+          "enum": ["not_started", "succeeded", "partial", "failed"]
+        },
+        "initial_url": {"type": ["string", "null"], "maxLength": 4096},
+        "final_url": {"type": ["string", "null"], "maxLength": 4096},
+        "title": {"type": ["string", "null"], "maxLength": 500},
+        "forms": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {"$ref": "#/$defs/form"}
+        },
+        "external_protocols": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "maxLength": 4096}
+        },
+        "blocked_actions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "enum": [
+              "permission",
+              "file_access",
+              "content_access",
+              "file_chooser",
+              "upload",
+              "download",
+              "form_submit",
+              "popup",
+              "new_window",
+              "external_protocol"
+            ]
+          }
+        },
+        "screenshot_path": {
+          "type": ["string", "null"],
+          "maxLength": 1024,
+          "description": "仅允许返回 APP 私有缓存目录中的临时截图路径。"
+        },
+        "error": {
+          "oneOf": [
+            {"$ref": "./common.schema.json#/$defs/error"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "method", "fields"],
+      "properties": {
+        "action": {"type": ["string", "null"], "maxLength": 4096},
+        "method": {
+          "type": ["string", "null"],
+          "enum": ["get", "post", "dialog", "unknown", null]
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "sensitive_category"],
+            "properties": {
+              "name": {"type": ["string", "null"], "maxLength": 200},
+              "type": {"type": "string", "maxLength": 100},
+              "sensitive_category": {
+                "type": ["string", "null"],
+                "enum": ["password", "phone", "national_id", "student_id", "email", "token", null]
+              }
+            }
+          }
+        }
       }
     },
     "evidence": {
@@ -100,7 +199,20 @@
         "id": {"$ref": "./common.schema.json#/$defs/local_evidence_id"},
         "kind": {
           "type": "string",
-          "enum": ["input", "url", "deep_link", "package", "fallback", "parameter"]
+          "enum": [
+            "input",
+            "url",
+            "deep_link",
+            "package",
+            "fallback",
+            "parameter",
+            "redirect",
+            "page_title",
+            "form",
+            "external_protocol",
+            "blocked_action",
+            "error"
+          ]
         },
         "title": {"type": "string", "minLength": 1, "maxLength": 200},
         "detail": {"type": "string", "minLength": 1, "maxLength": 2000}

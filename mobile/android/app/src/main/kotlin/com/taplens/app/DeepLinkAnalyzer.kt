@@ -11,10 +11,13 @@ import java.nio.charset.StandardCharsets
 object DeepLinkAnalyzer {
     private const val INTENT_MARKER = "#Intent;"
     private const val INTENT_END = ";end"
+    private const val MAX_INPUT_LENGTH = 4096
 
     fun analyze(rawValue: String): ParsedTarget {
         val value = rawValue.trim()
         require(value.isNotEmpty()) { "The target must not be blank" }
+        require(value.length <= MAX_INPUT_LENGTH) { "The target is too long" }
+        require(value.none { it.isISOControl() }) { "The target contains control characters" }
         return if (value.startsWith("intent://", ignoreCase = true)) {
             parseIntentUri(value)
         } else {
@@ -73,6 +76,9 @@ object DeepLinkAnalyzer {
         }
 
         val resolvedScheme = scheme ?: throw IllegalArgumentException("Intent URI scheme is required")
+        require(resolvedScheme.matches(Regex("^[a-z][a-z0-9+.-]*$"))) {
+            "Intent URI scheme is invalid"
+        }
         val syntheticUri = runCatching {
             URI(resolvedScheme + base.removePrefix("intent"))
         }.getOrElse { throw IllegalArgumentException("Malformed intent target", it) }
