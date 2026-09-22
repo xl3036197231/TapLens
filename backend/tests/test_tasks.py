@@ -91,10 +91,35 @@ def test_invalid_target_does_not_consume_quota(tmp_path) -> None:
     assert valid.status == TaskStatus.QUEUED
 
 
+def test_exact_test_origin_can_create_task_without_relaxing_other_ports(tmp_path) -> None:
+    allowed_origin = "http://127.0.0.1:8765"
+    service, _, user_id = build_service(
+        tmp_path,
+        allowed_test_origins=(allowed_origin,),
+    )
+
+    created = service.create(
+        user_id=user_id,
+        analysis_id=uuid4(),
+        target_url=f"{allowed_origin}/go/campus",
+        now=NOW,
+    )
+
+    assert created.status == TaskStatus.QUEUED
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=uuid4(),
+            target_url="http://127.0.0.1:8766/go/campus",
+            now=NOW,
+        )
+    assert captured.value.code == "CLOUD_PRIVATE_ADDRESS_BLOCKED"
+
+
 def test_dns_validation_failure_does_not_consume_quota(tmp_path, monkeypatch) -> None:
     service, _, user_id = build_service(tmp_path, daily_limit=1)
 
-    def reject_dns(_):
+    def reject_dns(_, **__):
         from app.sandbox.url_policy import UnsafeTargetError
 
         raise UnsafeTargetError("CLOUD_PRIVATE_ADDRESS_BLOCKED", "DNS解析到私网地址")
@@ -143,7 +168,11 @@ def test_task_owner_cannot_read_another_users_task(tmp_path) -> None:
     assert captured.value.code == "CLOUD_TASK_NOT_FOUND"
 
 
-def build_service(tmp_path, daily_limit: int = 10):
+def build_service(
+    tmp_path,
+    daily_limit: int = 10,
+    allowed_test_origins: tuple[str, ...] = (),
+):
     database = Database(tmp_path / "taplens-tasks-test.db")
     database.initialize()
     user_id = UUID("de2f28e6-f6ca-4c8f-8c0e-111871dc0001")
@@ -161,5 +190,6 @@ def build_service(tmp_path, daily_limit: int = 10):
         repository=repository,
         daily_limit=daily_limit,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
+        allowed_test_origins=allowed_test_origins,
     )
     return service, repository, user_id

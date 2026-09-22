@@ -218,6 +218,23 @@ async def authorize_public_http_request(url: str) -> None:
     await asyncio.to_thread(resolve_and_validate_target, target)
 
 
+def build_request_authorizer(
+    allowed_test_origins: tuple[str, ...],
+) -> RequestAuthorizer:
+    async def authorize(url: str) -> None:
+        target = validate_target_url(
+            url,
+            allowed_test_origins=allowed_test_origins,
+        )
+        await asyncio.to_thread(
+            resolve_and_validate_target,
+            target,
+            allowed_test_origins=allowed_test_origins,
+        )
+
+    return authorize
+
+
 async def extract_forms(page: Page, *, max_forms: int, max_fields: int) -> list[dict[str, object]]:
     raw_forms = await page.locator("form").evaluate_all(
         """

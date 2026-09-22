@@ -54,5 +54,6 @@ case03-cloud-timeout.json
 - `mobile/test/ai/day2-scenarios.json`：短链接仿冒登录、正常信息页和证据不足三种预期结果；
 - `fixtures/ai/mock-success-report.json`：Mock AI 的脱敏报告内容，不连接真实模型；
 - `reports/day2-short-link-high-risk.json`：短链接主案例的规则报告。
+- `cloud/day2-short-link-succeeded.json`：B 使用真实 worker 采集 D 受控站得到的成功云证据；`C01/C02` 对应跳转和敏感表单。
 
 页面只使用虚构域名、测试值和相对表单地址，沙箱必须阻止表单提交、下载和外部协议。

@@ -7,6 +7,7 @@
 | 文件 | 主笔 | 审核人 | 内容 |
 |---|---|---|---|
 | `http-api.md` | B | A | FastAPI路径、鉴权、请求响应、状态码、轮询和删除规则 |
+| `backend-lan-integration.md` | B | A | 局域网启动、手机端地址、完整API流程和失败场景验证 |
 | `method-channel.md` | C | A | Flutter/Kotlin Channel、方法名、参数、返回值、取消和崩溃处理 |
 | `ai-client.md` | D | A | DeepSeek客户端输入输出、Key生命周期、Token用量、校验和错误映射 |
 

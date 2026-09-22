@@ -14,6 +14,7 @@
 - 时间使用UTC ISO 8601；
 - `analysis_id`和`task_id`使用UUID字符串；
 - 后端不接收DeepSeek Key、原始海报、完整OCR文字或完整最终报告；
+- 所有请求对象拒绝未声明字段；参数校验失败统一返回下述错误结构，不回显被拒绝的字段值；
 - URL进入日志前必须移除敏感query值；
 - 错误响应遵守 `shared/error-codes.md`。
 
@@ -29,6 +30,8 @@
   }
 }
 ```
+
+账号请求字段无效时返回 `422 AUTH_REQUEST_INVALID`；云任务请求字段无效时返回 `422 CLOUD_REQUEST_INVALID`。客户端不得在任何请求中加入 `deepseek_key`，该字段会在进入业务逻辑和持久化前被拒绝。
 
 ## 2. 健康检查
 

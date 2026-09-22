@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 Username = Annotated[
@@ -13,6 +13,8 @@ Password = Annotated[str, Field(min_length=8, max_length=128)]
 
 
 class CredentialsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     username: Username
     password: Password
 

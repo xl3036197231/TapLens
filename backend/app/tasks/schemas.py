@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.tasks.models import TaskStatus
 
@@ -11,6 +11,8 @@ TargetUrl = Annotated[str, Field(min_length=1, max_length=2048)]
 
 
 class DeepScanCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     analysis_id: UUID
     url: TargetUrl
 

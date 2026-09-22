@@ -2,6 +2,7 @@ import pytest
 
 from app.sandbox.url_policy import (
     UnsafeTargetError,
+    resolve_and_validate_target,
     validate_resolved_addresses,
     validate_target_url,
 )
@@ -12,6 +13,7 @@ from app.sandbox.url_policy import (
     [
         "file:///etc/passwd",
         "ftp://public.example/file",
+        "taplens-demo://external-target",
         "http://localhost/",
         "http://service.local/",
         "http://metadata.google.internal/",
@@ -69,3 +71,24 @@ def test_dns_policy_rejects_empty_answer() -> None:
         validate_resolved_addresses([])
 
     assert captured.value.code == "CLOUD_DNS_RESOLUTION_FAILED"
+
+
+def test_exact_test_origin_allows_only_its_configured_port() -> None:
+    allowed = ("http://127.0.0.1:8765",)
+    target = validate_target_url(
+        "http://127.0.0.1:8765/go/campus?token=redacted",
+        allowed_test_origins=allowed,
+    )
+
+    assert resolve_and_validate_target(
+        target,
+        allowed_test_origins=allowed,
+    ) == ("127.0.0.1",)
+
+    with pytest.raises(UnsafeTargetError) as captured:
+        validate_target_url(
+            "http://127.0.0.1:8766/go/campus",
+            allowed_test_origins=allowed,
+        )
+
+    assert captured.value.code == "CLOUD_PRIVATE_ADDRESS_BLOCKED"

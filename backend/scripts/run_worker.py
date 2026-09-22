@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
-from app.sandbox.collector import DeepScanCollector
+from app.sandbox.collector import DeepScanCollector, build_request_authorizer
 from app.storage.database import Database
 from app.storage.tasks import TaskRepository
 from app.tasks.executor import TaskExecutor
@@ -22,11 +22,15 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         daily_limit=settings.daily_quota_limit,
         quota_timezone=ZoneInfo(settings.quota_timezone),
         artifact_ttl=timedelta(minutes=settings.artifact_ttl_minutes),
+        allowed_test_origins=settings.allowed_test_origins,
     )
     executor = TaskExecutor(
         repository=repository,
         service=service,
-        collector=DeepScanCollector(artifact_directory=settings.artifact_directory),
+        collector=DeepScanCollector(
+            artifact_directory=settings.artifact_directory,
+            request_authorizer=build_request_authorizer(settings.allowed_test_origins),
+        ),
         public_base_url=settings.public_base_url,
     )
 

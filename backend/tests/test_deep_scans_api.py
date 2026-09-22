@@ -127,6 +127,31 @@ def test_invalid_target_does_not_consume_endpoint_quota(tmp_path) -> None:
     assert quota.json()["remaining"] == 2
 
 
+def test_create_rejects_deepseek_key_without_echoing_or_charging_it(tmp_path) -> None:
+    app = build_test_app(tmp_path)
+    token, _ = register_and_login(app, "No_Key_User")
+    secret = "sk-test-must-never-reach-the-backend"
+
+    rejected = request(
+        app,
+        "POST",
+        "/api/v1/deep-scans",
+        token=token,
+        json={
+            "analysis_id": str(uuid4()),
+            "url": "https://8.8.8.8/example",
+            "deepseek_key": secret,
+        },
+    )
+    quota = request(app, "GET", "/api/v1/quota", token=token)
+
+    assert rejected.status_code == 422
+    assert rejected.json()["error"]["code"] == "CLOUD_REQUEST_INVALID"
+    assert rejected.json()["error"]["retryable"] is False
+    assert secret not in rejected.text
+    assert quota.json()["remaining"] == 2
+
+
 def test_screenshot_requires_owner_and_is_deleted_with_task(tmp_path) -> None:
     app = build_test_app(tmp_path)
     owner_token, owner_id = register_and_login(app, "Owner_User")
