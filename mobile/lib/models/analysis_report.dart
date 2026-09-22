@@ -180,4 +180,124 @@ class AnalysisReport {
           : null,
     );
   }
+  factory AnalysisReport.fromCloudEvidence(
+    Map<String, dynamic> json, {
+    String? fallbackTarget,
+  }) {
+    final fallback = fallbackTarget ?? '未知目标';
+    final initialUrl = _text(json['initial_url'], fallback);
+    final finalUrl = _text(json['final_url'], initialUrl);
+    final status = _text(json['status'], 'succeeded');
+    final page = _map(json['page']);
+    final pageSummary = _text(page['text_summary']);
+    final redirects = <String>[];
+    final rawRedirects = json['redirects'];
+    if (rawRedirects is List) {
+      for (final item in rawRedirects) {
+        final redirect = _map(item);
+        final from = _text(redirect['from_url']);
+        final to = _text(redirect['to_url']);
+        if (from.isNotEmpty && to.isNotEmpty) {
+          redirects.add('跳转：$from → $to');
+        }
+      }
+    }
+
+    final formFindings = <String>[];
+    var hasSensitiveForm = false;
+    final rawForms = json['forms'];
+    if (rawForms is List) {
+      for (final item in rawForms) {
+        final form = _map(item);
+        final fields = form['fields'];
+        if (fields is! List) continue;
+        for (final fieldItem in fields) {
+          final field = _map(fieldItem);
+          final name = _text(field['name'], '未命名字段');
+          final sensitive = field['sensitive'] == true;
+          hasSensitiveForm = hasSensitiveForm || sensitive;
+          formFindings.add(
+            '表单字段：$name${sensitive ? '（敏感）' : ''}',
+          );
+        }
+      }
+    }
+
+    final evidence = <AnalysisEvidence>[];
+    final rawEvidence = json['evidence'];
+    if (rawEvidence is List) {
+      for (final item in rawEvidence) {
+        final value = _map(item);
+        final id = _text(value['id']);
+        if (id.isEmpty) continue;
+        evidence.add(
+          AnalysisEvidence(
+            id: id,
+            source: 'cloud',
+            title: _text(value['title'], '云端证据'),
+            detail: _text(value['detail'], '没有提供证据详情'),
+          ),
+        );
+      }
+    }
+
+    final limitations = _texts(json['limitations']);
+    final failed = status == 'failed';
+    final riskLevel = failed
+        ? RiskLevel.insufficientEvidence
+        : hasSensitiveForm
+            ? RiskLevel.high
+            : redirects.isNotEmpty
+                ? RiskLevel.medium
+                : RiskLevel.low;
+    final observed = <String>[
+      if (finalUrl != initialUrl) '最终地址：$finalUrl',
+      if (pageSummary.isNotEmpty) pageSummary,
+      ...redirects,
+      ...formFindings,
+    ];
+    final differences = <String>[
+      if (finalUrl != initialUrl) '初始地址发生跳转，最终地址为 $finalUrl。',
+      if (hasSensitiveForm) '页面表单包含敏感字段，云端分析未提交表单。',
+    ];
+    final recommendations = <String>[
+      if (hasSensitiveForm) '不要填写身份证号、手机号或其他敏感信息。',
+      if (finalUrl != initialUrl) '通过官方渠道核对最终页面地址。',
+      if (!hasSensitiveForm && finalUrl == initialUrl) '继续确认页面主体和请求目的后再操作。',
+    ];
+    final summary = failed
+        ? '云端深度分析未完成，当前只能保留有限证据。'
+        : hasSensitiveForm
+            ? '云端页面包含敏感表单字段，且未执行提交动作。'
+            : finalUrl != initialUrl
+                ? '链接发生跳转，最终页面地址与初始地址不同。'
+                : '云端未发现额外跳转或敏感表单字段。';
+
+    return AnalysisReport(
+      schemaVersion: _text(json['schema_version'], '1.0'),
+      analysisId: _text(
+        json['analysis_id'],
+        '6b368c4b-4d97-4a87-bd62-b3d8c2d50001',
+      ),
+      title: '云端深度分析报告',
+      target: finalUrl,
+      riskLevel: riskLevel,
+      consistency: Consistency.unknown,
+      summary: summary,
+      commitments: const [],
+      observedBehaviors: observed,
+      differences: differences,
+      recommendations: recommendations,
+      evidence: evidence,
+      createdAt: DateTime.tryParse(_text(json['generated_at'])) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      uncertaintySummary: limitations.isEmpty
+          ? (failed ? '云端任务失败，无法确认完整页面行为。' : '当前证据来自云端沙箱。')
+          : limitations.join('；'),
+      localSource: false,
+      cloudSource: true,
+      aiSource: false,
+      totalTokens: null,
+    );
+  }
 }

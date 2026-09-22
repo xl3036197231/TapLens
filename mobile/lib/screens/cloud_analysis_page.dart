@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/demo_report.dart';
+import '../models/analysis_report.dart';
 import '../services/cloud_scan_client.dart';
 import 'report_page.dart';
 
@@ -210,7 +211,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => ReportPage(report: demoReport),
+                          builder: (_) => ReportPage(
+                            report: AnalysisReport.fromCloudEvidence(
+                              task.cloudEvidence ?? const {},
+                              fallbackTarget: _urlController.text.trim(),
+                            ),
+                          ),
                         ),
                       );
                     },
