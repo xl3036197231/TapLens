@@ -47,3 +47,13 @@ case03-cloud-timeout.json
 - `reports/insufficient-evidence.json`：Deep Link 私有协议无法确认，必须显示证据不足。
 
 这些报告中的 `Lxx`、`Cxx` 是脱敏联调证据编号。待 C、B 的正式 evidence example 合并后，D 需要再次检查来源字段和编号是否完全对应。
+
+## D：Day 2 测试场景与 AI fixture
+
+- `mobile/test/ai/day2_site/`：只用于本地或 B 的 Playwright 沙箱，不得公开部署；
+- `mobile/test/ai/day2-scenarios.json`：短链接仿冒登录、正常信息页和证据不足三种预期结果；
+- `fixtures/ai/mock-success-report.json`：Mock AI 的脱敏报告内容，不连接真实模型；
+- `reports/day2-short-link-high-risk.json`：短链接主案例的规则报告。
+- `cloud/day2-short-link-succeeded.json`：B 使用真实 worker 采集 D 受控站得到的成功云证据；`C01/C02` 对应跳转和敏感表单。
+
+页面只使用虚构域名、测试值和相对表单地址，沙箱必须阻止表单提交、下载和外部协议。

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="case-id" content="day2-deep-link-realistic-entry">
+  <meta name="data-policy" content="test-only-no-external-launch">
+  <title>槐序 Campus · 本周校园生活</title>
+  <link rel="stylesheet" href="deep-link-demo.css">
+  <script src="deep-link-demo.js" defer></script>
+</head>
+<body data-page="entry">
+  <div class="notice-bar">虚构校园 · 本地演示页面 · 请勿输入真实个人资料</div>
+  <header class="masthead">
+    <a class="wordmark" href="deep-link-demo.html" aria-label="槐序 Campus 首页"><span class="wordmark-symbol">槐</span><span>槐序 <small>CAMPUS LIFE</small></span></a>
+    <nav aria-label="主导航"><a href="#featured">精选活动</a><a href="#inbox">我的消息</a><a href="#all-cases">服务入口</a></nav>
+    <span class="semester">2026 · 秋季学期</span>
+  </header>
+
+  <main>
+    <section class="hero" id="featured">
+      <div class="hero-copy">
+        <p class="kicker">THE WEEKEND EDIT / 09.22</p>
+        <h1>在校园里，<br><em>遇见新的可能。</em></h1>
+        <p class="hero-intro">讲座、工作坊与社区活动都整理好了。挑一场感兴趣的，继续在活动 App 中查看详情。</p>
+        <div class="hero-meta"><span>周五 19:00</span><span>图书馆 · 多功能厅</span><span>免费预约</span></div>
+        <a class="button button-dark" href="deep-link-preview.html?case=FIX-DL-001">在活动 App 中查看 <span aria-hidden="true">↗</span></a>
+        <p class="under-button">点击进入受控预检页；不会直接唤起外部应用。</p>
+      </div>
+      <div class="hero-art"><img src="assets/deep-link-lecture-poster.svg" alt="虚构活动《城市与未来》的插画海报"><span class="hero-art-caption">ISSUE NO. 04 — OPEN LECTURE</span></div>
+    </section>
+
+    <section class="section two-column" id="inbox">
+      <div>
+        <p class="kicker">IN YOUR INBOX</p>
+        <h2>校园消息，也可能藏着不同的去向。</h2>
+        <p class="section-intro">真实使用中，Deep Link 常出现在活动卡片、消息提醒和服务入口里。下面是由固定样例构造的七种受控情境。</p>
+      </div>
+      <div class="inbox-preview" aria-label="消息预览">
+        <div class="inbox-top"><span class="avatar">校</span><div><strong>校园服务通知</strong><small>今天 09:41 · 演示消息</small></div><span class="unread-dot"></span></div>
+        <p>你的活动报名入口已更新。打开前，先确认它实际指向哪里。</p>
+        <a href="deep-link-preview.html?case=FIX-DL-002">查看确认提醒 <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="section" id="all-cases">
+      <div class="section-heading"><div><p class="kicker">SEVEN CONTROLLED ROUTES</p><h2>从哪种入口开始？</h2></div><p>每个入口都有一条固定、无害的测试 URI。<br>预检结果是基于 C 的静态规则预期，不是真机运行记录。</p></div>
+      <div class="case-grid" id="case-grid" aria-live="polite"><p>正在载入本地测试样例…</p></div>
+    </section>
+
+    <section class="method-strip"><div><span class="method-index">01</span><strong>选择入口</strong><p>从活动、消息或服务卡片进入。</p></div><div><span class="method-index">02</span><strong>查看 URI</strong><p>对照 Scheme、包名、fallback 与参数。</p></div><div><span class="method-index">03</span><strong>验证证据</strong><p>复制到手机端解析；云端证据由 B 单独采集。</p></div></section>
+  </main>
+
+  <footer><span>槐序 Campus 是虚构品牌，仅用于 TapLens 本地安全演示。</span><span>无真实账号 · 无自动唤起 · 无第三方资源</span></footer>
+</body>
+</html>

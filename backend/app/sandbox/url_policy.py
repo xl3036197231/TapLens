@@ -37,7 +37,11 @@ class ValidatedTarget:
     port: int
 
 
-def validate_target_url(url: str) -> ValidatedTarget:
+def validate_target_url(
+    url: str,
+    *,
+    allowed_test_origins: tuple[str, ...] = (),
+) -> ValidatedTarget:
     if not url or len(url) > MAX_URL_LENGTH or any(character.isspace() for character in url):
         raise UnsafeTargetError("CLOUD_URL_INVALID", "URL为空、过长或包含空白字符")
 
@@ -55,21 +59,28 @@ def validate_target_url(url: str) -> ValidatedTarget:
     except ValueError as exc:
         raise UnsafeTargetError("CLOUD_URL_INVALID", "URL端口无效") from exc
 
-    literal_address = parse_ip_literal(hostname)
-    if literal_address is not None:
-        reject_unsafe_ip(literal_address)
-    else:
-        reject_blocked_hostname(hostname)
-
-    return ValidatedTarget(
+    target = ValidatedTarget(
         url=url,
         scheme=parsed.scheme.lower(),
         hostname=hostname,
         port=port,
     )
+    if target_origin(target) not in allowed_test_origins:
+        literal_address = parse_ip_literal(hostname)
+        if literal_address is not None:
+            reject_unsafe_ip(literal_address)
+        else:
+            reject_blocked_hostname(hostname)
+    return target
 
 
-def resolve_and_validate_target(target: ValidatedTarget) -> tuple[str, ...]:
+def resolve_and_validate_target(
+    target: ValidatedTarget,
+    *,
+    allowed_test_origins: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    if target_origin(target) in allowed_test_origins:
+        return (target.hostname,)
     try:
         records = socket.getaddrinfo(
             target.hostname,
@@ -82,6 +93,11 @@ def resolve_and_validate_target(target: ValidatedTarget) -> tuple[str, ...]:
     addresses = tuple(sorted({record[4][0] for record in records}))
     validate_resolved_addresses(addresses)
     return addresses
+
+
+def target_origin(target: ValidatedTarget) -> str:
+    host = f"[{target.hostname}]" if ":" in target.hostname else target.hostname
+    return f"{target.scheme}://{host}:{target.port}"
 
 
 def validate_resolved_addresses(addresses: tuple[str, ...] | list[str]) -> None:

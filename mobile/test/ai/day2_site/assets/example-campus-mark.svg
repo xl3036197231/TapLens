@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Example Campus mark</title>
+  <desc id="desc">A fictional blue and teal geometric campus mark.</desc>
+  <defs><linearGradient id="g" x1="10" y1="8" x2="54" y2="58" gradientUnits="userSpaceOnUse"><stop stop-color="#4E8BFF"/><stop offset="1" stop-color="#13B7A4"/></linearGradient></defs>
+  <rect width="64" height="64" rx="18" fill="#102D67"/>
+  <path d="M17 41.5V23.8L31.8 15l15.2 8.8v17.7L32 50z" fill="url(#g)"/>
+  <path d="M24 36.5V28l8-4.7 8 4.7v8.5l-8 4.7z" fill="#fff" opacity=".94"/>
+  <path d="M20 42.5h24M32 23.5v21" stroke="#102D67" stroke-width="2.4" stroke-linecap="round" opacity=".78"/>
+</svg>
