@@ -10,6 +10,8 @@
 
 每条输入都给出预期解析字段、`Lxx` 编号、规则提示、风险标签、云端观察要求和复现步骤。公开来源不等于本地样例；自建样例也不声称复现原研究的完整漏洞链。转换方法见 [deep-link-conversion.md](deep-link-conversion.md)。
 
+演示用的真实场景入口在 `mobile/test/ai/day2_site/deep-link-demo.html`，对应的预检页为 `deep-link-preview.html`。网站显示的是上述 7 条自建样例的**预期**静态结果，不代替 C 的真机解析或 B 的真实 `Cxx` 采集；镜像数据由 `mobile/test/ai/validate_deep_link_demo.py` 与本目录核对。
+
 ## 分类与风险口径
 
 | 类别 | 样例 | 本地静态结论 |
