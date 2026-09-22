@@ -1,0 +1,41 @@
+[
+  {
+    "id": "EVAL-DL-001",
+    "category": "normal_deep_link",
+    "input": "route-demo://event/schedule",
+    "expected_package_name": null,
+    "reproduction": "Run only through C's static parser; this is an independent held-out URI shape.",
+    "expected_parse": {"status": "succeeded", "input_type": "deep_link", "scheme": "route-demo", "host": "event", "path": "/schedule", "package_name": null, "fallback_url": null, "parameter_names": [], "extra_names": []},
+    "expected_local_ids": ["L01"],
+    "expected_local_risk_hints": ["LOCAL_STATIC_ONLY"],
+    "expected_risk_label": "insufficient_evidence",
+    "cloud_observation": "skip_non_http",
+    "expected_cloud_ids": []
+  },
+  {
+    "id": "EVAL-DL-002",
+    "category": "package_mismatch_with_fallback",
+    "input": "intent://event/schedule#Intent;scheme=route-demo;package=org.example.other;S.browser_fallback_url=https%3A%2F%2Falternate.example.test%2Finfo;end",
+    "expected_package_name": "org.example.events",
+    "reproduction": "Run through C's static parser; check that package mismatch remains high even with a fallback.",
+    "expected_parse": {"status": "succeeded", "input_type": "intent", "scheme": "route-demo", "host": "event", "path": "/schedule", "package_name": "org.example.other", "fallback_url": "https://alternate.example.test/info", "parameter_names": [], "extra_names": []},
+    "expected_local_ids": ["L01", "L02", "L03"],
+    "expected_local_risk_hints": ["LOCAL_STATIC_ONLY", "LOCAL_FALLBACK_PRESENT", "LOCAL_PACKAGE_MISMATCH"],
+    "expected_risk_label": "high",
+    "cloud_observation": "skip_unmapped_fallback",
+    "expected_cloud_ids": []
+  },
+  {
+    "id": "EVAL-DL-003",
+    "category": "missing_scheme",
+    "input": "event.example.test/schedule",
+    "expected_package_name": null,
+    "reproduction": "Run through C's static parser; check explicit failure and evidence insufficiency.",
+    "expected_parse": {"status": "failed", "input_type": null, "scheme": null, "host": null, "path": null, "package_name": null, "fallback_url": null, "parameter_names": [], "extra_names": []},
+    "expected_local_ids": [],
+    "expected_local_risk_hints": ["LOCAL_PARSE_FAILED"],
+    "expected_risk_label": "insufficient_evidence",
+    "cloud_observation": "skip_invalid_input",
+    "expected_cloud_ids": []
+  }
+]

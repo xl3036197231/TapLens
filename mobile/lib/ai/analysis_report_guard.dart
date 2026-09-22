@@ -31,7 +31,7 @@ class AnalysisReportGuard {
     } on AiClientException catch (error) {
       return ReportGuardResult.invalid(error);
     }
-    if (!_requiredFields.every(report.containsKey)) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Missing report field');
+    if (!_validShape(report)) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Report does not match the analysis-report shape');
 
     final risk = report['risk_level'];
     if (risk is! String || !{'low', 'medium', 'high', 'insufficient_evidence'}.contains(risk)) {
@@ -77,15 +77,19 @@ class AnalysisReportGuard {
     final referencedIds = <String>[];
     final behavior = report['observed_behavior'];
     if (behavior is! Map<String, dynamic> || behavior['evidence_ids'] is! List) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Invalid observed_behavior');
-    referencedIds.addAll((behavior['evidence_ids'] as List).whereType<String>());
+    final behaviorIds = behavior['evidence_ids'] as List;
+    if (behaviorIds.any((id) => id is! String)) return _invalid(AiClientErrorCode.invalidEvidenceId, 'Invalid observed behavior reference');
+    referencedIds.addAll(behaviorIds.cast<String>());
     final differences = report['differences'];
     if (differences is! List) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'differences must be an array');
     final differenceIds = <String>{};
     for (final item in differences) {
       if (item is! Map<String, dynamic> || item['evidence_ids'] is! List) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Invalid difference');
       final differenceId = item['id'];
-      if (differenceId is! String || !differenceIds.add(differenceId)) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Invalid or duplicate difference id');
-      referencedIds.addAll((item['evidence_ids'] as List).whereType<String>());
+      if (differenceId is! String || !RegExp(r'^D[0-9]{2,}$').hasMatch(differenceId) || !differenceIds.add(differenceId)) return _invalid(AiClientErrorCode.reportSchemaInvalid, 'Invalid or duplicate difference id');
+      final differenceEvidenceIds = item['evidence_ids'] as List;
+      if (differenceEvidenceIds.isEmpty || differenceEvidenceIds.any((id) => id is! String)) return _invalid(AiClientErrorCode.invalidEvidenceId, 'Invalid difference reference');
+      referencedIds.addAll(differenceEvidenceIds.cast<String>());
     }
     if (referencedIds.any((id) => !reportEvidenceIds.contains(id))) return _invalid(AiClientErrorCode.invalidEvidenceId, 'A report reference is missing from evidence');
     if (hardRiskLevel == 'high' && risk != 'high') return _invalid(AiClientErrorCode.hardRiskDowngraded, 'AI result downgraded a rule-confirmed high risk');
@@ -95,4 +99,95 @@ class AnalysisReportGuard {
   static ReportGuardResult _invalid(AiClientErrorCode code, String message) {
     return ReportGuardResult.invalid(AiClientException(code, message));
   }
+
+  static bool _validShape(Map<String, dynamic> report) {
+    if (!_exactKeys(report, _requiredFields)) return false;
+    if (report['schema_version'] != '1.0' ||
+        !_isText(report['analysis_id']) ||
+        !RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(report['analysis_id'] as String) ||
+        !_isText(report['created_at']) ||
+        !RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$').hasMatch(report['created_at'] as String) ||
+        DateTime.tryParse(report['created_at'] as String) == null ||
+        !_isText(report['title'], 200) ||
+        !_isText(report['summary'], 1000)) return false;
+    if (!{'consistent', 'partially_inconsistent', 'contradictory', 'unknown'}.contains(report['consistency'])) return false;
+
+    final target = report['target'];
+    if (target is! Map<String, dynamic> ||
+        !_exactKeys(target, {'type', 'display', 'redacted'}) ||
+        !{'url', 'deep_link', 'qr_payload'}.contains(target['type']) ||
+        !_isText(target['display'], 4096) ||
+        target['redacted'] != true) return false;
+
+    final claim = report['claim'];
+    if (claim is! Map<String, dynamic> ||
+        !_exactKeys(claim, {'summary', 'subject', 'purpose', 'requested_data', 'intended_target'}) ||
+        !_isOptionalText(claim['summary'], 1000) ||
+        !_isOptionalText(claim['subject'], 300) ||
+        !_isOptionalText(claim['purpose'], 500) ||
+        !_isOptionalText(claim['intended_target'], 500) ||
+        !_isTextList(claim['requested_data'], 30, 100)) return false;
+
+    final observed = report['observed_behavior'];
+    if (observed is! Map<String, dynamic> ||
+        !_exactKeys(observed, {'summary', 'subjects', 'purposes', 'collected_data', 'destinations', 'actions', 'evidence_ids'}) ||
+        !_isText(observed['summary'], 1500) ||
+        !_isTextList(observed['subjects'], 30, 300) ||
+        !_isTextList(observed['purposes'], 30, 500) ||
+        !_isTextList(observed['collected_data'], 50, 100) ||
+        !_isTextList(observed['destinations'], 30, 500) ||
+        !_isTextList(observed['actions'], 50, 100) ||
+        !_isIdList(observed['evidence_ids'])) return false;
+
+    final differences = report['differences'];
+    if (differences is! List || differences.length > 30 || differences.any((item) {
+      if (item is! Map<String, dynamic>) return true;
+      return !_exactKeys(item, {'id', 'dimension', 'severity', 'description', 'evidence_ids'}) ||
+          !{'subject', 'purpose', 'data', 'target', 'action'}.contains(item['dimension']) ||
+          !{'info', 'warning', 'critical'}.contains(item['severity']) ||
+          !_isText(item['description'], 1000) ||
+          !_isIdList(item['evidence_ids']);
+    })) return false;
+
+    final evidence = report['evidence'];
+    if (evidence is! List || evidence.length > 100 || evidence.any((item) {
+      if (item is! Map<String, dynamic>) return true;
+      return !_exactKeys(item, {'id', 'source', 'title', 'detail'}) ||
+          !_isText(item['title'], 200) || !_isText(item['detail'], 2000);
+    })) return false;
+    if (!_isTextList(report['recommendations'], 20, 500)) return false;
+
+    final uncertainty = report['uncertainty'];
+    if (uncertainty is! Map<String, dynamic> ||
+        !_exactKeys(uncertainty, {'status', 'summary', 'reasons', 'missing_evidence'}) ||
+        !_isText(uncertainty['summary'], 1000) ||
+        !_isTextList(uncertainty['reasons'], 20, 500) ||
+        !_isTextList(uncertainty['missing_evidence'], 30, 200)) return false;
+
+    final sources = report['sources'];
+    if (sources is! Map<String, dynamic> ||
+        !_exactKeys(sources, {'local', 'cloud', 'ai'}) ||
+        sources.values.any((value) => value is! bool)) return false;
+
+    final usage = report['token_usage'];
+    if (usage is! Map<String, dynamic> ||
+        !_exactKeys(usage, {'request_count', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'model'}) ||
+        ['request_count', 'prompt_tokens', 'completion_tokens', 'total_tokens'].any((key) => usage[key] is! int || (usage[key] as int) < 0)) return false;
+    return true;
+  }
+
+  static bool _exactKeys(Map<String, dynamic> value, Set<String> keys) =>
+      value.length == keys.length && keys.every(value.containsKey);
+
+  static bool _isText(Object? value, [int? maxLength]) =>
+      value is String && value.isNotEmpty && (maxLength == null || value.length <= maxLength);
+  static bool _isOptionalText(Object? value, int maxLength) =>
+      value == null || (value is String && value.length <= maxLength);
+  static bool _isTextList(Object? value, int maxItems, int maxLength) =>
+      value is List && value.length <= maxItems && value.every((item) => _isText(item, maxLength));
+  static bool _isIdList(Object? value) =>
+      value is List &&
+      value.length <= 100 &&
+      value.length == value.toSet().length &&
+      value.every((item) => item is String && RegExp(r'^[LC][0-9]{2,}$').hasMatch(item));
 }

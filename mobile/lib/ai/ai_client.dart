@@ -7,6 +7,7 @@ enum AiClientErrorCode {
   timeout,
   network,
   invalidJson,
+  unsafePayload,
   reportSchemaInvalid,
   invalidEvidenceId,
   hardRiskDowngraded,

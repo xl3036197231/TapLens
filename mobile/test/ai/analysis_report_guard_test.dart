@@ -41,6 +41,20 @@ void main() {
 
     expect(result.error?.code, AiClientErrorCode.hardRiskDowngraded);
   });
+
+  test('rejects extra report fields and malformed nested values', () {
+    final report = _report()..['uncontracted'] = true;
+    expect(
+      AnalysisReportGuard.validate(jsonEncode(report), availableEvidenceIds: {'C01'}).error?.code,
+      AiClientErrorCode.reportSchemaInvalid,
+    );
+    report.remove('uncontracted');
+    (report['target'] as Map<String, dynamic>)['redacted'] = false;
+    expect(
+      AnalysisReportGuard.validate(jsonEncode(report), availableEvidenceIds: {'C01'}).error?.code,
+      AiClientErrorCode.reportSchemaInvalid,
+    );
+  });
 }
 
 Map<String, dynamic> _report({
