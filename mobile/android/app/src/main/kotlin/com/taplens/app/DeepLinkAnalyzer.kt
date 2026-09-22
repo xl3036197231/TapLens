@@ -120,7 +120,7 @@ data class ParsedTarget(
     val parameters: Map<String, List<String>>,
     val extras: Map<String, String>,
 ) {
-    fun toMap(): Map<String, Any?> = mapOf(
+    fun toMap(expectedPackageName: String? = null): Map<String, Any?> = mapOf(
         "input_type" to inputType,
         "scheme" to scheme,
         "host" to host,
@@ -130,6 +130,6 @@ data class ParsedTarget(
         "parameters" to parameters,
         "extras" to extras,
         "candidate_apps" to emptyList<Map<String, Any?>>(),
-        "expected_package_name" to null,
+        "expected_package_name" to expectedPackageName,
     )
 }

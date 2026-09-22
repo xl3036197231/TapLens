@@ -13,6 +13,7 @@
     "target",
     "observations",
     "preflight",
+    "risk_hints",
     "evidence",
     "errors"
   ],
@@ -21,9 +22,19 @@
     "analysis_id": {"$ref": "./common.schema.json#/$defs/analysis_id"},
     "processed_at": {"$ref": "./common.schema.json#/$defs/timestamp"},
     "processing_status": {"$ref": "./common.schema.json#/$defs/local_processing_status"},
-    "target": {"$ref": "#/$defs/target"},
+    "target": {
+      "oneOf": [
+        {"$ref": "#/$defs/target"},
+        {"type": "null"}
+      ]
+    },
     "observations": {"$ref": "#/$defs/observations"},
     "preflight": {"$ref": "#/$defs/preflight"},
+    "risk_hints": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {"$ref": "#/$defs/risk_hint"}
+    },
     "evidence": {
       "type": "array",
       "maxItems": 100,
@@ -35,6 +46,20 @@
       "items": {"$ref": "./common.schema.json#/$defs/error"}
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"processing_status": {"const": "failed"}},
+        "required": ["processing_status"]
+      },
+      "then": {
+        "properties": {"target": {"type": "null"}}
+      },
+      "else": {
+        "properties": {"target": {"$ref": "#/$defs/target"}}
+      }
+    }
+  ],
   "$defs": {
     "target": {
       "type": "object",
@@ -188,6 +213,26 @@
               }
             }
           }
+        }
+      }
+    },
+    "risk_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "risk_level", "message", "evidence_ids"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^LOCAL_[A-Z0-9_]+$",
+          "maxLength": 100
+        },
+        "risk_level": {"$ref": "./common.schema.json#/$defs/risk_level"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 500},
+        "evidence_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {"$ref": "./common.schema.json#/$defs/local_evidence_id"}
         }
       }
     },

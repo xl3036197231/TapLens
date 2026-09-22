@@ -73,7 +73,54 @@ final result = await channel.invokeMethod<Map<Object?, Object?>>(
 - 第一天不提供取消方法；页面离开后，Flutter可丢弃迟到结果。
 - 只有错误表中 `retryable=true` 的后续动态预检错误，才允许用户主动重试一次。
 
-## 3. `getDayOneSamples`
+## 3. `analyzeLocalEvidence`
+
+第二天新增的完整本地证据接口。保留 `analyzeLink` 供第一天兼容使用，A 的正式接入应优先调用本方法。
+
+### 请求
+
+```dart
+final evidence = await channel.invokeMethod<Map<Object?, Object?>>(
+  'analyzeLocalEvidence',
+  {
+    'analysis_id': analysisId,
+    'value': rawLink,
+    'expected_package_name': expectedPackageName,
+  },
+);
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `analysis_id` | `String` | 是 | UUID，必须与 `AnalysisInput.analysis_id` 相同 |
+| `value` | `String` | 是 | 已清理控制字符并脱敏的目标字符串 |
+| `expected_package_name` | `String?` | 否 | 已知的官方包名；未知时传 `null` |
+
+### 返回
+
+无论解析成功还是链接格式失败，均返回符合 `local-evidence.schema.json` 的完整 Map：
+
+- 成功：`processing_status=succeeded`，包含 `target`、`risk_hints` 和 `Lxx` 证据；
+- 链接无法解析：`processing_status=failed`、`target=null`，并返回 `DEEPLINK_UNSUPPORTED`；
+- `observations.launched_external_app` 与 `network_accessed` 在静态阶段均为 `false`；
+- 所有结果均明确包含 `preflight.status=not_started`。
+
+只有 `analysis_id` 缺失或不是 UUID 时才抛出 `PlatformException(code=APP_INPUT_INVALID)`，因为此时无法生成符合契约的本地证据对象。
+
+### 静态风险提示
+
+| code | 含义 |
+|---|---|
+| `LOCAL_STATIC_ONLY` | 只完成静态解析，尚不能确认网页动态行为 |
+| `LOCAL_FALLBACK_PRESENT` | Intent 包含 fallback，执行目标可能改变 |
+| `LOCAL_PACKAGE_UNVERIFIED` | 提供了预期包名，但链接本身没有指定包名 |
+| `LOCAL_PACKAGE_MISMATCH` | Intent 指定包名与预期官方包名不同 |
+| `LOCAL_SENSITIVE_PARAMETER` | 参数名疑似手机号、学号、身份证、密码或Token等敏感字段 |
+| `LOCAL_PARSE_FAILED` | 没有获得可用静态证据，必须显示证据不足 |
+
+风险提示只引用本次返回中真实存在的 `Lxx`。该接口不会把“未发现静态异常”表达为“安全”。
+
+## 4. `getDayOneSamples`
 
 无参数，返回三条已脱敏的固定样例：普通 HTTPS、自定义 Scheme、带包名和 fallback 的 `intent://`。该方法仅用于第一天联调与 Debug 页面，不应成为正式分析入口。
 
@@ -81,7 +128,9 @@ final result = await channel.invokeMethod<Map<Object?, Object?>>(
 final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
 ```
 
-## 4. 本地证据与崩溃返回约定
+第二天 Debug 联调可以调用 `getDayTwoSamples`，它在上述三条样例后追加非法 Intent 和缺少协议的字符串。两个样例方法都只返回固定脱敏文本，不读取用户数据。
+
+## 5. 本地证据与崩溃返回约定
 
 完整本地结果必须符合 `shared/contracts/local-evidence.schema.json`：
 
@@ -94,7 +143,7 @@ final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
 
 第一天尚未开放 `runPreflight` 方法。后续实现受控 WebView 时，必须先在本文档冻结该方法的请求、取消与返回结构，再接入 Flutter。
 
-## 5. 隐私与日志限制
+## 6. 隐私与日志限制
 
 1. 不调用 `startActivity` 执行待测链接。
 2. 不使用网络、WebView或 `addJavascriptInterface` 完成静态解析。
@@ -102,7 +151,7 @@ final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
 4. 参数、Extras和fallback只返回脱敏后的字符串。
 5. 不支持的输入必须显式失败，不能静默当成安全。
 
-## 6. 最小联调步骤
+## 7. 最小联调步骤
 
 1. 安装 Debug APK。
 2. 执行：
@@ -112,10 +161,10 @@ final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
    ```
 
 3. 确认页面显示 HTTPS、自定义 Scheme 和 `intent://` 三条解析结果。
-4. Flutter 调用 `analyzeLink`，传入本文档的 Intent 示例。
-5. 核对 `scheme`、`package_name`、`fallback_url` 和 `extras`。
-6. 传入 `example.test/no-scheme`，确认得到 `DEEPLINK_UNSUPPORTED`，且没有外部 APP 被启动。
+4. Flutter 调用 `analyzeLocalEvidence`，传入本文档的 Intent 示例和 UUID。
+5. 核对 `scheme`、`package_name`、`fallback_url`、`risk_hints` 和 `Lxx`。
+6. 传入 `example.test/no-scheme`，确认返回 `processing_status=failed` 和 `DEEPLINK_UNSUPPORTED`，且没有外部 APP 被启动。
 
-## 7. 变更规则
+## 8. 变更规则
 
 新增或修改字段时，依次更新 Schema、example、fixture、Kotlin测试和本文档，再通知 A、D 审核。聊天中的临时字段不视为正式接口。
