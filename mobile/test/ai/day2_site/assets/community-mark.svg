@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Signal Commons mark</title>
+  <desc id="desc">A fictional network mark made from connected circles.</desc>
+  <defs><linearGradient id="g" x1="9" y1="8" x2="55" y2="57" gradientUnits="userSpaceOnUse"><stop stop-color="#8D7BFF"/><stop offset="1" stop-color="#5DE2D5"/></linearGradient></defs>
+  <rect width="64" height="64" rx="19" fill="#17152F"/>
+  <path d="M19 22 32 15l13 7v20l-13 7-13-7z" fill="none" stroke="url(#g)" stroke-width="3"/>
+  <path d="m19 22 13 8 13-8M32 30v19" fill="none" stroke="#F7F4FF" stroke-width="2" opacity=".85"/>
+  <circle cx="19" cy="22" r="4.5" fill="#FFCF68"/><circle cx="45" cy="22" r="4.5" fill="#5DE2D5"/><circle cx="32" cy="30" r="5.5" fill="#8D7BFF"/>
+</svg>

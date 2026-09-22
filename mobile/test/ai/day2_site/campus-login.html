@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="case-id" content="day2-short-link-high-risk">
+  <meta name="data-policy" content="test-only-no-submit">
+  <meta name="theme-color" content="#183d88">
+  <title>Example Campus single sign-on</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body class="portal-page">
+  <header class="site-header">
+    <a class="brand" href="safe-info.html" aria-label="Example Campus home">
+      <img class="brand-mark" src="assets/example-campus-mark.svg" alt="">
+      <span class="brand-copy"><span class="brand-name">Example Campus</span><span class="brand-subtitle">Learning portal</span></span>
+    </a>
+    <span class="header-status"><span class="status-dot"></span>Training environment</span>
+  </header>
+
+  <main class="page-wrap">
+    <div class="training-banner" role="note">
+      <svg class="banner-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 21 7.5v5.9c0 4.1-3.7 6.8-9 7.6-5.3-.8-9-3.5-9-7.6V7.5L12 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4M12 15.5v.1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <span><strong>Controlled training fixture</strong>This is a fictional TapLens test page. Never enter a real password or personal information.</span>
+    </div>
+
+    <section class="portal-card" aria-label="Example Campus sign-in">
+      <div class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Student services / 2026</p>
+          <h1>Everything you need for campus life.</h1>
+          <p>Access your timetable, learning resources and student services from one calm, secure place.</p>
+        </div>
+        <img class="hero-illustration" src="assets/portal-illustration.svg" alt="Illustration of a fictional campus building">
+        <div class="trust-row" aria-label="Portal features">
+          <span class="trust-chip">One account</span>
+          <span class="trust-chip">Student services</span>
+          <span class="trust-chip">Secure access</span>
+        </div>
+      </div>
+
+      <div class="auth-panel">
+        <div class="auth-card">
+          <p class="auth-kicker">Welcome back</p>
+          <h2>Sign in to continue</h2>
+          <p>Use the fictional demo account to open the community hub.</p>
+          <form method="post" action="./blocked-submit" autocomplete="off" onsubmit="window.location.href='community-hub.html'; return false;">
+            <div class="form-group">
+              <label for="student_id">Student ID</label>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M5.8 19c.8-3.1 2.8-4.7 6.2-4.7s5.4 1.6 6.2 4.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <input id="student_id" name="student_id" value="REDACTED" aria-describedby="student-hint">
+              </div>
+              <p class="field-hint" id="student-hint">Use the fictional value provided for this fixture.</p>
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <div class="input-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <input id="password" name="password" type="password" value="TEST_ONLY" aria-describedby="password-hint">
+              </div>
+              <p class="field-hint" id="password-hint">Training value only; submission is blocked locally.</p>
+            </div>
+            <button class="primary-button" type="submit">Enter demo hub <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="secure-note"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 20 6.8v5.1c0 4.4-3.1 7.3-8 9.1-4.9-1.8-8-4.7-8-9.1V6.8L12 3Z" stroke="currentColor" stroke-width="1.8"/><path d="m8.5 12 2.3 2.3 4.8-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>TapLens training fixture · fields are never sent anywhere</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">Example Campus is a fictional brand used only for local security testing.</footer>
+</body>
+</html>

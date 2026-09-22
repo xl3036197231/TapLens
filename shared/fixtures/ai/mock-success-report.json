@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "55555555-5555-4555-8555-555555555555",
+  "created_at": "2026-09-22T08:30:00Z",
+  "risk_level": "high",
+  "consistency": "contradictory",
+  "title": "短链接进入仿冒校园登录页",
+  "target": {
+    "type": "url",
+    "display": "https://short.example.test/go/campus",
+    "redacted": true
+  },
+  "summary": "短链接跳转到虚构校园登录页，并要求输入密码，实际行为超出公开活动承诺。",
+  "claim": {
+    "summary": "校园网络安全讲座信息页",
+    "subject": "Example Campus",
+    "purpose": "查看讲座信息",
+    "requested_data": [],
+    "intended_target": "校园公开信息页"
+  },
+  "observed_behavior": {
+    "summary": "页面跳转到登录表单并出现密码字段。",
+    "subjects": ["Example Campus single sign-on"],
+    "purposes": ["账号登录"],
+    "collected_data": ["student_id", "password"],
+    "destinations": ["campus-login.html"],
+    "actions": ["redirect", "sensitive_form"],
+    "evidence_ids": ["C01", "C02"]
+  },
+  "differences": [
+    {
+      "id": "D01",
+      "dimension": "purpose",
+      "severity": "critical",
+      "description": "公开信息页承诺与登录页面行为不一致。",
+      "evidence_ids": ["C01", "C02"]
+    },
+    {
+      "id": "D02",
+      "dimension": "data",
+      "severity": "critical",
+      "description": "页面出现宣传中没有说明的密码字段。",
+      "evidence_ids": ["C02"]
+    }
+  ],
+  "recommendations": [
+    "不要输入真实密码或个人信息。",
+    "通过已知的校园官方入口核验页面。"
+  ],
+  "evidence": [
+    {
+      "id": "C01",
+      "source": "cloud",
+      "title": "短链接跳转",
+      "detail": "短链接从入口页跳转到 campus-login.html。"
+    },
+    {
+      "id": "C02",
+      "source": "cloud",
+      "title": "登录表单",
+      "detail": "页面包含 student_id 和 password 字段，表单提交应被沙箱阻止。"
+    }
+  ],
+  "uncertainty": {
+    "status": "known",
+    "summary": "跳转和表单字段均有稳定的云端证据。",
+    "reasons": [],
+    "missing_evidence": []
+  },
+  "sources": {
+    "local": false,
+    "cloud": true,
+    "ai": true
+  },
+  "token_usage": {
+    "request_count": 1,
+    "prompt_tokens": 120,
+    "completion_tokens": 180,
+    "total_tokens": 300,
+    "model": "deepseek-flash"
+  }
+}
