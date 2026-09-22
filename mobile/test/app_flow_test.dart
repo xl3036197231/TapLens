@@ -5,6 +5,9 @@ import 'package:taplens_mobile/screens/cloud_analysis_page.dart';
 
 void main() {
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(TapLensApp());
 
     final paste = find.text('粘贴链接');
@@ -21,14 +24,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('本地解析结果'), findsOneWidget);
     expect(find.text('安全保证：未启动外部应用，未访问网络。'), findsOneWidget);
-
     final reportButton = find.text('查看固定演示报告');
     expect(reportButton, findsOneWidget);
-    final scrollable = find.byType(Scrollable).first;
-    await tester.drag(scrollable, const Offset(0, -220));
-    await tester.pumpAndSettle();
-    await tester.drag(scrollable, const Offset(0, -220));
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      reportButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(reportButton);
     await tester.tap(reportButton);
     await tester.pumpAndSettle();
     expect(find.text('分析报告'), findsOneWidget);

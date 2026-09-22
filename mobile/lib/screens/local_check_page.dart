@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/demo_report.dart';
+import '../models/local_evidence.dart';
 import '../services/local_safety_service.dart';
 import 'report_page.dart';
 import 'cloud_analysis_page.dart';
@@ -84,7 +85,10 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
             ),
             if (result != null) ...[
               const SizedBox(height: 20),
-              _ResultCard(result: result),
+              _ResultCard(
+                result: result,
+                evidence: LocalEvidence.fromResult(result),
+              ),
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 onPressed: () {
@@ -104,7 +108,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) =>
-                            CloudAnalysisPage(initialUrl: result.rawValue),
+                            CloudAnalysisPage(initialUrl: result.safeValue),
                       ),
                     );
                   },
@@ -122,8 +126,9 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
 
 class _ResultCard extends StatelessWidget {
   final LocalSafetyResult result;
+  final LocalEvidence evidence;
 
-  const _ResultCard({required this.result});
+  const _ResultCard({required this.result, required this.evidence});
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +191,27 @@ class _ResultCard extends StatelessWidget {
               style:
                   TextStyle(color: colors.primary, fontWeight: FontWeight.w600),
             ),
+            if (evidence.evidence.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              Text(
+                '本地证据（${evidence.evidence.length} 条）',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              for (final item in evidence.evidence)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Chip(label: Text(item.id)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('${item.title}：${item.detail}')),
+                    ],
+                  ),
+                ),
+            ],
           ],
         ),
       ),

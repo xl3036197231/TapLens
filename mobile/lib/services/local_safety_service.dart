@@ -1,6 +1,36 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+class LocalCandidateApp {
+  final String packageName;
+  final String label;
+  final bool? matchesExpected;
+
+  const LocalCandidateApp({
+    required this.packageName,
+    required this.label,
+    required this.matchesExpected,
+  });
+
+  factory LocalCandidateApp.fromMap(Map<String, dynamic> map) {
+    return LocalCandidateApp(
+      packageName: map['package_name']?.toString() ?? 'unknown',
+      label: map['label']?.toString() ?? '未命名应用',
+      matchesExpected: map['matches_expected'] is bool
+          ? map['matches_expected'] as bool
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'package_name': packageName,
+      'label': label,
+      'matches_expected': matchesExpected,
+    };
+  }
+}
+
 class LocalSafetyResult {
   final String rawValue;
   final String inputType;
@@ -8,9 +38,11 @@ class LocalSafetyResult {
   final String? host;
   final String? path;
   final String? packageName;
+  final String? expectedPackageName;
   final String? fallbackUrl;
   final Map<String, List<String>> parameters;
   final Map<String, String> extras;
+  final List<LocalCandidateApp> candidateApps;
   final bool launchedExternalApp;
   final bool networkAccessed;
   final String? errorCode;
@@ -23,9 +55,11 @@ class LocalSafetyResult {
     required this.host,
     required this.path,
     required this.packageName,
+    required this.expectedPackageName,
     required this.fallbackUrl,
     required this.parameters,
     required this.extras,
+    required this.candidateApps,
     required this.launchedExternalApp,
     required this.networkAccessed,
     this.errorCode,
@@ -33,6 +67,28 @@ class LocalSafetyResult {
   });
 
   bool get isSuccess => errorCode == null;
+
+  /// Value safe to pass to cloud analysis after local redaction.
+  String get safeValue {
+    var result = rawValue;
+    for (final key in parameters.keys) {
+      if (!_sensitiveKey(key)) continue;
+      final escaped = RegExp.escape(key);
+      result = result.replaceAllMapped(
+        RegExp('([?&]$escaped=)[^&#;]*', caseSensitive: false),
+        (match) => '${match.group(1)}[REDACTED]',
+      );
+    }
+    for (final key in extras.keys) {
+      if (!_sensitiveKey(key)) continue;
+      final escaped = RegExp.escape(key);
+      result = result.replaceAllMapped(
+        RegExp('(S\\.$escaped=)[^;]*', caseSensitive: false),
+        (match) => '${match.group(1)}[REDACTED]',
+      );
+    }
+    return result;
+  }
 
   factory LocalSafetyResult.fromMap(String rawValue, Map<String, dynamic> map) {
     final parameters = <String, List<String>>{};
@@ -54,6 +110,18 @@ class LocalSafetyResult {
       }
     }
 
+    final candidateApps = <LocalCandidateApp>[];
+    final rawCandidates = map['candidate_apps'];
+    if (rawCandidates is List) {
+      for (final candidate in rawCandidates) {
+        if (candidate is Map) {
+          candidateApps.add(
+            LocalCandidateApp.fromMap(Map<String, dynamic>.from(candidate)),
+          );
+        }
+      }
+    }
+
     return LocalSafetyResult(
       rawValue: rawValue,
       inputType: map['input_type']?.toString() ?? 'unknown',
@@ -61,9 +129,11 @@ class LocalSafetyResult {
       host: map['host']?.toString(),
       path: map['path']?.toString(),
       packageName: map['package_name']?.toString(),
+      expectedPackageName: map['expected_package_name']?.toString(),
       fallbackUrl: map['fallback_url']?.toString(),
       parameters: parameters,
       extras: extras,
+      candidateApps: candidateApps,
       launchedExternalApp: map['launched_external_app'] == true,
       networkAccessed: map['network_accessed'] == true,
     );
@@ -81,9 +151,11 @@ class LocalSafetyResult {
       host: null,
       path: null,
       packageName: null,
+      expectedPackageName: null,
       fallbackUrl: null,
       parameters: const {},
       extras: const {},
+      candidateApps: const [],
       launchedExternalApp: false,
       networkAccessed: false,
       errorCode: code,
@@ -108,9 +180,11 @@ class LocalSafetyResult {
       host: uri.host.isEmpty ? null : uri.host,
       path: uri.path.isEmpty ? '/' : uri.path,
       packageName: null,
+      expectedPackageName: null,
       fallbackUrl: null,
       parameters: uri.queryParametersAll,
       extras: const {},
+      candidateApps: const [],
       launchedExternalApp: false,
       networkAccessed: false,
     );
@@ -156,4 +230,16 @@ class LocalSafetyService {
       return LocalSafetyResult.webPreview(value);
     }
   }
+}
+
+bool _sensitiveKey(String key) {
+  final normalized = key.toLowerCase();
+  return normalized.contains('password') ||
+      normalized.contains('passwd') ||
+      normalized.contains('token') ||
+      normalized.contains('secret') ||
+      normalized.contains('student_id') ||
+      normalized.contains('id_card') ||
+      normalized == 'phone' ||
+      normalized == 'email';
 }
