@@ -2,7 +2,7 @@
 
 > 负责人：A
 > 分支：`feat/a-mobile-function`
-> 最新提交：`93d9713`
+> 最新提交：`9f7c5f8`
 > 日期：2026-09-22
 
 ## 今日已完成
@@ -63,3 +63,10 @@ All tests passed!（11 项）
 - 已接入 C 已提交的 local-evidence Schema、示例和 MethodChannel 字段。
 - 已使用 D 已提交的正式报告 Schema、报告 fixture 和证据引用约束。
 - C 后续只需补真机验证，D 后续只需补测试网站、真实 AI 和最终报告联调。
+
+## D 提交审计（2026-09-22）
+
+- 已检查 origin/feat/d-ai-day1 的最新提交 50eeda0。
+- 该提交包含 D 的正式 analysis-report Schema、三份风险报告示例、AI 客户端说明和证据引用清单。
+- 50eeda0 已经是当前 feat/a-mobile-function 的祖先提交，D 的这部分成果已在 A 分支中，无需重复合并。
+- A 已使用 D 的报告示例初始化报告模型，并把 B 返回的 cloud_evidence 投影到同一个报告页面。
