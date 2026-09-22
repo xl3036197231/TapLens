@@ -2,7 +2,7 @@
 
 > 负责人：A
 > 分支：`feat/a-mobile-function`
-> 最新提交：`cd74f7c`
+> 最新提交：`f77f8aa`
 > 日期：2026-09-22
 
 ## 今日已完成
@@ -18,6 +18,9 @@
 - 增加云端分析页面，可配置局域网后端地址并展示额度、任务状态和错误。
 - 后端客户端不会接收或发送 DeepSeek Key。
 - 增加正式报告解析、本地证据转换、HTTP 任务轮询和首页到本地预检到报告的交互测试。
+- 接入 C 的 local-evidence 契约，生成带有 Lxx 编号的本地证据 JSON。
+- 解析候选包名和期望包名字段；敏感参数、Intent extra 和云端提交值会先脱敏。
+- 本地预检页展示本地证据编号和详情，方便 D 的报告引用。
 
 ## 验证结果
 
@@ -28,10 +31,10 @@ flutter analyze
 No issues found!
 
 ./tool/test.sh -r expanded
-All tests passed!（8 项）
+All tests passed!（10 项）
 ```
 
-本次 8 项测试覆盖：
+本次 10 项测试覆盖：
 
 - 首页入口进入本地安全预检。
 - URL 预览结果展示“未启动外部应用、未访问网络”的安全边界。
@@ -41,6 +44,8 @@ All tests passed!（8 项）
 - 云任务从 queued 轮询到 succeeded。
 - 正式报告模型转换。
 - Deep Link 本地证据字段和非法输入错误处理。
+- local-evidence JSON 的 Lxx 编号、契约字段和错误对象。
+- 敏感查询参数和 Intent extra 的脱敏传递。
 
 ## 当前环境限制
 
@@ -52,6 +57,6 @@ All tests passed!（8 项）
 
 ## 与 C、D 的关系
 
-- 今天没有等待 C 的新提交，使用第一天已经合并的 MethodChannel 和本地证据格式。
-- 今天没有等待 D 的新提交，使用第一天已经合并的正式报告 Schema 和示例。
+- 已接入 C 已提交的 local-evidence Schema、示例和 MethodChannel 字段。
+- 已使用 D 已提交的正式报告 Schema、报告 fixture 和证据引用约束。
 - C 后续只需补真机验证，D 后续只需补测试网站、真实 AI 和最终报告联调。
