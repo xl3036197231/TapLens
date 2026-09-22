@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 260" role="img" aria-labelledby="title desc">
+  <title id="title">Content unavailable illustration</title>
+  <desc id="desc">A magnifying glass over a blank page.</desc>
+  <rect x="80" y="35" width="166" height="188" rx="18" fill="#F5F8FD" stroke="#BED0EA" stroke-width="4"/>
+  <path d="M112 83h102M112 112h102M112 141h67" stroke="#B1C3DE" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="227" cy="163" r="48" fill="#E4F7F3" stroke="#16A394" stroke-width="9"/>
+  <path d="m261 198 38 34" stroke="#0F7D73" stroke-width="14" stroke-linecap="round"/>
+  <path d="M210 162h34M227 145v34" stroke="#16A394" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+  <circle cx="68" cy="58" r="16" fill="#FFD986" opacity=".75"/><circle cx="294" cy="75" r="11" fill="#8BB7F4" opacity=".75"/>
+</svg>

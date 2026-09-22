@@ -4,6 +4,7 @@
     "site_root": "mobile/test/ai/day2_site",
     "entry_file": "short-link.html",
     "redirect_chain": ["short-link.html", "campus-login.html"],
+    "post_login_target": "community-hub.html",
     "expected_risk_level": "high",
     "expected_evidence_kinds": ["redirect", "form", "page"],
     "expected_cloud_ids": ["C01", "C02"],

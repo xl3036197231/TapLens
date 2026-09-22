@@ -2,14 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="case-id" content="day2-safe-info">
+  <meta name="theme-color" content="#183d88">
   <title>Example Campus security talk</title>
+  <link rel="stylesheet" href="site.css">
 </head>
 <body>
-  <main>
-    <h1>Example Campus security talk</h1>
-    <p>This fictional page contains public event information only.</p>
-    <p>It has no login form, download, redirect, or external protocol.</p>
+  <header class="site-header">
+    <a class="brand" href="safe-info.html" aria-label="Example Campus home">
+      <img class="brand-mark" src="assets/example-campus-mark.svg" alt="">
+      <span class="brand-copy"><span class="brand-name">Example Campus</span><span class="brand-subtitle">Learning portal</span></span>
+    </a>
+    <span class="header-status"><span class="status-dot"></span>Public information</span>
+  </header>
+  <main class="page-wrap">
+    <section class="info-card">
+      <div>
+        <span class="info-badge"><span class="status-dot"></span>Information page</span>
+        <p class="eyebrow" style="margin-top: 1.5rem; color: var(--blue);">Example Campus / Community</p>
+        <h1>Build a safer digital campus.</h1>
+        <p>This fictional page contains public event information only. It has no login form, download, redirect or external protocol.</p>
+        <div class="detail-grid">
+          <div class="detail-item"><span class="detail-label">Session</span><span class="detail-value">Digital safety talk</span></div>
+          <div class="detail-item"><span class="detail-label">Audience</span><span class="detail-value">Everyone on campus</span></div>
+          <div class="detail-item"><span class="detail-label">Format</span><span class="detail-value">Open information</span></div>
+          <div class="detail-item"><span class="detail-label">Fixture</span><span class="detail-value">day2-safe-info</span></div>
+        </div>
+      </div>
+      <img class="info-art" src="assets/portal-illustration.svg" alt="Illustration of the fictional Example Campus building">
+    </section>
   </main>
+  <footer class="site-footer">Example Campus is a fictional brand used only for local security testing.</footer>
 </body>
 </html>

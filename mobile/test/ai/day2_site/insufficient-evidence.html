@@ -2,14 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="case-id" content="day2-insufficient">
+  <meta name="theme-color" content="#183d88">
   <title>Content unavailable</title>
+  <link rel="stylesheet" href="site.css">
 </head>
 <body>
-  <main>
-    <h1>Content unavailable</h1>
-    <p>The target content is unavailable in this controlled fixture.</p>
-    <p>No page purpose, form, redirect target, or external application can be verified.</p>
+  <header class="site-header">
+    <a class="brand" href="safe-info.html" aria-label="Example Campus home">
+      <img class="brand-mark" src="assets/example-campus-mark.svg" alt="">
+      <span class="brand-copy"><span class="brand-name">Example Campus</span><span class="brand-subtitle">Learning portal</span></span>
+    </a>
+    <span class="header-status"><span class="status-dot"></span>Content check</span>
+  </header>
+  <main class="page-wrap">
+    <section class="info-card">
+      <div>
+        <span class="info-badge warning">Evidence unavailable</span>
+        <p class="eyebrow" style="margin-top: 1.5rem; color: var(--warning);">Controlled response / day2-insufficient</p>
+        <h1>We could not verify this page.</h1>
+        <p>The target content is unavailable in this controlled fixture. No page purpose, form, redirect target or external application can be verified.</p>
+        <div class="detail-grid">
+          <div class="detail-item"><span class="detail-label">Status</span><span class="detail-value">Insufficient evidence</span></div>
+          <div class="detail-item"><span class="detail-label">Action</span><span class="detail-value">Do not infer safety</span></div>
+        </div>
+      </div>
+      <img class="info-art" src="assets/status-illustration.svg" alt="Illustration of a magnifying glass over an unavailable page">
+    </section>
   </main>
+  <footer class="site-footer">Example Campus is a fictional brand used only for local security testing.</footer>
 </body>
 </html>

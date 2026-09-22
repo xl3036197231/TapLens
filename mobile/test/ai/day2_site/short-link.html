@@ -2,13 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="case-id" content="day2-short-link-high-risk">
-  <title>Campus service link</title>
+  <meta name="theme-color" content="#183d88">
   <meta http-equiv="refresh" content="0;url=campus-login.html">
+  <title>Campus service link</title>
+  <link rel="stylesheet" href="site.css">
 </head>
 <body>
-  <p>Redirecting to the campus service...</p>
-  <a href="campus-login.html">Continue</a>
+  <main class="page-wrap" style="max-width: 38rem; padding-top: 12vh;">
+    <section class="info-card" style="display: block; text-align: center;">
+      <img class="brand-mark" src="assets/example-campus-mark.svg" alt="Example Campus">
+      <p class="eyebrow" style="margin-top: 1.4rem; color: var(--blue);">Campus service link</p>
+      <h1 style="font-size: clamp(2rem, 5vw, 3rem);">Opening student services…</h1>
+      <p style="margin: 0 auto 1.5rem;">Please wait while the controlled short-link fixture follows its redirect.</p>
+      <a class="primary-button" style="display: inline-flex; align-items: center; justify-content: center; max-width: 18rem; text-decoration: none;" href="campus-login.html">Continue to portal <span aria-hidden="true">→</span></a>
+    </section>
+  </main>
   <script>
     window.setTimeout(function () { window.location.replace('campus-login.html'); }, 0);
   </script>
