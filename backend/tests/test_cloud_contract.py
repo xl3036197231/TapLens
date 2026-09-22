@@ -41,6 +41,7 @@ def validator() -> Draft202012Validator:
         FIXTURE_DIRECTORY / "case01-cloud-running.json",
         FIXTURE_DIRECTORY / "case01-cloud-succeeded.json",
         FIXTURE_DIRECTORY / "case01-cloud-failed.json",
+        FIXTURE_DIRECTORY / "day2-short-link-succeeded.json",
     ],
 )
 def test_cloud_evidence_fixture_matches_schema(document_path: Path) -> None:

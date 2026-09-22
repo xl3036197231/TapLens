@@ -13,6 +13,7 @@ from app.sandbox.url_policy import (
     [
         "file:///etc/passwd",
         "ftp://public.example/file",
+        "taplens-demo://external-target",
         "http://localhost/",
         "http://service.local/",
         "http://metadata.google.internal/",

@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "0e9d4f24-c047-4c7e-a684-e7479dcaaeb9",
+  "task_id": "4c98bceb-05ec-4751-872a-13c22a051d6c",
+  "status": "succeeded",
+  "generated_at": "2026-09-22T13:28:16.448318Z",
+  "duration_ms": 992,
+  "initial_url": "http://127.0.0.1:18765/go/campus",
+  "final_url": "http://127.0.0.1:18765/campus-login.html",
+  "redirects": [
+    {
+      "from_url": "http://127.0.0.1:18765/go/campus",
+      "to_url": "http://127.0.0.1:18765/campus-login.html",
+      "status_code": 302
+    }
+  ],
+  "requests": [
+    {
+      "origin": "http://127.0.0.1:18765",
+      "method": "GET",
+      "resource_type": "document",
+      "status_code": 302
+    },
+    {
+      "origin": "http://127.0.0.1:18765",
+      "method": "GET",
+      "resource_type": "document",
+      "status_code": 200
+    },
+    {
+      "origin": "http://127.0.0.1:18765",
+      "method": "GET",
+      "resource_type": "stylesheet",
+      "status_code": 200
+    },
+    {
+      "origin": "http://127.0.0.1:18765",
+      "method": "GET",
+      "resource_type": "image",
+      "status_code": 200
+    },
+    {
+      "origin": "http://127.0.0.1:18765",
+      "method": "GET",
+      "resource_type": "image",
+      "status_code": 200
+    }
+  ],
+  "forms": [
+    {
+      "action": "http://127.0.0.1:18765/blocked-submit",
+      "method": "POST",
+      "fields": [
+        {
+          "name": "student_id",
+          "type": "input",
+          "sensitive": true
+        },
+        {
+          "name": "password",
+          "type": "password",
+          "sensitive": true
+        }
+      ]
+    }
+  ],
+  "blocked_actions": [],
+  "page": {
+    "title": "Example Campus single sign-on",
+    "text_summary": "Example Campus LEARNING PORTAL Training environment Controlled training fixture This is a fictional TapLens test page. Never enter a real password or personal information. STUDENT SERVICES / 2026 Everything you need for campus life. Access your timetable, learning resources and student services from one calm, secure place. One account Student services Secure access WELCOME BACK Sign in to continue Use the fictional demo account to open the community hub. Student ID Use the fictional value provided for this fixture. Password Training value only; submission is blocked locally. Enter demo hub → TapLens training fixture · fields are never sent anywhere Example Campus is a fictional brand used only for local security testing."
+  },
+  "screenshot": {
+    "artifact_id": "4c98bceb-05ec-4751-872a-13c22a051d6c",
+    "download_url": "http://127.0.0.1:18000/api/v1/deep-scans/4c98bceb-05ec-4751-872a-13c22a051d6c/screenshot",
+    "expires_at": "2026-09-22T13:58:16.448318Z"
+  },
+  "evidence": [
+    {
+      "id": "C01",
+      "kind": "redirect",
+      "title": "云端跳转链",
+      "detail": "观察到1次HTTP跳转。"
+    },
+    {
+      "id": "C02",
+      "kind": "form",
+      "title": "敏感表单字段",
+      "detail": "页面表单包含2个敏感输入字段。"
+    },
+    {
+      "id": "C03",
+      "kind": "page",
+      "title": "云端页面摘要",
+      "detail": "页面标题：Example Campus single sign-on"
+    },
+    {
+      "id": "C04",
+      "kind": "screenshot",
+      "title": "云端页面截图",
+      "detail": "已生成受鉴权与过期时间保护的页面截图。"
+    }
+  ],
+  "limitations": [],
+  "error": null,
+  "expires_at": "2026-09-22T13:58:16.448318Z"
+}

@@ -55,9 +55,19 @@ def main() -> None:
             require_status(result, {200}, "poll")
             payload = result.json()
             if payload["status"] in {"succeeded", "failed"}:
+                screenshot_status = "not-applicable"
+                screenshot = (payload.get("cloud_evidence") or {}).get("screenshot")
+                if screenshot:
+                    downloaded = client.get(screenshot["download_url"], headers=headers)
+                    require_status(downloaded, {200}, "screenshot")
+                    if downloaded.headers.get("content-type") != "image/png":
+                        raise SystemExit("screenshot failed: response is not image/png")
+                    if not downloaded.content.startswith(b"\x89PNG\r\n\x1a\n"):
+                        raise SystemExit("screenshot failed: invalid PNG signature")
+                    screenshot_status = "ok"
                 print(
                     f"flow=ok task_id={task_id} status={payload['status']} "
-                    f"remaining={created.json()['remaining']}"
+                    f"remaining={created.json()['remaining']} screenshot={screenshot_status}"
                 )
                 return
             if time.monotonic() >= deadline:

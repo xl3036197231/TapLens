@@ -20,10 +20,20 @@ def test_controlled_site_produces_redirect_and_sensitive_form_evidence(tmp_path)
             <input name="student_id" value="REDACTED">
             <input name="password" type="password" value="TEST_ONLY">
           </form>
-          <script>fetch('/blocked-submit', {method: 'POST', body: 'password=TEST_ONLY'}).catch(() => {});</script>
+          <script>
+            fetch('/blocked-submit', {method: 'POST', body: 'password=TEST_ONLY'}).catch(() => {});
+            window.open('/popup.html', '_blank');
+            const download = document.createElement('a');
+            download.href = '/download.txt';
+            download.download = 'download.txt';
+            document.body.append(download);
+            download.click();
+          </script>
         </body></html>""",
         encoding="utf-8",
     )
+    (site / "popup.html").write_text("controlled popup", encoding="utf-8")
+    (site / "download.txt").write_text("controlled download", encoding="utf-8")
     server = create_controlled_site_server(directory=site, port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -55,7 +65,8 @@ def test_controlled_site_produces_redirect_and_sensitive_form_evidence(tmp_path)
         "password",
     ]
     assert all(field["sensitive"] is True for field in result.forms[0]["fields"])
-    assert any(action["type"] == "business_post" for action in result.blocked_actions)
+    blocked_types = {action["type"] for action in result.blocked_actions}
+    assert {"business_post", "download", "popup"} <= blocked_types
     serialized = json.dumps(result.__dict__, default=str)
     assert "TEST_ONLY" not in serialized
     assert "REDACTED" not in serialized
