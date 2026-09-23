@@ -18,7 +18,7 @@ class LocalSafetyTestActivity : Activity() {
             addView(TextView(context).apply {
                 text = output
                 setPadding(32, 32, 32, 32)
-                textIsSelectable = true
+                setTextIsSelectable(true)
             })
         })
     }

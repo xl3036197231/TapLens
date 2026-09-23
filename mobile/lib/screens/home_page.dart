@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/analysis_report.dart';
+import 'local_check_page.dart';
 import 'report_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -45,11 +46,27 @@ class HomePage extends StatelessWidget {
                 childAspectRatio: 1.55,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  _EntryCard(icon: Icons.qr_code_scanner_rounded, label: '扫码检查'),
-                  _EntryCard(icon: Icons.photo_library_outlined, label: '导入海报'),
-                  _EntryCard(icon: Icons.content_paste_rounded, label: '粘贴链接'),
-                  _EntryCard(icon: Icons.ios_share_rounded, label: '分享给触镜'),
+                children: [
+                  _EntryCard(
+                    icon: Icons.qr_code_scanner_rounded,
+                    label: '扫码检查',
+                    onTap: () => _openLocalCheck(context),
+                  ),
+                  _EntryCard(
+                    icon: Icons.photo_library_outlined,
+                    label: '导入海报',
+                    onTap: () => _openLocalCheck(context),
+                  ),
+                  _EntryCard(
+                    icon: Icons.content_paste_rounded,
+                    label: '粘贴链接',
+                    onTap: () => _openLocalCheck(context),
+                  ),
+                  _EntryCard(
+                    icon: Icons.ios_share_rounded,
+                    label: '分享给触镜',
+                    onTap: () => _openLocalCheck(context),
+                  ),
                 ],
               ),
               const SizedBox(height: 28),
@@ -69,11 +86,18 @@ class HomePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              _RecentReportCard(report: report, onTap: () => _openReport(context)),
+              _RecentReportCard(
+                  report: report, onTap: () => _openReport(context)),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  void _openLocalCheck(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const LocalCheckPage()),
     );
   }
 
@@ -132,24 +156,31 @@ class _HeroCard extends StatelessWidget {
 class _EntryCard extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
-  const _EntryCard({required this.icon, required this.label});
+  const _EntryCard({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {},
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 30),
-              const SizedBox(height: 8),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          label: label,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    color: Theme.of(context).colorScheme.primary, size: 30),
+                const SizedBox(height: 8),
+                Text(label,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ),
@@ -184,7 +215,8 @@ class _RecentReportCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(report.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(report.title,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     Text(
                       report.summary,
