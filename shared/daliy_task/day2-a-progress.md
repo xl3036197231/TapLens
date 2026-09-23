@@ -2,8 +2,8 @@
 
 > 负责人：A
 > 分支：`feat/a-mobile-function`
-> 最新提交：f71738b
-> 日期：2026-09-22
+> 已合并基线：A 最新功能已进入 main；第三天改动沿用 feat/a-mobile-function
+> 最近更新：2026-09-23
 
 ## 今日已完成
 
@@ -50,7 +50,7 @@ All tests passed!（11 项）
 - 敏感查询参数和 Intent extra 的脱敏传递。
 - B 的 cloud_evidence 到手机分析报告的投影。
 
-## 当前环境限制
+## 历史环境限制（记录于 2026-09-22，后续验证见下文）
 
 - Android Debug APK 编译已尝试。
 - Gradle Wrapper 下载 Gradle 发行包时发生网络超时，暂时无法在当前环境完成 APK 编译。
@@ -79,7 +79,7 @@ All tests passed!（11 项）
 - 修复 Android 调试测试 Activity 在当前 Kotlin 工具链下的兼容性问题：使用 setTextIsSelectable(true)。
 - 移除没有原生 NDK 代码时的强制 NDK 版本约束，Debug 构建不再因为 NDK 自动下载卡住。
 
-## 最新验证
+## 第二天后续验证（2026-09-23）
 
 - Flutter 3.47.2 已安装到 D:\FlutterSDK\flutter，Android SDK 在 D:\AndroidSDK。
 - flutter analyze：无错误，仅保留原有提示级 lint。
@@ -92,3 +92,21 @@ All tests passed!（11 项）
 
 - 没有使用真实 DeepSeek Key，因此真实模型请求、余额和限流场景仍需由用户在手机报告页确认后测试。
 - 云端短链接主案例仍需要 B 后端在局域网启动并提供可用测试账号；当前已完成客户端调用链和报告页 AI 接入。
+
+
+## 2026-09-23 第三天可独立推进事项
+
+- 修正后端接口 URL 拼接。原实现会把 /auth/login 解析到域名根目录，丢掉基础地址中的 /api/v1；现在会保留后端基础路径。
+- 后端请求增加 10 秒上限，无法连接、请求超时、无效 JSON 会显示可理解的中文提示。
+- 后端地址只接受完整的 http/https URL，拒绝带用户名密码、查询参数或片段的地址。
+- 云任务等待超过前台时限后保留同一个 task_id，提供“继续查询”操作；任务仍在运行时禁用重复创建，避免重复扣额度。
+- 登录错误、额度耗尽、内网目标拦截、云任务超时等情况显示对应中文说明；AI Key、余额、限流、网络、超时、证据引用和报告格式错误也使用中文回退提示。
+- 本地预检生成的 analysis_id 现在保存在页面状态中，并沿用到云任务请求；同一次分析的本地证据和云端证据使用同一个 ID。
+- 新增 day3-a-demo.md，写明构建模拟器 APK、连接 B 后端和现场演示的操作顺序。
+
+### 本轮验证状态
+
+- 已检查代码差异和共享接口文档；本轮没有重新执行 Flutter analyze、Flutter tests 或 APK 构建。
+- 模拟器实际访问 B 后端仍需 B 提供当次地址、测试账号并启动 worker。
+- analyzeLocalEvidence 五类模拟器返回记录仍需 C 提供。
+- 没有使用真实 DeepSeek Key；真实 AI 请求仍是可选验收项。

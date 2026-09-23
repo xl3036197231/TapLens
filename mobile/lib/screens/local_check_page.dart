@@ -19,6 +19,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   );
   final _service = LocalSafetyService();
   LocalSafetyResult? _result;
+  LocalEvidence? _evidence;
   bool _loading = false;
 
   @override
@@ -31,8 +32,10 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
     setState(() => _loading = true);
     final result = await _service.analyze(_controller.text);
     if (!mounted) return;
+    final evidence = LocalEvidence.fromResult(result);
     setState(() {
       _result = result;
+      _evidence = evidence;
       _loading = false;
     });
   }
@@ -40,6 +43,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   @override
   Widget build(BuildContext context) {
     final result = _result;
+    final evidence = _evidence;
     return Scaffold(
       appBar: AppBar(title: const Text('本地安全预检')),
       body: SafeArea(
@@ -83,12 +87,9 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 label: Text(_loading ? '解析中…' : '开始本地预检'),
               ),
             ),
-            if (result != null) ...[
+            if (result != null && evidence != null) ...[
               const SizedBox(height: 20),
-              _ResultCard(
-                result: result,
-                evidence: LocalEvidence.fromResult(result),
-              ),
+              _ResultCard(result: result, evidence: evidence),
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 onPressed: () {
@@ -107,8 +108,10 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) =>
-                            CloudAnalysisPage(initialUrl: result.safeValue),
+                        builder: (_) => CloudAnalysisPage(
+                          initialUrl: result.safeValue,
+                          analysisId: evidence.analysisId,
+                        ),
                       ),
                     );
                   },
