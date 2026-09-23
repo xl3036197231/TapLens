@@ -1,0 +1,38 @@
+# Day 2 controlled test site
+
+These pages are local, fictional fixtures for B's Playwright sandbox. They are
+not a real phishing site and must not be deployed publicly.
+
+| Case | Entry page | Expected behavior | Expected result |
+|---|---|---|---|
+| `day2-short-link-high-risk` | `short-link.html` | Redirects to `campus-login.html`; the local-only demo submit then opens `community-hub.html` | High risk |
+| `day2-demo-post-login` | `community-hub.html` | Local-only terminal-style route monitor; no credentials are submitted | Redirect target reached |
+| `day2-safe-info` | `safe-info.html` | Stable informational page, no form, no external action | Low risk |
+| `day2-insufficient` | `insufficient-evidence.html` | Page explicitly reports that the target content is unavailable and provides no verifiable behavior | Insufficient evidence |
+
+## Realistic Deep Link walkthrough
+
+Open `deep-link-demo.html` through a local HTTP server. The fictional "槐序 Campus" activity and message page offers seven believable entry points: an event schedule, account reminder, partner registration, ticket fallback, sensitive prefill, broken old notice and a short-link promotion. Each button goes only to `deep-link-preview.html?case=FIX-DL-xxx`, a TapLens-style *expected static result* page. It never follows an `intent://` URI, launches an external app, visits a fallback URL or claims to have collected cloud evidence.
+
+The preview shows the canonical URI, C's expected parse fields, risk hints and per-analysis `Lxx` IDs; users can copy the URI for a real C-device test. For FIX-DL-007 only, an explicit secondary link opens the existing local `short-link.html` so B can test the controlled web redirect separately. The logical `https://short.example.test/go/campus` remains a fictional fixture identifier and needs an exact test-environment mapping before B can collect real `Cxx`.
+
+```powershell
+cd mobile/test/ai/day2_site
+python -m http.server 8765 --bind 127.0.0.1
+```
+
+Then visit `http://127.0.0.1:8765/deep-link-demo.html`. Run `python mobile/test/ai/validate_deep_link_demo.py` from the repository root after changing either the demo data or `shared/datasets/constructed-fixtures/deep-link-fixtures.json`.
+
+The short-link case uses only `example.test` language and test-only values. The
+form action is relative and must be blocked by the sandbox; no form submission
+should leave the local test service.
+
+All visual assets are local SVG fixtures under `assets/`; no external images,
+fonts, analytics, or third-party branding are loaded. The prominent training
+fixture notice is intentionally retained on the login page.
+
+The login form uses a local `onsubmit` handler that prevents transmission and
+navigates to `community-hub.html` only to demonstrate the post-login redirect.
+
+B can serve this directory with any local static server and map the entry paths
+to the URLs listed in `day2-scenarios.json`.

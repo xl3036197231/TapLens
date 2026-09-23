@@ -56,6 +56,10 @@ cd backend
 
 本地只处理当前队列并退出可使用`.venv/bin/python scripts/run_worker.py --once`。正式环境必须配置`TAPLENS_PUBLIC_BASE_URL`，使证据中的截图地址指向对外HTTPS服务。
 
+## 局域网手机联调
+
+开发机和手机处于同一可信 Wi-Fi 时，可让服务监听 `0.0.0.0:8000`，并由 A 把 Flutter 的开发环境基础地址配置为 `http://<开发机局域网IP>:8000/api/v1`。完整环境变量、启动命令、注册到轮询流程及失败场景见 `shared/interfaces/backend-lan-integration.md`。该方式仅用于开发联调，不是公网部署方案。
+
 ## Playwright 最小实验
 
 安装可选依赖和 Chromium：
@@ -69,9 +73,35 @@ cd backend
 
 脚本只读取仓库中的 `fixtures/demo_page.html`，用于验证一次性 BrowserContext、标题、表单字段和截图采集。它不是正式公网沙箱，不能据此开放任意URL。
 
+## 受控本机站点联调
+
+仅在 `development` 或 `test` 环境可配置精确的本机 Origin：
+
+```text
+TAPLENS_TEST_ALLOWED_ORIGINS=http://127.0.0.1:8765
+```
+
+生产环境配置该字段会拒绝启动；其他主机、协议或端口仍由 SSRF 规则拦截。启动一个带真实 HTTP 302 的受控静态站：
+
+```bash
+cd backend
+.venv/bin/python scripts/run_test_site.py \
+  --directory /absolute/path/to/controlled/site \
+  --port 8765
+```
+
+默认入口 `http://127.0.0.1:8765/go/campus` 返回 `302` 到 `/campus-login.html`。HTTP 服务和 worker 必须使用相同的 `TAPLENS_TEST_ALLOWED_ORIGINS`。启动两者后可验证完整 API 流程：
+
+```bash
+.venv/bin/python scripts/api_smoke_test.py \
+  --target-url http://127.0.0.1:8765/go/campus
+```
+
+该放行只用于仓库内无害页面，不得指向第三方站点，也不得作为公网部署配置。
+
 ## 安全约束
 
-- 不接收或记录 DeepSeek Key；
+- 不接收或记录 DeepSeek Key；请求对象会拒绝包括 `deepseek_key` 在内的未声明字段，错误响应不回显字段值；
 - 不把真实密钥写入 `.env.example`；
 - 不记录完整敏感查询参数或Authorization头；
 - 正式云任务必须在访问前后进行IP检查并阻止私网、保留地址和云元数据地址；

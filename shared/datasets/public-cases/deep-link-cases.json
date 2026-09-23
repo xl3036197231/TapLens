@@ -1,0 +1,62 @@
+[
+  {
+    "id": "PUB-DL-001",
+    "record_type": "published_research",
+    "category": "scheme_collision",
+    "source_url": "https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/liu",
+    "source_location": "Measuring the Insecurity of Mobile Deep Links of Android / paper, Background and Research Goals",
+    "behavior_summary": "The original research describes deep link hijacking and demonstrates that unverified schemes can be claimed by another application.",
+    "derived_fixture_ids": ["FIX-DL-002"],
+    "real_target_or_exploit_included": false
+  },
+  {
+    "id": "PUB-DL-002",
+    "record_type": "platform_documentation",
+    "category": "package_identity",
+    "source_url": "https://developer.chrome.com/docs/android/intents",
+    "source_location": "Android Intents with Chrome / intent URI syntax (package field)",
+    "behavior_summary": "An intent URI may specify a target package; comparing that declared package with the expected application reveals an identity mismatch.",
+    "derived_fixture_ids": ["FIX-DL-003", "FIX-DL-006"],
+    "real_target_or_exploit_included": false
+  },
+  {
+    "id": "PUB-DL-003",
+    "record_type": "platform_documentation",
+    "category": "fallback_destination",
+    "source_url": "https://developer.chrome.com/docs/android/intents",
+    "source_location": "Android Intents with Chrome / S.browser_fallback_url",
+    "behavior_summary": "If an intent cannot launch its target app, a browser fallback URL can direct the user to a different destination.",
+    "derived_fixture_ids": ["FIX-DL-004"],
+    "real_target_or_exploit_included": false
+  },
+  {
+    "id": "PUB-DL-004",
+    "record_type": "security_guidance",
+    "category": "sensitive_parameters",
+    "source_url": "https://mas.owasp.org/MASWE/MASVS-PLATFORM/MASWE-0029/",
+    "source_location": "Overview / Modes of Introduction / Impact",
+    "behavior_summary": "Deep link parameters and intent extras are attacker controlled and may expose sensitive data or alter app behavior if trusted.",
+    "derived_fixture_ids": ["FIX-DL-005"],
+    "real_target_or_exploit_included": false
+  },
+  {
+    "id": "PUB-DL-005",
+    "record_type": "platform_documentation",
+    "category": "invalid_or_unverifiable_input",
+    "source_url": "https://developer.android.com/training/app-links/verify-applinks",
+    "source_location": "Auto verification / Digital Asset Links association",
+    "behavior_summary": "A link cannot be treated as a verified app destination from its text alone; absent association verification leaves the destination uncertain.",
+    "derived_fixture_ids": ["FIX-DL-007"],
+    "real_target_or_exploit_included": false
+  },
+  {
+    "id": "PUB-DL-006",
+    "record_type": "published_case",
+    "category": "untrusted_deep_link_destination",
+    "source_url": "https://www.microsoft.com/en-us/security/blog/2022/08/31/vulnerability-in-tiktok-android-app-could-lead-to-one-click-account-hijacking/",
+    "source_location": "Vulnerability findings / Triggering the app's internal deeplinks",
+    "behavior_summary": "Microsoft documented a fixed Android deep link validation bypass that could route a crafted link into an unintended WebView destination. The TapLens fixture retains only the idea of comparing declared and actual destinations, not the exploit.",
+    "derived_fixture_ids": ["FIX-DL-004"],
+    "real_target_or_exploit_included": false
+  }
+]

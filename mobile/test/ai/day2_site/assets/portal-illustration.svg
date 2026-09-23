@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 330" role="img" aria-labelledby="title desc">
+  <title id="title">Fictional campus portal illustration</title>
+  <desc id="desc">A stylized campus building with a shield and a sign-in window.</desc>
+  <path d="M54 273h412" stroke="#9AC6FF" stroke-width="4" stroke-linecap="round" opacity=".42"/>
+  <path d="m95 132 164-72 166 72" fill="#8DD2D7" opacity=".28"/>
+  <path d="M104 136h310v137H104z" fill="#EFF7FF"/>
+  <path d="M90 136h338l-169-91z" fill="#8BB7F4"/>
+  <path d="M105 136h309" stroke="#fff" stroke-width="6" opacity=".64"/>
+  <path d="M143 143h38v130h-38zM207 143h38v130h-38zM271 143h38v130h-38zM335 143h38v130h-38z" fill="#2E65B7" opacity=".78"/>
+  <path d="M127 273v-51h264v51" fill="#D8EBFF"/>
+  <path d="M239 273v-51h42v51" fill="#24539A"/>
+  <path d="M260 51v-19" stroke="#CBE8FF" stroke-width="5" stroke-linecap="round"/>
+  <path d="m260 21 24 8-24 8z" fill="#6CE0D2"/>
+  <circle cx="421" cy="76" r="20" fill="#6CE0D2" opacity=".86"/>
+  <path d="M421 65c-8 8-12 12-12 18 0 8 5 13 12 13s12-5 12-13c0-6-4-10-12-18z" fill="#F4FFFF" opacity=".92"/>
+  <path d="M60 271c5-24 21-38 45-43 9 9 17 23 19 43zM401 271c5-21 16-34 34-42 19 8 29 22 34 42z" fill="#44B6A8" opacity=".62"/>
+  <path d="M69 247c-17-14-22-27-15-39 17 1 29 12 33 30M435 236c-2-19 8-31 25-37 10 13 7 28-7 44" fill="#6AD1BE" opacity=".67"/>
+  <path d="M253 97h14v22h-14z" fill="#DDF6FF"/><path d="M242 96h36v5h-36z" fill="#fff" opacity=".9"/>
+</svg>

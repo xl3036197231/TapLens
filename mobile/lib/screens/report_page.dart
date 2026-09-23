@@ -1,16 +1,144 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/analysis_report.dart';
+import '../services/secure_ai_key_store.dart';
 
-class ReportPage extends StatelessWidget {
+class AiReportExecution {
   final AnalysisReport report;
+  final bool usedFallback;
+  final String? message;
 
-  const ReportPage({super.key, required this.report});
+  const AiReportExecution({
+    required this.report,
+    required this.usedFallback,
+    this.message,
+  });
+}
+
+typedef AiReportRunner = Future<AiReportExecution> Function(String apiKey);
+
+class ReportPage extends StatefulWidget {
+  final AnalysisReport report;
+  final AiReportRunner? aiRunner;
+
+  const ReportPage({super.key, required this.report, this.aiRunner});
+
+  @override
+  State<ReportPage> createState() => _ReportPageState();
+}
+
+class _ReportPageState extends State<ReportPage> {
+  late AnalysisReport _report;
+  bool _aiLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _report = widget.report;
+  }
+
+  Future<void> _runAi() async {
+    final runner = widget.aiRunner;
+    if (runner == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('当前报告没有可用的 AI 输入证据。')),
+      );
+      return;
+    }
+
+    String? storedKey;
+    try {
+      storedKey = await const SecureAiKeyStore().read();
+    } on PlatformException {
+      storedKey = null;
+    }
+
+    if (!mounted) return;
+    final controller = TextEditingController(text: storedKey ?? '');
+    final key = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('AI 深度研判'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                autofocus: storedKey == null,
+                decoration: const InputDecoration(
+                  labelText: 'DeepSeek API Key',
+                  hintText: '只保存在本机安全存储',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.of(context).pop(value);
+            },
+            child: const Text('确认并分析'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (key == null || key.trim().isEmpty || !mounted) return;
+    try {
+      await const SecureAiKeyStore().save(key);
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Key 无法保存到本机安全存储。')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _aiLoading = true);
+    try {
+      final result = await runner(key);
+      if (!mounted) return;
+      setState(() {
+        _report = result.report;
+        _aiLoading = false;
+      });
+      final message = result.message ??
+          (result.usedFallback
+              ? 'AI 未返回可用结论，已保留规则报告。'
+              : 'AI 报告已通过证据和风险守卫。');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _aiLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('AI 请求失败，已保留当前规则报告。')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final report = _report;
     final colors = Theme.of(context).colorScheme;
     final riskColor = _riskColor(colors, report.riskLevel);
+    final tokenCount = report.totalTokens;
 
     return Scaffold(
       appBar: AppBar(title: const Text('分析报告')),
@@ -62,6 +190,22 @@ class ReportPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _CompareCard(report: report),
+              if (report.recommendations.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: '建议怎么做',
+                  icon: Icons.shield_outlined,
+                  child: _BulletGroup(title: '立即行动', items: report.recommendations),
+                ),
+              ],
+              if (report.uncertaintySummary.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _SectionCard(
+                  title: '证据范围',
+                  icon: Icons.info_outline_rounded,
+                  child: Text(report.uncertaintySummary),
+                ),
+              ],
               const SizedBox(height: 12),
               _SectionCard(
                 title: '证据',
@@ -72,11 +216,25 @@ class ReportPage extends StatelessWidget {
                   ],
                 ),
               ),
+              if (tokenCount != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    'AI 本次使用约 $tokenCount tokens',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.psychology_alt_rounded),
-                label: const Text('配置 Key 后进行 AI 深度研判'),
+                onPressed: _aiLoading ? null : _runAi,
+                icon: _aiLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.psychology_alt_rounded),
+                label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
               ),
             ],
           ),

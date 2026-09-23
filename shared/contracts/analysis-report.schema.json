@@ -283,6 +283,90 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "risk_level": {"const": "insufficient_evidence"}
+        },
+        "required": ["risk_level"]
+      },
+      "then": {
+        "properties": {
+          "uncertainty": {
+            "properties": {
+              "status": {"const": "insufficient"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "uncertainty": {
+            "properties": {
+              "status": {"const": "insufficient"}
+            },
+            "required": ["status"]
+          }
+        },
+        "required": ["uncertainty"]
+      },
+      "then": {
+        "properties": {
+          "risk_level": {"const": "insufficient_evidence"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "token_usage": {
+            "properties": {
+              "request_count": {"const": 0}
+            },
+            "required": ["request_count"]
+          }
+        },
+        "required": ["token_usage"]
+      },
+      "then": {
+        "properties": {
+          "token_usage": {
+            "properties": {
+              "prompt_tokens": {"const": 0},
+              "completion_tokens": {"const": 0},
+              "total_tokens": {"const": 0},
+              "model": {"const": null}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "token_usage": {
+            "properties": {
+              "request_count": {"const": 1}
+            },
+            "required": ["request_count"]
+          }
+        },
+        "required": ["token_usage"]
+      },
+      "then": {
+        "properties": {
+          "token_usage": {
+            "properties": {
+              "model": {"const": "deepseek-flash"}
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "evidence_id": {
       "type": "string",
@@ -346,7 +430,21 @@
           "minLength": 1,
           "maxLength": 2000
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "id": {"pattern": "^L[0-9]{2,}$"},
+            "source": {"const": "local"}
+          }
+        },
+        {
+          "properties": {
+            "id": {"pattern": "^C[0-9]{2,}$"},
+            "source": {"const": "cloud"}
+          }
+        }
+      ]
     }
   }
 }

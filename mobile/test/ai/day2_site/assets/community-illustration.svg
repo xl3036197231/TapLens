@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 330" role="img" aria-labelledby="title desc">
+  <title id="title">Signal Commons community illustration</title>
+  <desc id="desc">A fictional night-time community network with connected people and signal arcs.</desc>
+  <defs>
+    <linearGradient id="sky" x1="80" y1="40" x2="440" y2="290" gradientUnits="userSpaceOnUse"><stop stop-color="#5144A5"/><stop offset="1" stop-color="#141B3B"/></linearGradient>
+    <linearGradient id="glow" x1="160" y1="80" x2="360" y2="260" gradientUnits="userSpaceOnUse"><stop stop-color="#8D7BFF"/><stop offset="1" stop-color="#5DE2D5"/></linearGradient>
+  </defs>
+  <circle cx="260" cy="163" r="132" fill="url(#sky)" opacity=".82"/>
+  <path d="M108 272h304" stroke="#8790C5" stroke-width="3" stroke-linecap="round" opacity=".36"/>
+  <path d="M151 272v-53l38-20 38 20v53M293 272v-68l44-24 44 24v68" fill="#242B51" stroke="#7080C2" stroke-width="3"/>
+  <path d="M174 241h30v31h-30zM317 232h20v40h-20zM348 232h20v40h-20z" fill="#FFD166" opacity=".78"/>
+  <path d="M90 142c43-55 94-82 153-82M430 142c-43-55-94-82-153-82" fill="none" stroke="#8D7BFF" stroke-width="5" stroke-linecap="round" opacity=".58"/>
+  <path d="M122 153c34-38 75-57 121-57M398 153c-34-38-75-57-121-57" fill="none" stroke="#5DE2D5" stroke-width="4" stroke-linecap="round" opacity=".64"/>
+  <circle cx="260" cy="60" r="7" fill="#FFD166"/><circle cx="260" cy="96" r="6" fill="#5DE2D5"/>
+  <circle cx="129" cy="225" r="20" fill="#8D7BFF"/><circle cx="391" cy="225" r="20" fill="#5DE2D5"/>
+  <circle cx="260" cy="180" r="28" fill="#FFCF68"/>
+  <path d="M111 273c2-27 8-42 18-48 10 6 16 21 18 48M373 273c2-27 8-42 18-48 10 6 16 21 18 48M224 273c3-37 15-56 36-56s33 19 36 56" fill="#1B2040" stroke="#D8D9FF" stroke-width="3"/>
+  <path d="M247 178h26M260 165v26" stroke="#5C4AB3" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 760" role="img" aria-labelledby="title desc">
+  <title id="title">城市与未来讲座海报</title><desc id="desc">暖色纸张上的虚构建筑、太阳和讲座文字。</desc>
+  <rect width="660" height="760" rx="20" fill="#ead8b9"/>
+  <path d="M0 0h660v390H0z" fill="#e7b882"/>
+  <circle cx="499" cy="216" r="111" fill="#f7e4b1"/>
+  <path d="M0 397c114-31 179-58 295-55 105 2 198 53 365 18v241H0z" fill="#be7453"/>
+  <path d="M0 479c138-49 250-17 349 0 123 22 191-3 311-33v155H0z" fill="#9f593f"/>
+  <path d="M60 401h118V247h-36V203H95v44H60zm170 0h92V167h-27v-42h-38v42h-27zm150 0h162V275h-25v-69h-91v69h-46z" fill="#293a33"/>
+  <path d="M75 281h15m31 0h15m-61 35h15m31 0h15m-61 35h15m31 0h15m126-140h21m-21 39h21m-21 39h21m-21 39h21m168-39h20m34 0h20m-74 34h20m34 0h20" stroke="#e7b882" stroke-width="11"/>
+  <path d="M0 590h660v170H0z" fill="#273a33"/>
+  <text x="49" y="650" fill="#ead8b9" font-family="Georgia,serif" font-size="55" font-weight="700">CITY / FUTURE</text>
+  <text x="52" y="700" fill="#b5c4b0" font-family="Arial,sans-serif" font-size="19" letter-spacing="5">OPEN LECTURE · CAMPUS LIFE</text>
+  <path d="M27 28h606v704H27z" fill="none" stroke="#293a33" stroke-opacity=".22" stroke-width="2"/>
+</svg>

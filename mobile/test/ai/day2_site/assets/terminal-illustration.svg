@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" role="img" aria-labelledby="title desc">
+  <title id="title">Local route monitor illustration</title>
+  <desc id="desc">A fictional terminal monitor showing a bright route graph.</desc>
+  <rect x="24" y="30" width="432" height="292" fill="#07120e" stroke="#2C6948" stroke-width="2"/>
+  <path d="M24 73h432" stroke="#2C6948" stroke-width="2"/>
+  <circle cx="48" cy="51" r="6" fill="#FFCE68"/><circle cx="68" cy="51" r="6" fill="#2CFF8A"/><circle cx="88" cy="51" r="6" fill="#58E6D1"/>
+  <path d="M70 246 151 185l77 30 85-105 86 43" fill="none" stroke="#2CFF8A" stroke-width="4" stroke-linecap="square"/>
+  <path d="M70 246 151 185l77 30 85-105 86 43" fill="none" stroke="#2CFF8A" stroke-width="13" opacity=".09"/>
+  <circle cx="70" cy="246" r="9" fill="#FFCE68"/><circle cx="151" cy="185" r="9" fill="#58E6D1"/><circle cx="228" cy="215" r="9" fill="#FFCE68"/><circle cx="313" cy="110" r="9" fill="#8C7BFF"/><circle cx="399" cy="153" r="9" fill="#2CFF8A"/>
+  <path d="M57 98h88M57 115h52M57 132h123M57 149h67" stroke="#3F7254" stroke-width="4" stroke-linecap="square"/>
+  <path d="M343 238h57M343 255h38M343 272h71" stroke="#3F7254" stroke-width="4" stroke-linecap="square"/>
+  <text x="58" y="292" fill="#7DA990" font-family="monospace" font-size="12" letter-spacing="2">ROUTE_GRAPH // ONLINE</text>
+</svg>
