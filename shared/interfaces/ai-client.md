@@ -1,6 +1,8 @@
 # TapLens AI 客户端边界（D 维护）
 
-状态：`READY-FOR-DAY2-INTEGRATION`。真实 API 客户端已实现，但尚未在本机执行 Dart 测试或连接真实服务；Keystore 适配、用户确认和页面接入仍由 A 的手机端整合阶段完成。
+状态：`DAY3-MOCK-VERIFIED`。客户端、Keystore、用户确认和报告页接入已完成；Flutter 全量测试与 Android 模拟器 Mock 测试通过。真实 DeepSeek Key 请求尚未验收。
+
+Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` 白名单和同分析 ID 校验，并在 Android 模拟器通过四条 Mock 报告集成测试。执行与现场联合验收状态见 `shared/daliy_task/day3-d-progress.md`。
 
 ## 所在位置
 
@@ -15,7 +17,8 @@ DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。D
 - 脱敏后的承诺文本；
 - 脱敏后的 URL、Deep Link 或二维码载荷摘要；
 - 本地 `Lxx` 和云端 `Cxx` 证据；
-- 手机规则已经确认的硬风险。
+- 手机规则已经确认的硬风险；
+- `report_context`：仅包含本次 `analysis_id`（UUID）和 `created_at`（RFC 3339）；模型原样回填。其他上下文字段不发送。
 
 不得发送：原始海报、原始 OCR 全文、用户报告历史、完整敏感查询参数、JWT 或 DeepSeek Key。
 
@@ -25,6 +28,7 @@ DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。D
 
 1. 解析 JSON；解析失败使用 `AI_INVALID_JSON`，不自动重试。
 2. 校验 Schema；失败使用 `REPORT_SCHEMA_INVALID`。
+   同时核对报告 `analysis_id` 与当前规则报告一致，避免另一分析的同名证据被采纳。
 3. 校验证据编号和来源；失败使用 `REPORT_INVALID_EVIDENCE_ID`。
 4. 比较硬风险规则与 AI 结果；如果 AI 降低硬风险，使用 `REPORT_HARD_RISK_DOWNGRADED` 并回退规则报告。
 5. 手机端用 API 响应中的 `usage` 覆盖模型文本中的 `token_usage`，并将 `sources.ai` 置为 `true`；校验通过后再交给 A 的页面与本地历史模块。D 的服务本身不写历史。

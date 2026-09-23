@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50003",
+  "created_at": "2026-09-22T03:00:00Z",
+  "risk_level": "insufficient_evidence",
+  "consistency": "unknown",
+  "title": "短链接已解析，页面行为仍待确认",
+  "target": {
+    "type": "url",
+    "display": "https://short.example.test/a1b2",
+    "redacted": true
+  },
+  "summary": "手机只确认了链接的协议、域名和路径（L01），尚未访问页面，不能判断它是否安全。",
+  "claim": {
+    "summary": null,
+    "subject": null,
+    "purpose": null,
+    "requested_data": [],
+    "intended_target": null
+  },
+  "observed_behavior": {
+    "summary": "本地静态解析识别出 HTTPS 地址，未启动外部应用或访问网络。",
+    "subjects": [],
+    "purposes": [],
+    "collected_data": [],
+    "destinations": ["short.example.test"],
+    "actions": ["local_parse"],
+    "evidence_ids": ["L01"]
+  },
+  "differences": [],
+  "recommendations": ["等待云端采集页面和跳转证据后再判断。"],
+  "evidence": [
+    {
+      "id": "L01",
+      "source": "local",
+      "title": "静态目标",
+      "detail": "https short.example.test /a1b2"
+    }
+  ],
+  "uncertainty": {
+    "status": "insufficient",
+    "summary": "只有本地静态解析证据，没有页面内容、跳转或表单的观察结果。",
+    "reasons": ["尚未访问目标网页"],
+    "missing_evidence": ["云端页面和跳转证据"]
+  },
+  "sources": {"local": true, "cloud": false, "ai": false},
+  "token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  }
+}

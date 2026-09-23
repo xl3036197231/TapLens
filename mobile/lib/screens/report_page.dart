@@ -55,49 +55,10 @@ class _ReportPageState extends State<ReportPage> {
     }
 
     if (!mounted) return;
-    final controller = TextEditingController(text: storedKey ?? '');
     final key = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('AI 深度研判'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                obscureText: true,
-                autofocus: storedKey == null,
-                decoration: const InputDecoration(
-                  labelText: 'DeepSeek API Key',
-                  hintText: '只保存在本机安全存储',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.of(context).pop(value);
-            },
-            child: const Text('确认并分析'),
-          ),
-        ],
-      ),
+      builder: (context) => _AiKeyDialog(storedKey: storedKey),
     );
-    controller.dispose();
 
     if (key == null || key.trim().isEmpty || !mounted) return;
     try {
@@ -120,10 +81,9 @@ class _ReportPageState extends State<ReportPage> {
         _aiLoading = false;
       });
       final message = result.message ??
-          (result.usedFallback
-              ? 'AI 未返回可用结论，已保留规则报告。'
-              : 'AI 报告已通过证据和风险守卫。');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          (result.usedFallback ? 'AI 未返回可用结论，已保留规则报告。' : 'AI 报告已通过证据和风险守卫。');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } on Exception {
       if (!mounted) return;
       setState(() => _aiLoading = false);
@@ -162,7 +122,10 @@ class _ReportPageState extends State<ReportPage> {
                           children: [
                             Text(
                               report.riskLevel.label,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     color: riskColor,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -195,7 +158,8 @@ class _ReportPageState extends State<ReportPage> {
                 _SectionCard(
                   title: '建议怎么做',
                   icon: Icons.shield_outlined,
-                  child: _BulletGroup(title: '立即行动', items: report.recommendations),
+                  child: _BulletGroup(
+                      title: '立即行动', items: report.recommendations),
                 ),
               ],
               if (report.uncertaintySummary.isNotEmpty) ...[
@@ -212,7 +176,8 @@ class _ReportPageState extends State<ReportPage> {
                 icon: Icons.fact_check_outlined,
                 child: Column(
                   children: [
-                    for (final item in report.evidence) _EvidenceTile(item: item),
+                    for (final item in report.evidence)
+                      _EvidenceTile(item: item),
                   ],
                 ),
               ),
@@ -253,12 +218,78 @@ class _ReportPageState extends State<ReportPage> {
   }
 }
 
+class _AiKeyDialog extends StatefulWidget {
+  final String? storedKey;
+
+  const _AiKeyDialog({required this.storedKey});
+
+  @override
+  State<_AiKeyDialog> createState() => _AiKeyDialogState();
+}
+
+class _AiKeyDialogState extends State<_AiKeyDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.storedKey ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('AI 深度研判'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                obscureText: true,
+                autofocus: widget.storedKey == null,
+                decoration: const InputDecoration(
+                  labelText: 'DeepSeek API Key',
+                  hintText: '只保存在本机安全存储',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = _controller.text.trim();
+              if (value.isNotEmpty) Navigator.of(context).pop(value);
+            },
+            child: const Text('确认并分析'),
+          ),
+        ],
+      );
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard(
+      {required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -270,9 +301,11 @@ class _SectionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+                Icon(icon,
+                    size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 12),
@@ -328,7 +361,8 @@ class _BulletGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        Text(title,
+            style: TextStyle(color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: 4),
         for (final item in items)
           Padding(

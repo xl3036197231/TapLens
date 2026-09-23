@@ -30,7 +30,13 @@ void main() {
       final client = DeepSeekAiClient(endpoint: _endpoint(server));
       await expectLater(
         client.analyze(apiKey: 'TEST_ONLY', sanitizedPayload: _payload()),
-        throwsA(isA<AiClientException>().having((error) => error.code, 'code', scenario.$2)),
+        throwsA(
+          isA<AiClientException>().having(
+            (error) => error.code,
+            'code',
+            scenario.$2,
+          ),
+        ),
       );
     });
   }
@@ -44,19 +50,35 @@ void main() {
     final client = DeepSeekAiClient(endpoint: _endpoint(server));
     await expectLater(
       client.analyze(apiKey: 'TEST_ONLY', sanitizedPayload: _payload()),
-      throwsA(isA<AiClientException>().having((error) => error.code, 'code', AiClientErrorCode.invalidJson)),
+      throwsA(
+        isA<AiClientException>().having(
+          (error) => error.code,
+          'code',
+          AiClientErrorCode.invalidJson,
+        ),
+      ),
     );
   });
 
   test('rejects unmarked targets before opening a connection', () async {
     final unsafe = _payload();
     (unsafe['analysis_input'] as Map<String, dynamic>)['targets'] = [
-      {'type': 'url', 'value': 'https://example.test/private', 'redacted': false},
+      {
+        'type': 'url',
+        'value': 'https://example.test/private',
+        'redacted': false,
+      },
     ];
     final client = DeepSeekAiClient(endpoint: _endpoint(server));
     await expectLater(
       client.analyze(apiKey: 'TEST_ONLY', sanitizedPayload: unsafe),
-      throwsA(isA<AiClientException>().having((error) => error.code, 'code', AiClientErrorCode.unsafePayload)),
+      throwsA(
+        isA<AiClientException>().having(
+          (error) => error.code,
+          'code',
+          AiClientErrorCode.unsafePayload,
+        ),
+      ),
     );
   });
 
@@ -71,55 +93,107 @@ void main() {
         // The client already timed out and closed its connection.
       }
     });
-    final client = DeepSeekAiClient(endpoint: _endpoint(server), timeout: const Duration(milliseconds: 20));
+    final client = DeepSeekAiClient(
+      endpoint: _endpoint(server),
+      timeout: const Duration(milliseconds: 20),
+    );
     await expectLater(
       client.analyze(apiKey: 'TEST_ONLY', sanitizedPayload: _payload()),
-      throwsA(isA<AiClientException>().having((error) => error.code, 'code', AiClientErrorCode.timeout)),
+      throwsA(
+        isA<AiClientException>().having(
+          (error) => error.code,
+          'code',
+          AiClientErrorCode.timeout,
+        ),
+      ),
     );
   });
 
-  test('requests JSON without thinking and sends only summarized evidence', () async {
-    final requestBody = Completer<Map<String, dynamic>>();
-    server.listen((request) async {
-      requestBody.complete(jsonDecode(await utf8.decoder.bind(request).join()) as Map<String, dynamic>);
-      request.response.headers.contentType = ContentType.json;
-      request.response.write(jsonEncode({
-        'choices': [{'message': {'content': '{"ok":true}'}}],
-        'usage': {'prompt_tokens': 12, 'completion_tokens': 8, 'total_tokens': 20},
-      }));
-      await request.response.close();
-    });
-    final client = DeepSeekAiClient(endpoint: _endpoint(server));
-    final result = await client.analyze(apiKey: 'TEST_ONLY', sanitizedPayload: _payload());
-    final body = await requestBody.future;
-    final encoded = jsonEncode(body);
-    expect(body['model'], 'deepseek-flash');
-    expect(body['thinking'], {'type': 'disabled'});
-    expect(body['response_format'], {'type': 'json_object'});
-    expect(encoded, isNot(contains('sk-SECRET123456789')));
-    expect(encoded, isNot(contains('13812345678')));
-    expect(encoded, isNot(contains('query-secret')));
-    expect(result.usage.totalTokens, 20);
-  });
+  test(
+    'requests JSON without thinking and sends only summarized evidence',
+    () async {
+      final requestBody = Completer<Map<String, dynamic>>();
+      server.listen((request) async {
+        requestBody.complete(
+          jsonDecode(await utf8.decoder.bind(request).join())
+              as Map<String, dynamic>,
+        );
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {'content': '{"ok":true}'},
+              },
+            ],
+            'usage': {
+              'prompt_tokens': 12,
+              'completion_tokens': 8,
+              'total_tokens': 20,
+            },
+          }),
+        );
+        await request.response.close();
+      });
+      final client = DeepSeekAiClient(endpoint: _endpoint(server));
+      final result = await client.analyze(
+        apiKey: 'TEST_ONLY',
+        sanitizedPayload: _payload(),
+      );
+      final body = await requestBody.future;
+      final encoded = jsonEncode(body);
+      expect(body['model'], 'deepseek-flash');
+      expect(body['thinking'], {'type': 'disabled'});
+      expect(body['response_format'], {'type': 'json_object'});
+      expect(encoded, isNot(contains('sk-SECRET123456789')));
+      expect(encoded, isNot(contains('13812345678')));
+      expect(encoded, isNot(contains('query-secret')));
+      final messages = body['messages'] as List;
+      final sentPayload = jsonDecode(
+        messages.last['content'] as String,
+      ) as Map<String, dynamic>;
+      expect(sentPayload['report_context'], {
+        'analysis_id': '0e9d4f24-c047-4c7e-a684-e7479dcaaeb9',
+        'created_at': '2026-09-23T00:00:00Z',
+      });
+      expect(result.usage.totalTokens, 20);
+    },
+  );
 }
 
-Uri _endpoint(HttpServer server) => Uri.parse('http://127.0.0.1:${server.port}/chat/completions');
+Uri _endpoint(HttpServer server) =>
+    Uri.parse('http://127.0.0.1:${server.port}/chat/completions');
 
 Map<String, dynamic> _payload() => {
-      'analysis_input': {
-        'claims_text': 'Contact 13812345678 for details',
-        'privacy': {'raw_image_sent': false},
-        'targets': [
-          {'type': 'url', 'value': 'https://example.test/info?token=query-secret', 'label': 'Demo', 'redacted': true},
-        ],
-        'raw_image': 'should never be sent',
+  'report_context': {
+    'analysis_id': '0e9d4f24-c047-4c7e-a684-e7479dcaaeb9',
+    'created_at': '2026-09-23T00:00:00Z',
+    'private_note': 'sk-SECRET123456789',
+  },
+  'analysis_input': {
+    'claims_text': 'Contact 13812345678 for details',
+    'privacy': {'raw_image_sent': false},
+    'targets': [
+      {
+        'type': 'url',
+        'value': 'https://example.test/info?token=query-secret',
+        'label': 'Demo',
+        'redacted': true,
       },
-      'local_evidence': null,
-      'cloud_evidence': {
-        'evidence': [
-          {'id': 'C01', 'kind': 'page', 'title': 'Demo', 'detail': 'Visible target https://example.test/info?token=query-secret'},
-        ],
+    ],
+    'raw_image': 'should never be sent',
+  },
+  'local_evidence': null,
+  'cloud_evidence': {
+    'evidence': [
+      {
+        'id': 'C01',
+        'kind': 'page',
+        'title': 'Demo',
+        'detail': 'Visible target https://example.test/info?token=query-secret',
       },
-      'hard_risk_findings': ['high'],
-      'api_key': 'sk-SECRET123456789',
-    };
+    ],
+  },
+  'hard_risk_findings': ['high'],
+  'api_key': 'sk-SECRET123456789',
+};
