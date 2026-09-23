@@ -30,9 +30,16 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
 
   Future<void> _analyze() async {
     setState(() => _loading = true);
-    final result = await _service.analyze(_controller.text);
+    final analysisId = LocalEvidence.createAnalysisId();
+    final analysis = await _service.analyzeWithEvidence(
+      _controller.text,
+      analysisId: analysisId,
+    );
     if (!mounted) return;
-    final evidence = LocalEvidence.fromResult(result);
+    final result = analysis.result;
+    final evidence = analysis.nativeEvidence == null
+        ? LocalEvidence.fromResult(result, analysisId: analysisId)
+        : LocalEvidence.fromNativeMap(analysis.nativeEvidence!);
     setState(() {
       _result = result;
       _evidence = evidence;
@@ -54,9 +61,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
               color: Theme.of(context).colorScheme.secondaryContainer,
               child: const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text(
-                  'TapLens 先在手机本地看懂链接。这个步骤不会打开外部应用，也不会访问网络。',
-                ),
+                child: Text('TapLens 先在手机本地看懂链接。这个步骤不会打开外部应用，也不会访问网络。'),
               ),
             ),
             const SizedBox(height: 16),
@@ -166,8 +171,10 @@ class _ResultCard extends StatelessWidget {
               children: [
                 Icon(Icons.verified_user_outlined, color: colors.primary),
                 const SizedBox(width: 8),
-                const Text('本地解析结果',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  '本地解析结果',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -191,8 +198,10 @@ class _ResultCard extends StatelessWidget {
             const Divider(),
             Text(
               '安全保证：未启动外部应用，未访问网络。',
-              style:
-                  TextStyle(color: colors.primary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: colors.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             if (evidence.evidence.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -215,9 +224,34 @@ class _ResultCard extends StatelessWidget {
                   ),
                 ),
             ],
+            if (evidence.riskHints.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const Text('风险提示', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              for (final hint in evidence.riskHints)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: Text(_riskLevelLabel(hint.riskLevel)),
+                  subtitle: Text(
+                    '${hint.message}（证据：${hint.evidenceIds.isEmpty ? '无' : hint.evidenceIds.join('、')}）',
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+String _riskLevelLabel(String value) {
+  return switch (value) {
+    'high' => '高风险',
+    'medium' => '中风险',
+    'low' => '低风险',
+    'insufficient_evidence' => '证据不足',
+    _ => '风险提示',
+  };
 }

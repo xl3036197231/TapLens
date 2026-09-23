@@ -110,3 +110,13 @@ All tests passed!（11 项）
 - 模拟器实际访问 B 后端仍需 B 提供当次地址、测试账号并启动 worker。
 - analyzeLocalEvidence 五类模拟器返回记录仍需 C 提供。
 - 没有使用真实 DeepSeek Key；真实 AI 请求仍是可选验收项。
+
+
+## 2026-09-23 正式本地证据接口衔接
+
+- 检查了 C 最新分支 feat/c-day2-device-validation（提交 519ceee）：已提供 analyzeLocalEvidence，返回完整本地证据、风险提示、Lxx、脱敏目标和 preflight 状态。
+- A 的 Flutter 预检页现在优先调用正式方法，传入本次 UUID、脱敏后的输入和可选的官方包名；旧 Android 通道仍未更新时会回退到 analyzeLink。
+- Flutter 现在保留原生返回的完整证据 JSON，并按原生 Lxx 展示风险提示；同一 analysis_id 继续传给云端任务。
+- 脱敏覆盖密码、Token、学号、身份证、手机号、邮箱和编码后的 Intent fallback 参数。
+- 这完成了 A 侧代码衔接；C 分支尚未合并到 A 当前分支，正式 MethodChannel 返回仍需在模拟器安装合并后的 APK 实测六类输入。
+- 本轮 git diff --check 通过，D 盘 Dart formatter 已格式化三份改动文件。Flutter analyze 尚未获得有效结果：从 WSL 调用 Flutter shell 脚本遇到 SDK 脚本 CRLF 错误；没有执行 Flutter 测试或 APK 构建。
