@@ -7,6 +7,7 @@ import '../ai/ai_client.dart';
 import '../ai/ai_report_service.dart';
 import '../ai/cloud_ai_report_input.dart';
 import '../ai/deepseek_ai_client.dart';
+import '../ai/offline_ai_report_demo.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../services/cloud_scan_client.dart';
@@ -15,11 +16,13 @@ import 'report_page.dart';
 class CloudAnalysisPage extends StatefulWidget {
   final String initialUrl;
   final String? analysisId;
+  final Map<String, dynamic>? localEvidence;
 
   const CloudAnalysisPage({
     super.key,
     required this.initialUrl,
     this.analysisId,
+    this.localEvidence,
   });
 
   @override
@@ -243,19 +246,21 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       url: _urlController.text.trim(),
       cloudEvidence: cloudEvidence,
       ruleReport: ruleReport,
+      localEvidence: widget.localEvidence,
     );
-    final availableEvidenceIds = (cloudEvidence['evidence'] is List
-            ? (cloudEvidence['evidence'] as List)
-            : const <Object>[])
-        .whereType<Map>()
-        .map((item) => item['id'])
-        .whereType<String>()
-        .toSet();
+    final availableEvidenceIds = <String>{
+      ..._evidenceIds(cloudEvidence),
+      ..._evidenceIds(widget.localEvidence),
+    };
+    final ruleJson = CloudAiReportInput.buildRuleReport(
+      ruleReport,
+      localEvidence: widget.localEvidence,
+    );
     final result = await AiReportService(DeepSeekAiClient()).analyzeOrFallback(
       apiKey: apiKey,
       sanitizedPayload: payload,
       availableEvidenceIds: availableEvidenceIds,
-      ruleReport: CloudAiReportInput.buildRuleReport(ruleReport),
+      ruleReport: ruleJson,
       hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
     );
     final report = AnalysisReport.fromJson(result.report);
@@ -265,6 +270,44 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       usedFallback: result.usedFallback,
       message: errorCode == null ? null : _aiErrorMessage(errorCode),
     );
+  }
+
+  Future<AiReportExecution> _runOfflineMock({
+    required bool simulateFailure,
+    required Map<String, dynamic> cloudEvidence,
+    required AnalysisReport ruleReport,
+  }) async {
+    final fallback = CloudAiReportInput.buildRuleReport(
+      ruleReport,
+      localEvidence: widget.localEvidence,
+    );
+    final availableEvidenceIds = <String>{
+      ..._evidenceIds(cloudEvidence),
+      ..._evidenceIds(widget.localEvidence),
+    };
+    final result = await OfflineAiReportDemo.run(
+      ruleReport: fallback,
+      availableEvidenceIds: availableEvidenceIds,
+      simulateFailure: simulateFailure,
+      hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
+    );
+    return AiReportExecution(
+      report: AnalysisReport.fromJson(result.report),
+      usedFallback: result.usedFallback,
+      message: simulateFailure
+          ? '离线 Mock 已模拟 AI 格式错误，TapLens 保留规则报告；未联网、未读取 Key、未消耗 Token。'
+          : '离线 Mock 报告通过结构和证据检查；这不是模型结论，未联网、未读取 Key、未消耗 Token。',
+    );
+  }
+
+  Set<String> _evidenceIds(Map<String, dynamic>? evidence) {
+    final items = evidence?['evidence'];
+    if (items is! List) return const {};
+    return items
+        .whereType<Map>()
+        .map((item) => item['id'])
+        .whereType<String>()
+        .toSet();
   }
 
   String _aiErrorMessage(AiClientErrorCode code) {
@@ -293,9 +336,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            const Text(
-              '本地预检完成后，再把用户确认过的 URL 交给云端沙箱。DeepSeek Key 不经过这里。',
-            ),
+            const Text('本地预检完成后，再把用户确认过的 URL 交给云端沙箱。DeepSeek Key 不经过这里。'),
             const SizedBox(height: 16),
             TextField(
               controller: _urlController,
@@ -403,14 +444,31 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                           builder: (_) {
                             final cloudEvidence =
                                 task.cloudEvidence ?? const <String, dynamic>{};
-                            final ruleReport = AnalysisReport.fromCloudEvidence(
-                              cloudEvidence,
-                              fallbackTarget: _urlController.text.trim(),
+                            final cloudRuleReport =
+                                AnalysisReport.fromCloudEvidence(
+                                  cloudEvidence,
+                                  fallbackTarget: _urlController.text.trim(),
+                                );
+                            final ruleReport = AnalysisReport.fromJson(
+                              CloudAiReportInput.buildRuleReport(
+                                cloudRuleReport,
+                                localEvidence: widget.localEvidence,
+                              ),
                             );
                             return ReportPage(
                               report: ruleReport,
                               aiRunner: (apiKey) => _runAiAnalysis(
                                 apiKey: apiKey,
+                                cloudEvidence: cloudEvidence,
+                                ruleReport: ruleReport,
+                              ),
+                              mockSuccessRunner: () => _runOfflineMock(
+                                simulateFailure: false,
+                                cloudEvidence: cloudEvidence,
+                                ruleReport: ruleReport,
+                              ),
+                              mockFailureRunner: () => _runOfflineMock(
+                                simulateFailure: true,
                                 cloudEvidence: cloudEvidence,
                                 ruleReport: ruleReport,
                               ),

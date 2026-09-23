@@ -17,12 +17,21 @@ class AiReportExecution {
 }
 
 typedef AiReportRunner = Future<AiReportExecution> Function(String apiKey);
+typedef AiReportDemoRunner = Future<AiReportExecution> Function();
 
 class ReportPage extends StatefulWidget {
   final AnalysisReport report;
   final AiReportRunner? aiRunner;
+  final AiReportDemoRunner? mockSuccessRunner;
+  final AiReportDemoRunner? mockFailureRunner;
 
-  const ReportPage({super.key, required this.report, this.aiRunner});
+  const ReportPage({
+    super.key,
+    required this.report,
+    this.aiRunner,
+    this.mockSuccessRunner,
+    this.mockFailureRunner,
+  });
 
   @override
   State<ReportPage> createState() => _ReportPageState();
@@ -89,6 +98,28 @@ class _ReportPageState extends State<ReportPage> {
       setState(() => _aiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('AI 请求失败，已保留当前规则报告。')),
+      );
+    }
+  }
+
+  Future<void> _runOfflineDemo(AiReportDemoRunner? runner) async {
+    if (runner == null || _aiLoading) return;
+    setState(() => _aiLoading = true);
+    try {
+      final result = await runner();
+      if (!mounted) return;
+      setState(() {
+        _report = result.report;
+        _aiLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? '离线演示完成。')),
+      );
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _aiLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('离线演示执行失败，当前规则报告仍可查看。')),
       );
     }
   }
@@ -181,7 +212,7 @@ class _ReportPageState extends State<ReportPage> {
                   ],
                 ),
               ),
-              if (tokenCount != null)
+              if (report.aiSource && tokenCount != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
@@ -190,17 +221,59 @@ class _ReportPageState extends State<ReportPage> {
                   ),
                 ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _aiLoading ? null : _runAi,
-                icon: _aiLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.psychology_alt_rounded),
-                label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
-              ),
+              if (widget.aiRunner != null)
+                FilledButton.icon(
+                  onPressed: _aiLoading ? null : _runAi,
+                  icon: _aiLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.psychology_alt_rounded),
+                  label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
+                ),
+              if (widget.mockSuccessRunner != null ||
+                  widget.mockFailureRunner != null) ...[
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: '离线演示，不会调用模型',
+                  icon: Icons.science_outlined,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '只验证报告展示、证据编号检查和失败回退；不联网、不读取 API Key、不消耗 Token。',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      if (widget.mockSuccessRunner != null) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _aiLoading
+                              ? null
+                              : () => _runOfflineDemo(
+                                  widget.mockSuccessRunner,
+                                ),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Mock 成功演示'),
+                        ),
+                      ],
+                      if (widget.mockFailureRunner != null) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _aiLoading
+                              ? null
+                              : () => _runOfflineDemo(
+                                  widget.mockFailureRunner,
+                                ),
+                          icon: const Icon(Icons.replay_outlined),
+                          label: const Text('Mock 失败回退演示'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../ai/cloud_ai_report_input.dart';
+import '../ai/offline_ai_report_demo.dart';
 import '../data/demo_report.dart';
+import '../models/analysis_report.dart';
 import '../models/local_evidence.dart';
 import '../services/local_safety_service.dart';
 import 'report_page.dart';
@@ -45,6 +48,31 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
       _evidence = evidence;
       _loading = false;
     });
+  }
+
+  Future<AiReportExecution> _runFixedReportMock({
+    required bool simulateFailure,
+  }) async {
+    final report = _fixedReportJson();
+    final result = await OfflineAiReportDemo.run(
+      ruleReport: report,
+      availableEvidenceIds: demoReport.evidence.map((item) => item.id).toSet(),
+      simulateFailure: simulateFailure,
+      hardRiskLevel: 'high',
+    );
+    return AiReportExecution(
+      report: AnalysisReport.fromJson(result.report),
+      usedFallback: result.usedFallback,
+      message: simulateFailure
+          ? '离线 Mock 已模拟 AI 格式错误，固定规则报告仍保留；未联网、未读取 Key、未消耗 Token。'
+          : '离线 Mock 报告通过结构和证据检查；这是固定示例，不是模型结论，未联网、未读取 Key、未消耗 Token。',
+    );
+  }
+
+  Map<String, dynamic> _fixedReportJson() {
+    return CloudAiReportInput.buildRuleReport(demoReport)
+      ..['title'] = '固定离线演示报告（不代表本次分析）'
+      ..['summary'] = '此报告使用仓库中的虚构样例，仅用于演示页面和证据编号检查，不代表当前链接的实际分析。';
   }
 
   @override
@@ -100,7 +128,13 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => ReportPage(report: demoReport),
+                      builder: (_) => ReportPage(
+                        report: AnalysisReport.fromJson(_fixedReportJson()),
+                        mockSuccessRunner: () =>
+                            _runFixedReportMock(simulateFailure: false),
+                        mockFailureRunner: () =>
+                            _runFixedReportMock(simulateFailure: true),
+                      ),
                     ),
                   );
                 },
@@ -116,6 +150,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                         builder: (_) => CloudAnalysisPage(
                           initialUrl: result.safeValue,
                           analysisId: evidence.analysisId,
+                          localEvidence: evidence.toJson(),
                         ),
                       ),
                     );
