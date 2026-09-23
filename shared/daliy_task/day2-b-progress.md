@@ -67,3 +67,49 @@ B 负责的后端运行、测试环境安全白名单、D 测试站接入、真�
 - A/C/D 真机整链路结果。
 
 剩余项目依赖 A/C 的 Android 真机联调；B 的 D 测试站云端采集已经完成。
+
+## 7. Day 3 自动化进度（2026-09-23）
+
+> 状态：✅ 不需要 Android 人工操作的 B 任务已完成；⏳ 模拟器联合验收待进行。
+
+- B 长期分支已合入 `origin/main@653da63`，当前合并提交为 `785b8d0`。
+- 后端全量回归：`96 passed in 7.16s`，无失败。首次在受限执行环境中运行时有 2 项因禁止绑定本机临时端口失败；允许 `127.0.0.1` 后原样重跑全部通过，不是代码失败。
+- 电脑端真实冒烟链路通过：健康检查 → 注册 → 登录 → 额度 → 创建任务 → 2 秒轮询 → 任务成功。
+- 本次任务 ID：`16ff44b7-2256-4ac3-87a7-ccfac1cc21e6`，状态 `succeeded`，采集耗时 `742 ms`，剩余额度 `9`。
+- 实际生成 `C01 redirect`、`C02 form`、`C03 page`、`C04 screenshot`；表单只记录 `student_id`/`password` 的名称、类型和敏感标记，未记录值。
+- 带鉴权的截图下载通过，`Content-Type=image/png`，PNG 文件签名检查通过。
+- Day 3 安全边界定向测试 `8 passed`：包含表单 POST、下载和弹窗阻断，DeepSeek Key 拒绝且不回显/不扣额度，失败任务稳定错误，以及截图所有者鉴权。
+- 实际 HTTP 错误冒烟结果：未登录为 `401 AUTH_TOKEN_MISSING`，无效输入为 `422 CLOUD_REQUEST_INVALID`，携带 `deepseek_key` 为 `422 CLOUD_REQUEST_INVALID`，响应中未出现测试 Key。
+- 电脑端自测使用 `http://127.0.0.1:18000/api/v1`，只在当次临时服务存活期间有效；Android Studio 模拟器的正式联调配置为 `http://10.0.2.2:8000/api/v1`，尚未人工验收。
+- 模拟器映射、受控站边界和启动配置已更新至 `shared/interfaces/backend-lan-integration.md`。
+
+### 联合验收待办
+
+- 当前 `adb devices -l` 无连接设备，因此尚未从 Android 模拟器访问 `10.0.2.2:8000`。
+- 待模拟器启动后，B 需以 `0.0.0.0:8000` 重启后端，由 A 用 APP 完成登录、创建、轮询和报告展示。
+- 需由 A 确认 Android Debug 包对 `10.0.2.2` 明文 HTTP 的开发限定配置；Release 不放宽。
+- 任务失败、额度耗尽、未登录和无效输入的后端契约已有自动化覆盖，但 APP 页面的实机解析与用户可读提示仍需 A 与 B 联合验收。
+
+## 8. Day 3 Codespaces 临时联调（2026-09-23）
+
+> 状态：✅ B 的公网临时环境和完整后端链路已验证；⏳ A/C Android 端展示仍待联合验收。
+
+- 临时 API：`https://opulent-fishstick-4rvvr647jpqf7prq-8000.app.github.dev/api/v1`。
+- 受控测试站：`https://opulent-fishstick-4rvvr647jpqf7prq-8765.app.github.dev/go/campus`。
+- 两个地址只在本次 Codespace 运行且端口保持 Public 时有效；休眠、重建或手动停止后不保证可用。
+- 公网健康检查返回 `200` 和 `status=ok`；测试站 `/go/campus` 返回真实 `302` 并跳转到 `/campus-login.html`。
+- Codespaces 初次运行时发现 Chromium 缺少 `libatk-1.0.so.0`，已用 Playwright 官方 `install-deps chromium` 补齐系统依赖。
+- 修复后从公网地址完成：健康检查 → 注册 → 登录 → 额度 → 创建任务 → Playwright 采集 → 轮询成功 → 鉴权截图下载。
+- 成功任务 ID：`23e216ca-c86d-4594-9217-aa997726d098`，状态 `succeeded`，剩余额度 `9`，截图 `Content-Type=image/png` 且 PNG 签名检查通过。
+- 后端始终不接收 DeepSeek Key；Codespaces 环境只使用虚构账号、受控站和测试数据。
+- 新增 `scripts/runcodespace.py` 统一启动 API、worker 和受控站，并按 `CODESPACE_NAME` 自动生成截图公网地址；`scripts/publicports.py` 负责将 `8000/8765` 设为临时 Public。
+
+恢复服务（Codespace 重启后）：
+
+```bash
+cd /workspaces/TapLens/backend
+nohup .venv/bin/python scripts/runcodespace.py &
+.venv/bin/python scripts/publicports.py
+```
+
+本次完成后，B 仅剩需与 A/C 在 Android 模拟器上确认 APP 对公网 HTTPS API 的登录、创建、轮询和报告展示；该人工界面验收不影响 B 的后端链路已通过结论。

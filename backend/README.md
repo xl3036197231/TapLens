@@ -60,6 +60,23 @@ cd backend
 
 开发机和手机处于同一可信 Wi-Fi 时，可让服务监听 `0.0.0.0:8000`，并由 A 把 Flutter 的开发环境基础地址配置为 `http://<开发机局域网IP>:8000/api/v1`。完整环境变量、启动命令、注册到轮询流程及失败场景见 `shared/interfaces/backend-lan-integration.md`。该方式仅用于开发联调，不是公网部署方案。
 
+## GitHub Codespaces 临时联调
+
+Codespaces 可为 A/C 提供临时 HTTPS 地址。在 Codespace 的 `backend/` 执行：
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev,sandbox]'
+.venv/bin/playwright install chromium
+sudo .venv/bin/playwright install-deps chromium
+nohup .venv/bin/python scripts/runcodespace.py &
+.venv/bin/python scripts/publicports.py
+```
+
+`runcodespace.py` 会同时启动 FastAPI、worker 和 D 的受控测试站；`publicports.py` 会将 `8000` 和 `8765` 临时设为公开。具体 URL 根据 `CODESPACE_NAME` 自动生成，不得把某个 Codespace 的名称写死到业务代码。
+
+验证完成后应把端口改回私有或停止 Codespace。Codespace 休眠或重建后服务会停止，需重新执行上述后两条启动命令；这是临时联调环境，不是生产托管。
+
 ## Playwright 最小实验
 
 安装可选依赖和 Chromium：

@@ -67,7 +67,8 @@ def main() -> None:
                     screenshot_status = "ok"
                 print(
                     f"flow=ok task_id={task_id} status={payload['status']} "
-                    f"remaining={created.json()['remaining']} screenshot={screenshot_status}"
+                    f"remaining={created.json()['remaining']} screenshot={screenshot_status} "
+                    f"error={payload.get('error')}"
                 )
                 return
             if time.monotonic() >= deadline:

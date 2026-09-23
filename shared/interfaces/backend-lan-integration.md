@@ -15,6 +15,28 @@
 
 ## 2. 开发机启动
 
+### Android Studio 模拟器（第三天默认方式）
+
+Android Studio 默认模拟器使用 `10.0.2.2` 访问宿主 macOS。后端需监听 `0.0.0.0:8000`，A 在 APP 中填写：
+
+```text
+http://10.0.2.2:8000/api/v1
+```
+
+后端与 worker 使用同一份配置：
+
+```text
+TAPLENS_ENVIRONMENT=development
+TAPLENS_PUBLIC_BASE_URL=http://10.0.2.2:8000
+TAPLENS_TEST_ALLOWED_ORIGINS=http://127.0.0.1:8765
+```
+
+D 的受控测试站仍只监听 `127.0.0.1:8765`；它由后端 Playwright 访问，不需要对模拟器暴露。截图下载地址由 `TAPLENS_PUBLIC_BASE_URL` 生成，因此模拟器联调时不能保留默认的 `127.0.0.1`。
+
+Android Debug 包如果拒绝明文 HTTP，A 应只在 debug manifest/network security config 中对开发地址放行；Release 不应允许全局明文流量。
+
+### 真机（与开发机同一 Wi-Fi）
+
 在 macOS 上获取 Wi-Fi 地址：
 
 ```bash
