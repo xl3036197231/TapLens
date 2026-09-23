@@ -413,15 +413,20 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Mock 成功演示'));
+    final successButton = find.text('Mock 成功演示');
+    await tester.ensureVisible(successButton);
+    await tester.tap(successButton);
     await tester.pumpAndSettle();
     expect(find.text('这是本地演示结果。'), findsOneWidget);
     expect(find.textContaining('未读取 Key'), findsOneWidget);
     expect(calls, isEmpty);
 
-    await tester.tap(find.text('Mock 失败回退演示'));
+    final failureButton = find.text('Mock 失败回退演示');
+    await tester.ensureVisible(failureButton);
+    await tester.tap(failureButton);
     await tester.pumpAndSettle();
-    expect(find.text('离线 Mock：规则报告已保留。'), findsOneWidget);
+    expect(find.text(base.summary), findsOneWidget);
+    expect(find.text('这是本地演示结果。'), findsNothing);
     expect(calls, isEmpty);
   });
 }

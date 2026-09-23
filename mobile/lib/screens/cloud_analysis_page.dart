@@ -502,7 +502,7 @@ String _taskStatusLabel(DeepScanTask value) {
     'succeeded' => '任务状态：分析完成',
     'failed' => '任务状态：分析失败',
     'expired' => '任务状态：任务已过期',
-    _ => '任务状态：' + value.status,
+    _ => '任务状态：${value.status}',
   };
 }
 
