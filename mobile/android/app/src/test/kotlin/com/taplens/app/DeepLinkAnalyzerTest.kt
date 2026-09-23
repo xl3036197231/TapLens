@@ -1,6 +1,8 @@
 package com.taplens.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,11 +26,41 @@ class DeepLinkAnalyzerTest {
 
     @Test
     fun parsesHttpsWithoutSideEffects() {
-        val result = DeepLinkAnalyzer.analyze("https://example.test/apply?source=poster")
+        val result = DeepLinkAnalyzer.analyze(
+            "https://example.test/apply?source=poster&source=qr",
+        )
 
         assertEquals("url", result.inputType)
         assertEquals("example.test", result.host)
         assertEquals("/apply", result.path)
-        assertEquals(listOf("poster"), result.parameters["source"])
+        assertEquals(listOf("poster", "qr"), result.parameters["source"])
+        assertNull(result.packageName)
+    }
+
+    @Test
+    fun parsesCustomScheme() {
+        val result = DeepLinkAnalyzer.analyze(
+            "taplens-campus://lecture/register?student_id=REDACTED",
+        )
+
+        assertEquals("deep_link", result.inputType)
+        assertEquals("taplens-campus", result.scheme)
+        assertEquals("lecture", result.host)
+        assertEquals("/register", result.path)
+        assertEquals(listOf("REDACTED"), result.parameters["student_id"])
+    }
+
+    @Test
+    fun rejectsMissingScheme() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DeepLinkAnalyzer.analyze("example.test/no-scheme")
+        }
+    }
+
+    @Test
+    fun rejectsControlCharacters() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DeepLinkAnalyzer.analyze("https://example.test/\u0000hidden")
+        }
     }
 }

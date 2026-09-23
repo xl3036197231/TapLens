@@ -17,7 +17,15 @@ class TapLensApiConfig {
 
   factory TapLensApiConfig.fromEnvironment() => TapLensApiConfig();
 
-  Uri path(String value) => baseUri.resolve(value);
+  Uri path(String value) {
+    final prefix = baseUri.path.replaceFirst(RegExp(r'/+$'), '');
+    final relativePath = value.replaceFirst(RegExp(r'^/+'), '');
+    return baseUri.replace(
+      path: '$prefix/$relativePath',
+      query: null,
+      fragment: null,
+    );
+  }
 }
 
 class TapLensApiException implements Exception {
@@ -116,15 +124,19 @@ class DeepScanTask {
 class TapLensApiClient {
   final TapLensApiConfig config;
   final http.Client client;
+  final Duration requestTimeout;
 
   TapLensApiClient({
     TapLensApiConfig? config,
     http.Client? client,
+    this.requestTimeout = const Duration(seconds: 10),
   })  : config = config ?? TapLensApiConfig(),
         client = client ?? http.Client();
 
   Future<bool> health() async {
-    final response = await client.get(config.path('/health'));
+    final response = await client
+        .get(config.path('/health'))
+        .timeout(requestTimeout);
     return response.statusCode == 200;
   }
 
@@ -202,17 +214,28 @@ class TapLensApiClient {
       if (accessToken != null) 'Authorization': 'Bearer $accessToken',
     };
 
-    final response = switch (method) {
-      'GET' => await client.get(uri, headers: headers),
-      'POST' =>
-        await client.post(uri, headers: headers, body: jsonEncode(body)),
+    final Future<http.Response> pendingResponse = switch (method) {
+      'GET' => client.get(uri, headers: headers),
+      'POST' => client.post(uri, headers: headers, body: jsonEncode(body)),
       _ => throw ArgumentError('Unsupported HTTP method: $method'),
     };
+    final response = await pendingResponse.timeout(requestTimeout);
 
-    final decoded =
-        response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    Object? decoded;
+    try {
+      decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
+    } on FormatException {
+      throw TapLensApiException(
+        statusCode: response.statusCode,
+        code: 'APP_RESPONSE_INVALID',
+        message: '后端返回的数据无法识别，请稍后重试。',
+        retryable: true,
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final error = _map(decoded['error']);
+      final error = _map(_map(decoded)['error']);
       throw TapLensApiException(
         statusCode: response.statusCode,
         code: _text(error['code'], 'APP_HTTP_ERROR'),

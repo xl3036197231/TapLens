@@ -53,18 +53,22 @@ def validate_json(validator: Draft202012Validator, path: Path) -> None:
 def main() -> int:
     local_example = load_json(CONTRACTS / "local-evidence.example.json")
     cloud_example = load_json(CONTRACTS / "cloud-evidence.example.json")
+    day3_cloud = load_json(ROOT / "shared" / "fixtures" / "cloud" / "day2-short-link-succeeded.json")
     local_ids = {item["id"] for item in local_example["evidence"]}
     cloud_ids = {item["id"] for item in cloud_example["evidence"]}
     known_ids = local_ids | cloud_ids
 
     validate_json(validator_for(CONTRACTS / "local-evidence.schema.json"), CONTRACTS / "local-evidence.example.json")
     validate_json(validator_for(CONTRACTS / "cloud-evidence.schema.json"), CONTRACTS / "cloud-evidence.example.json")
+    validate_json(validator_for(CONTRACTS / "cloud-evidence.schema.json"), ROOT / "shared" / "fixtures" / "cloud" / "day2-short-link-succeeded.json")
     report_validator = validator_for(CONTRACTS / "analysis-report.schema.json")
 
     failures: list[str] = []
     report_paths = sorted(REPORTS.glob("*.json")) + [AI_FIXTURES / "mock-success-report.json"]
     for report_path in report_paths:
         report = load_json(report_path)
+        is_day3_verified = report_path.name == "day3-short-link-verified.json"
+        current_ids = {item["id"] for item in day3_cloud["evidence"]} if is_day3_verified else known_ids
         schema_errors = errors_for(report_validator, report)
         if schema_errors:
             failures.append(f"{report_path.name}: schema\n" + "\n".join(schema_errors))
@@ -90,12 +94,26 @@ def main() -> int:
 
         for item in report["evidence"]:
             evidence_id = item["id"]
-            if evidence_id not in known_ids:
+            if evidence_id not in current_ids:
                 failures.append(f"{report_path.name}: unknown merged evidence id {evidence_id}")
             if evidence_id.startswith("L") and item["source"] != "local":
                 failures.append(f"{report_path.name}: {evidence_id} must use source=local")
             if evidence_id.startswith("C") and item["source"] != "cloud":
                 failures.append(f"{report_path.name}: {evidence_id} must use source=cloud")
+
+        if is_day3_verified:
+            if report["analysis_id"] != day3_cloud["analysis_id"]:
+                failures.append(f"{report_path.name}: analysis_id does not match B snapshot")
+            if report["target"]["display"] != day3_cloud["initial_url"]:
+                failures.append(f"{report_path.name}: target does not match B snapshot")
+            by_id = {item["id"]: item for item in day3_cloud["evidence"]}
+            if set(evidence) != set(by_id):
+                failures.append(f"{report_path.name}: expected C01-C04 from B snapshot")
+            for evidence_id, item in evidence.items():
+                if evidence_id in by_id and (item["title"], item["detail"]) != (
+                    by_id[evidence_id]["title"], by_id[evidence_id]["detail"]
+                ):
+                    failures.append(f"{report_path.name}: {evidence_id} content differs from B snapshot")
 
     if failures:
         print("REPORT CONTRACT CHECK FAILED")

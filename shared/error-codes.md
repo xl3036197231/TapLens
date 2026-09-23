@@ -76,3 +76,15 @@ REPORT_HARD_RISK_DOWNGRADED
 ```
 
 正式冻结时，每个错误码必须补充：触发条件、HTTP或模块状态、是否可重试、A应展示的提示以及降级行为。
+
+## C：本地安全错误映射
+
+| 错误码 | 触发条件 | 模块状态 | 可重试 | APP提示与降级 |
+|---|---|---|---:|---|
+| `LOCAL_TIMEOUT` | 受控预检超过8秒 | `partial` | 是 | 显示“本地动态检查超时”，保留静态证据，不显示安全结论 |
+| `LOCAL_SSL_ERROR` | WebView收到SSL错误并停止加载 | `partial` | 否 | 显示“目标连接证书异常”，保留URL静态证据 |
+| `LOCAL_RENDERER_GONE` | WebView渲染进程崩溃或被系统终止 | `partial` | 是 | 销毁WebView，显示“动态证据不足”，主界面不得退出 |
+| `DEEPLINK_UNSUPPORTED` | 空输入、缺少Scheme、Intent结构损坏或协议不在首版支持范围 | `failed` | 否 | 显示“无法解析该链接”，禁止继续执行目标 |
+| `DEEPLINK_NO_HANDLER` | 设备上没有可处理目标的候选APP | `partial` | 否 | 展示解析结果并提示“未找到可响应的APP” |
+
+以上错误的 `message` 不得包含完整URL查询参数、Extras、文件路径或异常堆栈。

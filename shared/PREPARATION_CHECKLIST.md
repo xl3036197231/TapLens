@@ -27,14 +27,14 @@
 
 ## C：Android本地安全
 
-- [ ] 创建 Kotlin 模块骨架和原生测试Activity；
-- [ ] 创建 `local-evidence.schema.json` 和正常/崩溃示例；
-- [ ] 编写 `shared/interfaces/method-channel.md`；
-- [ ] 确认URL、Deep Link、`intent://`的首版支持边界；
-- [ ] 确认包名、候选APP、fallback和extras的数据表示；
-- [ ] 确认超时、SSL错误和渲染崩溃的返回方式；
-- [ ] 确认截图通过临时文件路径返回；
-- [ ] 确认模块不能读取DeepSeek Key和完整历史报告。
+- [x] 创建 Kotlin 模块骨架和原生测试Activity；
+- [x] 创建 `local-evidence.schema.json` 和正常/崩溃示例；
+- [x] 编写 `shared/interfaces/method-channel.md`；
+- [x] 确认URL、Deep Link、`intent://`的首版支持边界；
+- [x] 确认包名、候选APP、fallback和extras的数据表示；
+- [x] 确认超时、SSL错误和渲染崩溃的返回方式；
+- [x] 确认截图通过临时文件路径返回；
+- [x] 确认模块不能读取DeepSeek Key和完整历史报告。
 
 ## D：AI、校验与材料
 

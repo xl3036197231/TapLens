@@ -16,6 +16,13 @@ object NativeBridge : MethodChannel.MethodCallHandler {
         "taplens-campus://lecture/register?student_id=REDACTED",
         "intent://open/course?id=42#Intent;scheme=taplens-campus;package=com.example.fakecampus;S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback;S.student_id=REDACTED;end",
     )
+    val dayTwoSamples = dayOneSamples + listOf(
+        "intent://broken#Intent;package=com.example.fakecampus;end",
+        "example.test/no-scheme",
+    )
+    val dayThreeSamples = dayTwoSamples + listOf(
+        "https://info.example.test/notice",
+    )
 
     fun register(messenger: BinaryMessenger, context: Context) {
         applicationContext = context.applicationContext
@@ -45,7 +52,10 @@ object NativeBridge : MethodChannel.MethodCallHandler {
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "analyzeLink" -> analyzeLink(call, result)
+            "analyzeLocalEvidence" -> analyzeLocalEvidence(call, result)
             "getDayOneSamples" -> result.success(dayOneSamples)
+            "getDayTwoSamples" -> result.success(dayTwoSamples)
+            "getDayThreeSamples" -> result.success(dayThreeSamples)
             else -> result.notImplemented()
         }
     }
@@ -66,5 +76,31 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     null,
                 )
             }
+    }
+
+    private fun analyzeLocalEvidence(call: MethodCall, result: MethodChannel.Result) {
+        val analysisId = call.argument<String>("analysis_id")
+        val value = call.argument<String>("value")
+        val expectedPackageName = call.argument<String>("expected_package_name")
+        if (analysisId.isNullOrBlank()) {
+            result.error("APP_INPUT_INVALID", "缺少 analysis_id", null)
+            return
+        }
+
+        val response = runCatching {
+            if (value.isNullOrBlank()) {
+                LocalEvidenceBuilder.buildFailure(analysisId)
+            } else {
+                runCatching {
+                    LocalEvidenceBuilder.build(analysisId, value, expectedPackageName)
+                }.getOrElse {
+                    LocalEvidenceBuilder.buildFailure(analysisId)
+                }
+            }
+        }.getOrElse {
+            result.error("APP_INPUT_INVALID", "analysis_id 必须是 UUID", null)
+            return
+        }
+        result.success(response)
     }
 }

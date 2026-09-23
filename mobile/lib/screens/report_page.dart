@@ -17,12 +17,21 @@ class AiReportExecution {
 }
 
 typedef AiReportRunner = Future<AiReportExecution> Function(String apiKey);
+typedef AiReportDemoRunner = Future<AiReportExecution> Function();
 
 class ReportPage extends StatefulWidget {
   final AnalysisReport report;
   final AiReportRunner? aiRunner;
+  final AiReportDemoRunner? mockSuccessRunner;
+  final AiReportDemoRunner? mockFailureRunner;
 
-  const ReportPage({super.key, required this.report, this.aiRunner});
+  const ReportPage({
+    super.key,
+    required this.report,
+    this.aiRunner,
+    this.mockSuccessRunner,
+    this.mockFailureRunner,
+  });
 
   @override
   State<ReportPage> createState() => _ReportPageState();
@@ -55,49 +64,10 @@ class _ReportPageState extends State<ReportPage> {
     }
 
     if (!mounted) return;
-    final controller = TextEditingController(text: storedKey ?? '');
     final key = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('AI 深度研判'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                obscureText: true,
-                autofocus: storedKey == null,
-                decoration: const InputDecoration(
-                  labelText: 'DeepSeek API Key',
-                  hintText: '只保存在本机安全存储',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.of(context).pop(value);
-            },
-            child: const Text('确认并分析'),
-          ),
-        ],
-      ),
+      builder: (context) => _AiKeyDialog(storedKey: storedKey),
     );
-    controller.dispose();
 
     if (key == null || key.trim().isEmpty || !mounted) return;
     try {
@@ -120,15 +90,36 @@ class _ReportPageState extends State<ReportPage> {
         _aiLoading = false;
       });
       final message = result.message ??
-          (result.usedFallback
-              ? 'AI 未返回可用结论，已保留规则报告。'
-              : 'AI 报告已通过证据和风险守卫。');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+          (result.usedFallback ? 'AI 未返回可用结论，已保留规则报告。' : 'AI 报告已通过证据和风险守卫。');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } on Exception {
       if (!mounted) return;
       setState(() => _aiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('AI 请求失败，已保留当前规则报告。')),
+      );
+    }
+  }
+
+  Future<void> _runOfflineDemo(AiReportDemoRunner? runner) async {
+    if (runner == null || _aiLoading) return;
+    setState(() => _aiLoading = true);
+    try {
+      final result = await runner();
+      if (!mounted) return;
+      setState(() {
+        _report = result.report;
+        _aiLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? '离线演示完成。')),
+      );
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _aiLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('离线演示执行失败，当前规则报告仍可查看。')),
       );
     }
   }
@@ -162,7 +153,10 @@ class _ReportPageState extends State<ReportPage> {
                           children: [
                             Text(
                               report.riskLevel.label,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     color: riskColor,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -195,7 +189,8 @@ class _ReportPageState extends State<ReportPage> {
                 _SectionCard(
                   title: '建议怎么做',
                   icon: Icons.shield_outlined,
-                  child: _BulletGroup(title: '立即行动', items: report.recommendations),
+                  child: _BulletGroup(
+                      title: '立即行动', items: report.recommendations),
                 ),
               ],
               if (report.uncertaintySummary.isNotEmpty) ...[
@@ -212,11 +207,12 @@ class _ReportPageState extends State<ReportPage> {
                 icon: Icons.fact_check_outlined,
                 child: Column(
                   children: [
-                    for (final item in report.evidence) _EvidenceTile(item: item),
+                    for (final item in report.evidence)
+                      _EvidenceTile(item: item),
                   ],
                 ),
               ),
-              if (tokenCount != null)
+              if (report.aiSource && tokenCount != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
@@ -225,17 +221,59 @@ class _ReportPageState extends State<ReportPage> {
                   ),
                 ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _aiLoading ? null : _runAi,
-                icon: _aiLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.psychology_alt_rounded),
-                label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
-              ),
+              if (widget.aiRunner != null)
+                FilledButton.icon(
+                  onPressed: _aiLoading ? null : _runAi,
+                  icon: _aiLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.psychology_alt_rounded),
+                  label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
+                ),
+              if (widget.mockSuccessRunner != null ||
+                  widget.mockFailureRunner != null) ...[
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: '离线演示，不会调用模型',
+                  icon: Icons.science_outlined,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '只验证报告展示、证据编号检查和失败回退；不联网、不读取 API Key、不消耗 Token。',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      if (widget.mockSuccessRunner != null) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _aiLoading
+                              ? null
+                              : () => _runOfflineDemo(
+                                  widget.mockSuccessRunner,
+                                ),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Mock 成功演示'),
+                        ),
+                      ],
+                      if (widget.mockFailureRunner != null) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _aiLoading
+                              ? null
+                              : () => _runOfflineDemo(
+                                  widget.mockFailureRunner,
+                                ),
+                          icon: const Icon(Icons.replay_outlined),
+                          label: const Text('Mock 失败回退演示'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -253,12 +291,78 @@ class _ReportPageState extends State<ReportPage> {
   }
 }
 
+class _AiKeyDialog extends StatefulWidget {
+  final String? storedKey;
+
+  const _AiKeyDialog({required this.storedKey});
+
+  @override
+  State<_AiKeyDialog> createState() => _AiKeyDialogState();
+}
+
+class _AiKeyDialogState extends State<_AiKeyDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.storedKey ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('AI 深度研判'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                obscureText: true,
+                autofocus: widget.storedKey == null,
+                decoration: const InputDecoration(
+                  labelText: 'DeepSeek API Key',
+                  hintText: '只保存在本机安全存储',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = _controller.text.trim();
+              if (value.isNotEmpty) Navigator.of(context).pop(value);
+            },
+            child: const Text('确认并分析'),
+          ),
+        ],
+      );
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard(
+      {required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -270,9 +374,11 @@ class _SectionCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+                Icon(icon,
+                    size: 20, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 12),
@@ -328,7 +434,8 @@ class _BulletGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        Text(title,
+            style: TextStyle(color: Theme.of(context).colorScheme.primary)),
         const SizedBox(height: 4),
         for (final item in items)
           Padding(

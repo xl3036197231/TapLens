@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50004",
+  "processed_at": "2026-09-22T03:05:00Z",
+  "processing_status": "succeeded",
+  "target": {
+    "input_type": "deep_link",
+    "display_value": "taplens-campus://lecture/register?student_id=[REDACTED]",
+    "scheme": "taplens-campus",
+    "host": "lecture",
+    "path": "/register",
+    "parameters": {"student_id": ["[REDACTED]"]},
+    "package_name": null,
+    "expected_package_name": "com.example.officialcampus",
+    "fallback_url": null,
+    "extras": {},
+    "candidate_apps": []
+  },
+  "observations": {
+    "launched_external_app": false,
+    "network_accessed": false,
+    "parser_version": "android-static-v1"
+  },
+  "preflight": {
+    "attempted": false,
+    "status": "not_started",
+    "initial_url": null,
+    "final_url": null,
+    "title": null,
+    "forms": [],
+    "external_protocols": [],
+    "blocked_actions": [],
+    "screenshot_path": null,
+    "error": null
+  },
+  "risk_hints": [
+    {
+      "code": "LOCAL_STATIC_ONLY",
+      "risk_level": "insufficient_evidence",
+      "message": "当前仅完成静态解析，尚未访问网页或执行目标应用。",
+      "evidence_ids": ["L01"]
+    },
+    {
+      "code": "LOCAL_PACKAGE_UNVERIFIED",
+      "risk_level": "insufficient_evidence",
+      "message": "链接没有指定包名，无法确认是否进入预期应用。",
+      "evidence_ids": ["L01"]
+    },
+    {
+      "code": "LOCAL_SENSITIVE_PARAMETER",
+      "risk_level": "medium",
+      "message": "链接参数包含可能的敏感字段。",
+      "evidence_ids": ["L02"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "L01",
+      "kind": "deep_link",
+      "title": "静态目标",
+      "detail": "taplens-campus lecture /register"
+    },
+    {
+      "id": "L02",
+      "kind": "parameter",
+      "title": "参数名称",
+      "detail": "student_id"
+    }
+  ],
+  "errors": []
+}
