@@ -1,7 +1,7 @@
 # C 第一天变更说明
 
 > 分支：`feat/c-day1-local-safety`
-> 状态：第一天交付完成
+> 状态：`READY`（C侧交付完成，等待A/D审核）
 > 负责人：C（Android 本地安全能力）
 
 ## 本次目标
@@ -38,7 +38,7 @@
 
 - Debug 构建提供 `LocalSafetyTestActivity`，展示三条样例的解析结果；
 - 正式构建不包含该测试 Activity；
-- 新增 `DeepLinkAnalyzerTest`，覆盖 HTTPS URL 和带包名、fallback、extra 的 Intent。
+- 新增 `DeepLinkAnalyzerTest`，覆盖 HTTPS URL、自定义 Scheme、Intent、重复参数、缺少 Scheme 和控制字符输入。
 
 ### 5. 共享交付物
 
@@ -46,9 +46,26 @@
 - `shared/contracts/local-evidence.example.json`；
 - `shared/interfaces/method-channel.md`。
 
+另外补充：
+
+- `shared/fixtures/local/case01-local-succeeded.json`：正常静态解析；
+- `shared/fixtures/local/case02-local-renderer-gone.json`：渲染进程崩溃后的 `partial` 降级；
+- `shared/error-codes.md`：C负责的五个错误码触发条件、重试与降级方式；
+- `shared/PREPARATION_CHECKLIST.md`：C第一天准备项已逐项确认。
+
+本地证据 Schema 已预留受控预检结果，包括最终URL、标题、表单、外部协议、阻断动作、临时截图路径和统一错误对象。第一天代码只产生静态解析结果，不会提前执行这些动态能力。
+
 ## 当前明确不包含
 
-WebView 页面加载、候选 APP 查询、官方包名核验、权限/下载/外部协议拦截和渲染进程崩溃处理属于后续迭代，不作为今天合并门槛。
+WebView 页面加载、候选 APP 查询、官方包名核验、权限/下载/外部协议拦截和真实渲染进程崩溃处理属于后续迭代。第一天仅冻结其数据表示和降级方式，不声称这些运行能力已经实现。
+
+## 验证结果
+
+- `local-evidence.schema.json` 通过 Draft 2020-12 Schema 自检；
+- 正常 example、正常 fixture、渲染崩溃 fixture 均通过 Schema 校验；
+- 后端跨契约集成测试：`9 passed`；
+- `git diff --check` 通过；
+- 当前执行环境没有 Flutter、Gradle Wrapper 或 Android SDK，因此未在本机执行 Android 编译和真机启动。Kotlin测试已提交，需由具备Android工具链的成员或CI执行。
 
 ## Debug 验证
 

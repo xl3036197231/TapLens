@@ -57,3 +57,14 @@ case03-cloud-timeout.json
 - `cloud/day2-short-link-succeeded.json`：B 使用真实 worker 采集 D 受控站得到的成功云证据；`C01/C02` 对应跳转和敏感表单。
 
 页面只使用虚构域名、测试值和相对表单地址，沙箱必须阻止表单提交、下载和外部协议。
+
+## C：Day 3 本地证据 fixture
+
+- `local/case01-local-succeeded.json`：标准 Intent，包含包名、fallback、Extras 和 `Lxx`；
+- `local/case03-local-url-succeeded.json`：普通 HTTPS 短链接；
+- `local/case04-local-custom-scheme-succeeded.json`：自定义 Scheme；
+- `local/case05-local-invalid-intent.json`：缺少必要 Scheme 的非法 Intent；
+- `local/case06-local-missing-scheme.json`：没有协议头的普通字符串；
+- `local/case07-local-insufficient-succeeded.json`：解析成功但只具备静态证据，风险必须为 `insufficient_evidence`。
+
+上述文件是离线契约 fixture，不冒充模拟器实测记录。模拟器实际返回、`adb` 输出和截图必须在真实运行后另行保存。

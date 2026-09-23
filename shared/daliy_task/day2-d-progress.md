@@ -6,9 +6,9 @@
 
 ## 状态
 
-`READY-FOR-REVIEW`：D 负责的测试网站、Deep Link 样例集、Mock AI、AI 客户端边界、报告守卫和规则回退已准备好供 A/B/C 联调。
+`EVIDENCE-AUDITED`（2026-09-23 追记）：D 的网站、数据集、Mock、AI 客户端与规则报告已进入 `main`；B 已交付真实采集的 `C01–C04` 快照，D 已用同一 `analysis_id` 的 Day 3 报告复核引用。A 已把 AI 客户端接入报告页。
 
-`BLOCKED`：真实手机页面接入、Android Keystore 和 B 的真实沙箱采集需要 A/B 的环境与联调，不在本地静态校验中伪造完成。
+`PENDING-DEVICE`：C 的 Day 2 五类证据仍在其功能分支，尚未合入当前 `main`；A/C/D 的同一次分析模拟器联调和手机端 Mock 成功/失败页面尚无运行记录。真实 DeepSeek 请求未做，且不是主流程前置条件。
 
 ## 本次完成
 
@@ -41,6 +41,10 @@ flutter test test/ai
 ```
 
 当前结果：报告契约校验通过（5 份报告），Deep Link 数据集结构校验通过（6/7/3），后端 `80 passed`。本机未发现 Flutter/Dart SDK，新增 Dart 用例尚未执行；Android 真机验证待 A/C 环境完成后运行。真实 DeepSeek 服务也未调用，不能声称真实模型输出已验收。
+
+上段是 2026-09-22 的历史结果。2026-09-23 的 B 分支记录后端 `96 passed`；D 当日重新检查 7 份报告样例，Day 3 的 B 云端与 C 本地证据审计通过。具体完成项和环境限制见 `day3-d-progress.md`。
+
+2026-09-23 补录：本机安装 Playwright 浏览器后，合并基线后端 `98 passed`；Flutter 全量测试 `33 passed`，静态检查无问题，Android 模拟器上 4 条 D 的独立 Mock 报告集成测试通过。真实模型仍未调用，四模块同一次分析的联合现场流程仍待 A/B/C 配合。
 
 Deep Link 演示站追加验证：7 条镜像样例与正式数据一致；Chrome 自动化测试覆盖 7 个预检页、无效编号、桌面与手机宽度、短链接到本地受控页面的跳转。浏览器请求均留在本地服务，不代表 Android 真机或 B 云端采集已完成。
 

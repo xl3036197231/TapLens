@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "6b368c4b-4d97-4a87-bd62-b3d8c2d50005",
+  "processed_at": "2026-09-22T03:10:00Z",
+  "processing_status": "failed",
+  "target": null,
+  "observations": {
+    "launched_external_app": false,
+    "network_accessed": false,
+    "parser_version": "android-static-v1"
+  },
+  "preflight": {
+    "attempted": false,
+    "status": "not_started",
+    "initial_url": null,
+    "final_url": null,
+    "title": null,
+    "forms": [],
+    "external_protocols": [],
+    "blocked_actions": [],
+    "screenshot_path": null,
+    "error": null
+  },
+  "risk_hints": [
+    {
+      "code": "LOCAL_PARSE_FAILED",
+      "risk_level": "insufficient_evidence",
+      "message": "未获得可用的静态解析证据，不能判断目标是否安全。",
+      "evidence_ids": []
+    }
+  ],
+  "evidence": [],
+  "errors": [
+    {
+      "code": "DEEPLINK_UNSUPPORTED",
+      "message": "链接为空、缺少协议或格式不受支持",
+      "retryable": false,
+      "details": null
+    }
+  ]
+}

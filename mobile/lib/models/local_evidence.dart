@@ -11,6 +11,9 @@ class LocalEvidence {
   final LocalEvidenceObservations observations;
   final List<LocalEvidenceItem> evidence;
   final List<LocalEvidenceError> errors;
+  final List<LocalEvidenceRiskHint> riskHints;
+  final Map<String, dynamic>? preflight;
+  final Map<String, dynamic>? nativePayload;
 
   const LocalEvidence({
     required this.schemaVersion,
@@ -21,7 +24,84 @@ class LocalEvidence {
     required this.observations,
     required this.evidence,
     required this.errors,
+    this.riskHints = const [],
+    this.preflight,
+    this.nativePayload,
   });
+
+  static String createAnalysisId() => _newAnalysisId();
+
+  factory LocalEvidence.fromNativeMap(Map<String, dynamic> json) {
+    final rawTarget = json['target'];
+    final target = rawTarget is Map
+        ? LocalEvidenceTarget.fromMap(Map<String, dynamic>.from(rawTarget))
+        : const LocalEvidenceTarget(
+            inputType: 'url',
+            displayValue: '',
+            scheme: 'unknown',
+            host: null,
+            path: '/',
+            parameters: {},
+            packageName: null,
+            fallbackUrl: null,
+            extras: {},
+            candidateApps: [],
+          );
+    final rawEvidence = json['evidence'];
+    final evidence = rawEvidence is List
+        ? rawEvidence
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    LocalEvidenceItem.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+        : <LocalEvidenceItem>[];
+    final rawErrors = json['errors'];
+    final errors = rawErrors is List
+        ? rawErrors
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    LocalEvidenceError.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+        : <LocalEvidenceError>[];
+    final rawRiskHints = json['risk_hints'];
+    final riskHints = rawRiskHints is List
+        ? rawRiskHints
+              .whereType<Map>()
+              .map(
+                (item) => LocalEvidenceRiskHint.fromMap(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList()
+        : <LocalEvidenceRiskHint>[];
+    final rawObservations = json['observations'];
+    final rawPreflight = json['preflight'];
+    return LocalEvidence(
+      schemaVersion: json['schema_version']?.toString() ?? '1.0',
+      analysisId: json['analysis_id']?.toString() ?? 'unknown-analysis',
+      processedAt:
+          DateTime.tryParse(json['processed_at']?.toString() ?? '')?.toUtc() ??
+          DateTime.now().toUtc(),
+      processingStatus: json['processing_status']?.toString() ?? 'failed',
+      target: target,
+      observations: LocalEvidenceObservations.fromMap(
+        rawObservations is Map
+            ? Map<String, dynamic>.from(rawObservations)
+            : const {},
+      ),
+      preflight: rawPreflight is Map
+          ? Map<String, dynamic>.from(rawPreflight)
+          : null,
+      evidence: evidence,
+      errors: errors,
+      riskHints: riskHints,
+      nativePayload: Map<String, dynamic>.from(json),
+    );
+  }
 
   factory LocalEvidence.fromResult(
     LocalSafetyResult result, {
@@ -48,29 +128,17 @@ class LocalEvidence {
     }
 
     if (result.isSuccess) {
-      addEvidence(
-        kind: 'input',
-        title: '输入类型',
-        detail: result.inputType,
-      );
+      addEvidence(kind: 'input', title: '输入类型', detail: result.inputType);
       addEvidence(
         kind: result.inputType == 'url' ? 'url' : 'deep_link',
         title: '目标 Scheme',
         detail: result.scheme ?? '未识别',
       );
       if (result.host != null) {
-        addEvidence(
-          kind: 'url',
-          title: '目标域名',
-          detail: result.host!,
-        );
+        addEvidence(kind: 'url', title: '目标域名', detail: result.host!);
       }
       if (result.path != null) {
-        addEvidence(
-          kind: 'url',
-          title: '目标路径',
-          detail: result.path!,
-        );
+        addEvidence(kind: 'url', title: '目标路径', detail: result.path!);
       }
       if (result.packageName != null) {
         addEvidence(
@@ -140,12 +208,14 @@ class LocalEvidence {
         networkAccessed: result.networkAccessed,
         parserVersion: 'android-static-v1',
       ),
+      preflight: null,
       evidence: evidence,
       errors: errors,
     );
   }
 
   Map<String, dynamic> toJson() {
+    if (nativePayload != null) return Map<String, dynamic>.from(nativePayload!);
     return {
       'schema_version': schemaVersion,
       'analysis_id': analysisId,
@@ -184,6 +254,48 @@ class LocalEvidenceTarget {
     required this.candidateApps,
   });
 
+  factory LocalEvidenceTarget.fromMap(Map<String, dynamic> json) {
+    final rawParameters = json['parameters'];
+    final parameters = <String, List<String>>{};
+    if (rawParameters is Map) {
+      for (final entry in rawParameters.entries) {
+        final value = entry.value;
+        parameters[entry.key.toString()] = value is List
+            ? value.map((item) => item.toString()).toList()
+            : <String>[value.toString()];
+      }
+    }
+    final rawExtras = json['extras'];
+    final extras = <String, String>{};
+    if (rawExtras is Map) {
+      for (final entry in rawExtras.entries) {
+        extras[entry.key.toString()] = entry.value.toString();
+      }
+    }
+    final rawCandidates = json['candidate_apps'];
+    final candidates = rawCandidates is List
+        ? rawCandidates
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    LocalCandidateApp.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+        : <LocalCandidateApp>[];
+    return LocalEvidenceTarget(
+      inputType: json['input_type']?.toString() ?? 'url',
+      displayValue: json['display_value']?.toString() ?? '',
+      scheme: json['scheme']?.toString() ?? 'unknown',
+      host: json['host']?.toString(),
+      path: json['path']?.toString() ?? '/',
+      parameters: parameters,
+      packageName: json['package_name']?.toString(),
+      fallbackUrl: json['fallback_url']?.toString(),
+      extras: extras,
+      candidateApps: candidates,
+    );
+  }
+
   factory LocalEvidenceTarget.fromResult(LocalSafetyResult result) {
     return LocalEvidenceTarget(
       inputType: result.inputType == 'unknown' ? 'url' : result.inputType,
@@ -193,8 +305,9 @@ class LocalEvidenceTarget {
       path: result.path ?? '/',
       parameters: _redactedParameters(result.parameters),
       packageName: result.packageName,
-      fallbackUrl:
-          result.fallbackUrl == null ? null : _redactUrl(result.fallbackUrl!),
+      fallbackUrl: result.fallbackUrl == null
+          ? null
+          : _redactUrl(result.fallbackUrl!),
       extras: _redactedExtras(result.extras),
       candidateApps: result.candidateApps,
     );
@@ -227,6 +340,14 @@ class LocalEvidenceObservations {
     required this.parserVersion,
   });
 
+  factory LocalEvidenceObservations.fromMap(Map<String, dynamic> json) {
+    return LocalEvidenceObservations(
+      launchedExternalApp: json['launched_external_app'] == true,
+      networkAccessed: json['network_accessed'] == true,
+      parserVersion: json['parser_version']?.toString() ?? 'android-static-v1',
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'launched_external_app': launchedExternalApp,
@@ -249,13 +370,17 @@ class LocalEvidenceItem {
     required this.detail,
   });
 
+  factory LocalEvidenceItem.fromMap(Map<String, dynamic> json) {
+    return LocalEvidenceItem(
+      id: json['id']?.toString() ?? 'L00',
+      kind: json['kind']?.toString() ?? 'error',
+      title: json['title']?.toString() ?? '本地证据',
+      detail: json['detail']?.toString() ?? '未提供详情',
+    );
+  }
+
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'kind': kind,
-      'title': title,
-      'detail': detail,
-    };
+    return {'id': id, 'kind': kind, 'title': title, 'detail': detail};
   }
 }
 
@@ -272,6 +397,17 @@ class LocalEvidenceError {
     required this.details,
   });
 
+  factory LocalEvidenceError.fromMap(Map<String, dynamic> json) {
+    return LocalEvidenceError(
+      code: json['code']?.toString() ?? 'LOCAL_PARSE_FAILED',
+      message: json['message']?.toString() ?? '本地解析失败。',
+      retryable: json['retryable'] == true,
+      details: json['details'] is Map
+          ? Map<String, dynamic>.from(json['details'] as Map)
+          : null,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'code': code,
@@ -282,13 +418,40 @@ class LocalEvidenceError {
   }
 }
 
+class LocalEvidenceRiskHint {
+  final String code;
+  final String riskLevel;
+  final String message;
+  final List<String> evidenceIds;
+
+  const LocalEvidenceRiskHint({
+    required this.code,
+    required this.riskLevel,
+    required this.message,
+    required this.evidenceIds,
+  });
+
+  factory LocalEvidenceRiskHint.fromMap(Map<String, dynamic> json) {
+    final rawIds = json['evidence_ids'];
+    return LocalEvidenceRiskHint(
+      code: json['code']?.toString() ?? 'LOCAL_STATIC_ONLY',
+      riskLevel: json['risk_level']?.toString() ?? 'insufficient_evidence',
+      message: json['message']?.toString() ?? '静态证据不足。',
+      evidenceIds: rawIds is List
+          ? rawIds.map((item) => item.toString()).toList()
+          : const [],
+    );
+  }
+}
+
 String _newAnalysisId() {
   final random = Random.secure();
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  final hex =
-      bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  final hex = bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join();
   return [
     hex.substring(0, 8),
     hex.substring(8, 12),
