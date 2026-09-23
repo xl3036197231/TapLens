@@ -18,17 +18,24 @@ import uvicorn
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = BACKEND_ROOT.parent
-PUBLIC_HOST = "opulent-fishstick-4rvvr647jpqf7prq"
+
+
+def codespace_public_url(port: int) -> str:
+    codespace_name = os.environ.get("CODESPACE_NAME")
+    if not codespace_name:
+        raise SystemExit("CODESPACE_NAME is unavailable; run this inside GitHub Codespaces")
+    forwarding_domain = os.environ.get(
+        "GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN",
+        "app.github.dev",
+    )
+    return f"https://{codespace_name}-{port}.{forwarding_domain}"
 
 
 def configure_environment() -> None:
     os.environ.setdefault("TAPLENS_ENVIRONMENT", "development")
     os.environ.setdefault("TAPLENS_DATABASE_PATH", "/tmp/taplens-codespace.db")
     os.environ.setdefault("TAPLENS_ARTIFACT_DIRECTORY", "/tmp/taplens-artifacts")
-    os.environ.setdefault(
-        "TAPLENS_PUBLIC_BASE_URL",
-        f"https://{PUBLIC_HOST}-8000.app.github.dev",
-    )
+    os.environ.setdefault("TAPLENS_PUBLIC_BASE_URL", codespace_public_url(8000))
     os.environ.setdefault("TAPLENS_JWT_SECRET", secrets.token_hex(32))
     os.environ.setdefault("TAPLENS_TEST_ALLOWED_ORIGINS", "http://127.0.0.1:8765")
 

@@ -89,3 +89,27 @@ B 负责的后端运行、测试环境安全白名单、D 测试站接入、真�
 - 待模拟器启动后，B 需以 `0.0.0.0:8000` 重启后端，由 A 用 APP 完成登录、创建、轮询和报告展示。
 - 需由 A 确认 Android Debug 包对 `10.0.2.2` 明文 HTTP 的开发限定配置；Release 不放宽。
 - 任务失败、额度耗尽、未登录和无效输入的后端契约已有自动化覆盖，但 APP 页面的实机解析与用户可读提示仍需 A 与 B 联合验收。
+
+## 8. Day 3 Codespaces 临时联调（2026-09-23）
+
+> 状态：✅ B 的公网临时环境和完整后端链路已验证；⏳ A/C Android 端展示仍待联合验收。
+
+- 临时 API：`https://opulent-fishstick-4rvvr647jpqf7prq-8000.app.github.dev/api/v1`。
+- 受控测试站：`https://opulent-fishstick-4rvvr647jpqf7prq-8765.app.github.dev/go/campus`。
+- 两个地址只在本次 Codespace 运行且端口保持 Public 时有效；休眠、重建或手动停止后不保证可用。
+- 公网健康检查返回 `200` 和 `status=ok`；测试站 `/go/campus` 返回真实 `302` 并跳转到 `/campus-login.html`。
+- Codespaces 初次运行时发现 Chromium 缺少 `libatk-1.0.so.0`，已用 Playwright 官方 `install-deps chromium` 补齐系统依赖。
+- 修复后从公网地址完成：健康检查 → 注册 → 登录 → 额度 → 创建任务 → Playwright 采集 → 轮询成功 → 鉴权截图下载。
+- 成功任务 ID：`23e216ca-c86d-4594-9217-aa997726d098`，状态 `succeeded`，剩余额度 `9`，截图 `Content-Type=image/png` 且 PNG 签名检查通过。
+- 后端始终不接收 DeepSeek Key；Codespaces 环境只使用虚构账号、受控站和测试数据。
+- 新增 `scripts/runcodespace.py` 统一启动 API、worker 和受控站，并按 `CODESPACE_NAME` 自动生成截图公网地址；`scripts/publicports.py` 负责将 `8000/8765` 设为临时 Public。
+
+恢复服务（Codespace 重启后）：
+
+```bash
+cd /workspaces/TapLens/backend
+nohup .venv/bin/python scripts/runcodespace.py &
+.venv/bin/python scripts/publicports.py
+```
+
+本次完成后，B 仅剩需与 A/C 在 Android 模拟器上确认 APP 对公网 HTTPS API 的登录、创建、轮询和报告展示；该人工界面验收不影响 B 的后端链路已通过结论。
