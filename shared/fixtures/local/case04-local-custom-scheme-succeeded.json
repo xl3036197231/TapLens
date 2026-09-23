@@ -5,11 +5,11 @@
   "processing_status": "succeeded",
   "target": {
     "input_type": "deep_link",
-    "display_value": "taplens-campus://lecture/register?student_id=REDACTED",
+    "display_value": "taplens-campus://lecture/register?student_id=[REDACTED]",
     "scheme": "taplens-campus",
     "host": "lecture",
     "path": "/register",
-    "parameters": {"student_id": ["REDACTED"]},
+    "parameters": {"student_id": ["[REDACTED]"]},
     "package_name": null,
     "expected_package_name": "com.example.officialcampus",
     "fallback_url": null,

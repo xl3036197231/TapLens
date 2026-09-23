@@ -5,7 +5,7 @@
   "processing_status": "succeeded",
   "target": {
     "input_type": "intent",
-    "display_value": "intent://open/course?id=42#Intent;scheme=taplens-campus;package=com.example.fakecampus;S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback;S.student_id=REDACTED;end",
+    "display_value": "intent://open/course?id=42#Intent;scheme=taplens-campus;package=com.example.fakecampus;S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback;S.student_id=[REDACTED];end",
     "scheme": "taplens-campus",
     "host": "open",
     "path": "/course",
@@ -13,7 +13,7 @@
     "package_name": "com.example.fakecampus",
     "expected_package_name": null,
     "fallback_url": "https://safe.example.test/fallback",
-    "extras": {"student_id": "REDACTED"},
+    "extras": {"student_id": "[REDACTED]"},
     "candidate_apps": []
   },
   "observations": {

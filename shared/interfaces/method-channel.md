@@ -46,7 +46,7 @@ final result = await channel.invokeMethod<Map<Object?, Object?>>(
   "expected_package_name": null,
   "fallback_url": "https://safe.example.test/fallback",
   "parameters": {"id": ["42"]},
-  "extras": {"student_id": "REDACTED"},
+  "extras": {"student_id": "[REDACTED]"},
   "candidate_apps": []
 }
 ```
@@ -130,6 +130,8 @@ final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
 
 第二天 Debug 联调可以调用 `getDayTwoSamples`，它在上述三条样例后追加非法 Intent 和缺少协议的字符串。两个样例方法都只返回固定脱敏文本，不读取用户数据。
 
+第三天 Debug 联调可以调用 `getDayThreeSamples`。它在第二天五类输入后追加一个“解析成功但证据不足”的 HTTPS 样例。正式业务仍只能使用 `analyzeLocalEvidence`。
+
 ## 5. 本地证据与崩溃返回约定
 
 完整本地结果必须符合 `shared/contracts/local-evidence.schema.json`：
@@ -160,7 +162,7 @@ final samples = await channel.invokeMethod<List<Object?>>('getDayOneSamples');
    adb shell am start -a com.taplens.app.DEBUG_LOCAL_SAFETY
    ```
 
-3. 确认页面显示 HTTPS、自定义 Scheme 和 `intent://` 三条解析结果。
+3. 确认页面显示 HTTPS、自定义 Scheme、`intent://`、非法 Intent、无协议字符串和证据不足成功样例共六条结果。
 4. Flutter 调用 `analyzeLocalEvidence`，传入本文档的 Intent 示例和 UUID。
 5. 核对 `scheme`、`package_name`、`fallback_url`、`risk_hints` 和 `Lxx`。
 6. 传入 `example.test/no-scheme`，确认返回 `processing_status=failed` 和 `DEEPLINK_UNSUPPORTED`，且没有外部 APP 被启动。

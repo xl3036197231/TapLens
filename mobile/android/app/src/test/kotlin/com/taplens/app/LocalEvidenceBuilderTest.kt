@@ -32,12 +32,14 @@ class LocalEvidenceBuilderTest {
 
     @Test
     fun reportsPackageMismatchFallbackAndSensitiveParameter() {
+        val studentId = "2026123456"
+        val fallbackToken = "fallback-secret"
         val result = LocalEvidenceBuilder.build(
             analysisId = analysisId,
-            rawValue = "intent://open/course#Intent;scheme=taplens-campus;" +
+            rawValue = "intent://open/course?token=query-secret#Intent;scheme=taplens-campus;" +
                 "package=com.example.fakecampus;" +
-                "S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback;" +
-                "S.student_id=REDACTED;end",
+                "S.browser_fallback_url=https%3A%2F%2Fsafe.example.test%2Ffallback%3Ftoken%3D$fallbackToken;" +
+                "S.student_id=$studentId;end",
             expectedPackageName = "com.example.officialcampus",
             processedAt = processedAt,
         )
@@ -48,7 +50,35 @@ class LocalEvidenceBuilderTest {
         assertTrue("LOCAL_FALLBACK_PRESENT" in codes)
         assertTrue("LOCAL_SENSITIVE_PARAMETER" in codes)
         assertTrue(hints.any { it["risk_level"] == "high" })
-        assertEquals("com.example.fakecampus", result.map("target")["package_name"])
+        val target = result.map("target")
+        assertEquals("com.example.fakecampus", target["package_name"])
+        assertEquals("[REDACTED]", (target["extras"] as Map<*, *>)["student_id"])
+        assertEquals(listOf("[REDACTED]"), (target["parameters"] as Map<*, *>)["token"])
+        assertEquals(
+            "https://safe.example.test/fallback?token=[REDACTED]",
+            target["fallback_url"],
+        )
+        val serialized = result.toString()
+        assertFalse(serialized.contains(studentId))
+        assertFalse(serialized.contains(fallbackToken))
+        assertFalse(serialized.contains("query-secret"))
+    }
+
+    @Test
+    fun keepsSuccessfulStaticResultExplicitlyInsufficient() {
+        val result = LocalEvidenceBuilder.build(
+            analysisId = analysisId,
+            rawValue = "https://info.example.test/notice",
+            processedAt = processedAt,
+        )
+
+        assertEquals("succeeded", result["processing_status"])
+        val hints = result.list("risk_hints").map { it as Map<*, *> }
+        assertTrue(hints.any {
+            it["code"] == "LOCAL_STATIC_ONLY" && it["risk_level"] == "insufficient_evidence"
+        })
+        assertEquals("not_started", result.map("preflight")["status"])
+        assertEquals(false, result.map("observations")["network_accessed"])
     }
 
     @Test

@@ -20,6 +20,9 @@ object NativeBridge : MethodChannel.MethodCallHandler {
         "intent://broken#Intent;package=com.example.fakecampus;end",
         "example.test/no-scheme",
     )
+    val dayThreeSamples = dayTwoSamples + listOf(
+        "https://info.example.test/notice",
+    )
 
     fun register(messenger: BinaryMessenger, context: Context) {
         applicationContext = context.applicationContext
@@ -52,6 +55,7 @@ object NativeBridge : MethodChannel.MethodCallHandler {
             "analyzeLocalEvidence" -> analyzeLocalEvidence(call, result)
             "getDayOneSamples" -> result.success(dayOneSamples)
             "getDayTwoSamples" -> result.success(dayTwoSamples)
+            "getDayThreeSamples" -> result.success(dayThreeSamples)
             else -> result.notImplemented()
         }
     }

@@ -1,5 +1,8 @@
 package com.taplens.app
 
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
 
@@ -30,6 +33,18 @@ object LocalEvidenceBuilder {
     ): Map<String, Any?> {
         validateAnalysisId(analysisId)
         val parsed = DeepLinkAnalyzer.analyze(rawValue)
+        val redactedParameters = parsed.parameters.mapValues { (name, values) ->
+            if (isSensitiveParameter(name.lowercase())) values.map { REDACTED_VALUE } else values
+        }
+        val redactedExtras = parsed.extras.mapValues { (name, value) ->
+            if (isSensitiveParameter(name.lowercase())) REDACTED_VALUE else value
+        }
+        val redactedFallbackUrl = parsed.fallbackUrl?.let(::redactSensitivePairs)
+        val redactedDisplayValue = redactDisplayValue(
+            rawValue = rawValue,
+            fallbackUrl = parsed.fallbackUrl,
+            redactedFallbackUrl = redactedFallbackUrl,
+        )
         val evidence = mutableListOf<Map<String, Any?>>()
 
         fun addEvidence(kind: String, title: String, detail: String): String {
@@ -51,7 +66,7 @@ object LocalEvidenceBuilder {
         val packageId = parsed.packageName?.let {
             addEvidence("package", "Intent 指定包名", it)
         }
-        val fallbackId = parsed.fallbackUrl?.let {
+        val fallbackId = redactedFallbackUrl?.let {
             addEvidence("fallback", "失败回退地址", it)
         }
         val parameterId = if (parsed.parameters.isNotEmpty() || parsed.extras.isNotEmpty()) {
@@ -111,7 +126,10 @@ object LocalEvidenceBuilder {
             processedAt = processedAt,
             processingStatus = "succeeded",
             target = parsed.toMap(expectedPackageName).toMutableMap().apply {
-                put("display_value", rawValue)
+                put("display_value", redactedDisplayValue)
+                put("parameters", redactedParameters)
+                put("fallback_url", redactedFallbackUrl)
+                put("extras", redactedExtras)
             },
             riskHints = riskHints,
             evidence = evidence,
@@ -199,8 +217,39 @@ object LocalEvidenceBuilder {
     private fun isSensitiveParameter(name: String): Boolean =
         sensitiveParameterMarkers.any { marker -> name.contains(marker) }
 
+    private fun redactDisplayValue(
+        rawValue: String,
+        fallbackUrl: String?,
+        redactedFallbackUrl: String?,
+    ): String {
+        var result = redactSensitivePairs(rawValue)
+        if (fallbackUrl != null && redactedFallbackUrl != null && fallbackUrl != redactedFallbackUrl) {
+            result = result.replace(fallbackUrl, redactedFallbackUrl)
+            result = result.replace(urlEncode(fallbackUrl), urlEncode(redactedFallbackUrl))
+        }
+        return result
+    }
+
+    private fun redactSensitivePairs(value: String): String =
+        SENSITIVE_PAIR.replace(value) { match ->
+            val key = runCatching { URLDecoder.decode(match.groupValues[3], StandardCharsets.UTF_8.name()) }
+                .getOrDefault(match.groupValues[3])
+                .lowercase()
+            if (!isSensitiveParameter(key)) {
+                match.value
+            } else {
+                match.groupValues[1] + match.groupValues[2] + match.groupValues[3] + "=" + REDACTED_VALUE
+            }
+        }
+
+    private fun urlEncode(value: String): String =
+        URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+
     private fun validateAnalysisId(analysisId: String) {
         runCatching { UUID.fromString(analysisId) }
             .getOrElse { throw IllegalArgumentException("analysis_id must be a UUID", it) }
     }
+
+    private const val REDACTED_VALUE = "[REDACTED]"
+    private val SENSITIVE_PAIR = Regex("""([?&;])([A-Za-z]\.)?([^=&#;]+)=([^&#;]*)""")
 }
