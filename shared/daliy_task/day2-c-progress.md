@@ -4,7 +4,7 @@
 >
 > 范围：仅 Android 本地安全模块
 >
-> 状态：代码与fixture已完成，Android编译和真机验证因本机缺少工具链暂为`BLOCKED`
+> 状态：第二天代码、fixture 和离线验证已完成；当前执行电脑仍未安装 Flutter、Android SDK 或 `adb`，模拟器实测待环境安装后补录
 
 ## 已完成
 
@@ -42,7 +42,7 @@
 
 ## Android环境检查
 
-当前执行环境未找到：
+2026-09-23 再次检查当前执行电脑，仍未找到：
 
 - Flutter SDK；
 - Gradle或Gradle Wrapper；
@@ -50,7 +50,7 @@
 - `adb`；
 - 已连接Android真机。
 
-因此本机无法真实生成Debug APK，也不能声称MethodChannel已在真机调用成功。纯Kotlin代码已经完成编译和测试，代码与fixture可供A先使用模拟结果接入。
+上游 `main` 已包含 A 在其环境生成 APK 和启动 `TapLens_API35` 的记录，但这些记录不能替代 C 在当前电脑上的实测。因此本机仍不能声称 MethodChannel 已在模拟器或真机调用成功。纯 Kotlin 代码、JUnit 和 fixture 验证均已完成，A、D 可先使用标准返回联调。
 
 ## 在具备Android环境的电脑上继续验证
 
