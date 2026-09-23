@@ -1,0 +1,45 @@
+--------- beginning of system
+09-23 03:47:58.340 W/ActivityTaskManager(  604): Skip updateConfiguration because mWindowManager isn't set
+09-23 03:47:59.670 I/ActivityTaskManager(  604): Config changes=20005df8 {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port ?uimode ?night finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.2 ?fontWeightAdjustment}
+09-23 03:49:40.541 I/ActivityTaskManager(  604): Config changes=200 {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.4 ?fontWeightAdjustment}
+09-23 03:49:45.738 I/ActivityTaskManager(  604): Config changes=10008000 {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.6 fontWeightAdjustment=0}
+09-23 03:49:50.570 W/ActivityTaskManager(  604): callingPackage for (uid=-1, pid=0) has no WPC
+09-23 03:49:50.619 I/ActivityTaskManager(  604): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.android.settings/.FallbackHome (has extras)} with LAUNCH_MULTIPLE from uid 0 (BAL_ALLOW_ALLOWLISTED_UID) result code=0
+--------- beginning of main
+09-23 03:49:51.886 I/ActivityTaskManager(  604): Displayed com.android.settings/.FallbackHome for user 0: +1s276ms
+09-23 03:49:55.091 I/ActivityTaskManager(  604): Config changes=80000000 {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.8 fontWeightAdjustment=0}
+09-23 03:49:59.584 I/ActivityTaskManager(  604): Restoring recents for user 0
+09-23 03:50:00.237 W/ActivityTaskManager(  604): callingPackage for (uid=-1, pid=0) has no WPC
+09-23 03:50:00.397 I/ActivityTaskManager(  604): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.google.android.googlesdksetup/.DefaultActivity (has extras)} with LAUNCH_MULTIPLE from uid 0 (BAL_ALLOW_ALLOWLISTED_UID) result code=0
+09-23 03:50:03.271 I/ActivityTaskManager(  604): Config changes=80000000 {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.19 fontWeightAdjustment=0}
+09-23 03:50:03.696 W/ActivityTaskManager(  604): Current config: {1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.19 fontWeightAdjustment=0} unchanged for IME proc com.google.android.inputmethod.latin
+09-23 03:50:10.220 W/ActivityTaskManager(  604): Launch timeout has expired, giving up wake lock!
+09-23 03:50:15.174 W/ActivityTaskManager(  604): Finishing task with all activities already finished
+09-23 03:50:15.175 W/ActivityTaskManager(  604): Duplicate finish request for r=ActivityRecord{93a0eef u0 com.google.android.googlesdksetup/.DefaultActivity t6 f}}
+09-23 03:50:15.265 W/ActivityTaskManager(  604): callingPackage for (uid=-1, pid=0) has no WPC
+09-23 03:50:15.429 I/ActivityTaskManager(  604): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.google.android.apps.nexuslauncher/.NexusLauncherActivity (has extras)} with LAUNCH_SINGLE_TASK from uid 0 (BAL_ALLOW_ALLOWLISTED_UID) result code=0
+09-23 03:50:15.827 W/ActivityTaskManager(  604): Duplicate finish request for r=ActivityRecord{93a0eef u0 com.google.android.googlesdksetup/.DefaultActivity t6 f}}
+09-23 03:50:21.857 I/ActivityTaskManager(  604): Displayed com.google.android.apps.nexuslauncher/.NexusLauncherActivity for user 0: +4s843ms
+09-23 03:52:10.153 I/ActivityTaskManager(  604): Config changes=3 {1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.3 s.44 fontWeightAdjustment=0}
+--------- beginning of crash
+09-23 03:53:00.856 E/AndroidRuntime( 1285): FATAL EXCEPTION: UiThreadHelper
+09-23 03:53:00.856 E/AndroidRuntime( 1285): Process: com.google.android.apps.nexuslauncher, PID: 1285
+09-23 03:53:00.856 E/AndroidRuntime( 1285): java.lang.NullPointerException: Attempt to read from field 'java.lang.String android.view.SurfaceControl.mName' on a null object reference in method 'void android.view.SurfaceControl.copyFrom(android.view.SurfaceControl, java.lang.String)'
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3248)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Parcel.createException(Parcel.java:3226)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Parcel.readException(Parcel.java:3209)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Parcel.readException(Parcel.java:3151)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at com.android.wm.shell.shared.d.a(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:23)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at com.android.quickstep.SystemUiProxy.getHomeTaskOverlayContainer(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:7)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at com.google.android.apps.nexuslauncher.overlay.b.run(go/retraceme 31f9979659277bb965985aff1272c33e3c3c9e755b77166d20a2465454178f2c:35)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Handler.handleCallback(Handler.java:959)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Handler.dispatchMessage(Handler.java:100)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Looper.loopOnce(Looper.java:232)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.Looper.loop(Looper.java:317)
+09-23 03:53:00.856 E/AndroidRuntime( 1285): 	at android.os.HandlerThread.run(HandlerThread.java:85)
+09-23 03:53:01.950 W/ActivityTaskManager(  604):   Not force finishing home activity com.google.android.apps.nexuslauncher/.NexusLauncherActivity
+09-23 09:03:07.192 W/ActivityTaskManager(  604): callingPackage for (uid=2000, pid=5452) has no WPC
+09-23 09:03:07.992 I/ActivityTaskManager(  604): START u0 {act=com.taplens.app.DEBUG_LOCAL_SAFETY flg=0x10000000 cmp=com.taplens.app/.LocalSafetyTestActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+09-23 09:03:08.771 W/ActivityTaskManager(  604): Activity top resumed state loss timeout for ActivityRecord{75ac02c u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+09-23 09:03:08.772 W/ActivityTaskManager(  604): Activity pause timeout for ActivityRecord{75ac02c u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+09-23 09:03:13.571 I/ActivityTaskManager(  604): Displayed com.taplens.app/.LocalSafetyTestActivity for user 0: +6s374ms
