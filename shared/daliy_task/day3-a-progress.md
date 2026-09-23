@@ -3,43 +3,35 @@
 > 日期：2026-09-23
 > 负责人：A（Flutter APP）
 > 分支：`feat/a-mobile-function`
+> A 代码提交：`795c7f0`
+> 本轮纳入 C 的实测证据：`38dd582`（合并提交 `1571b9e`）
 
-## 仓库提交检查
+## 今日完成
 
-- 本次检查开始时，远端 `main` 为 `653da63`，远端 A 分支为 `6480d66`。
-- B 最新提交：`1a08dcc`，补充 Codespaces 启动/端口脚本和公网端到端验证记录。
-- C 最新提交：`519ceee`，补齐 Day 3 本地证据接口、Schema、样例和测试。
-- D 最新提交：`6f21651`，补齐同分析 ID 报告守卫、AI 报告修正和 Android Mock 验证。
-- C、D 已合入 A 功能分支，合并提交为 `b586546`、`4afc849`。目前没有改动 `main`。
-- B 的临时 Codespaces 地址仅在服务运行且端口开放时有效。本次检查时当前环境无法完成 TLS 连接，因此没有把历史健康检查当作当前仍在线。
+- 合入 C 的 Android MethodChannel 实测记录、六类输入日志和截图；证据说明见 [`day3-c-evidence/README.md`](day3-c-evidence/README.md)。
+- 修正 Flutter 提示级 lint，并修复离线 Mock UI 测试没有滚动到屏幕外按钮的问题。失败回退测试现在检查规则报告恢复，而不依赖会自动消失的 Snackbar。
+- 在 `TapLens_API35` / `emulator-5554` 上重新安装 A 的 Debug APK，手工完成“粘贴链接 → 本地预检 → 固定演示报告 → Mock 成功 → Mock 失败回退”。
+- 本地预检页面显示虚构短链接 `https://scholarship.example.test/apply?source=poster` 的 `L01/L02`，并明确显示“未启动外部应用，未访问网络”。
+- Mock 成功和 Mock 失败回退都能在手机报告页显示；离线演示没有调用安全存储读取 Key 的通道，也没有联网或消耗 Token。
+- 补存当前模拟器截图，见 [`day3-a-evidence/README.md`](day3-a-evidence/README.md)。
 
-## A 已完成的代码
-
-- 本地预检页把本次 `LocalEvidence` 带入云端分析页，继续沿用同一个 `analysis_id`。
-- AI 输入现在会同时包含本地 `Lxx` 和云端 `Cxx`。提交给模型前，手机只挑出证据编号、类型、标题、详情和本地风险提示，再由现有脱敏器清理；完整本地预检对象、原始截图和完整查询参数不会加入 AI 请求。
-- 如果本地证据的 `analysis_id` 与云端报告不一致，输入构造会直接拒绝，避免跨任务混用同名 `Lxx`。
-- 规则报告页会一起列出本次 `Lxx`/`Cxx`，并保留来源标记。AI 报告可以引用两类证据，守卫只接受本次可用的证据编号。
-- 正式报告页新增“Mock 成功演示”和“Mock 失败回退演示”。两项通过同一报告守卫验证，明确显示为离线演示，不读取 Key、不联网、不伪造 AI 来源或 Token 数。
-- 本地预检页的固定样例报告也能打开这两个离线演示按钮，因此 B 临时服务不可用时仍可直接在手机里演示报告界面和失败回退；示例报告明确标为虚构固定数据。
-- AI 系统提示补充了边界：`Lxx` 只证明手机静态解析观察到的链接结构，不代表网页已打开、应用已启动或页面执行过动作。
-- 演示说明已补上离线 Mock 的操作和事实边界，见 `day3-a-demo.md`。
-
-## 验证结果与限制
+## 验证结果
 
 | 检查 | 结果 |
 |---|---|
-| Dart 检查 | 新增/修改的 6 个 Dart 文件已格式化；`report_page.dart` 保持与仓库原有风格一致，Dart 3.13.2 可解析。格式器会对旧页面做整页风格调整，因此没有把无关格式改动带入 |
+| `flutter analyze --no-pub` | 通过，`No issues found` |
+| `flutter test --no-pub` | 通过，38 项测试 |
+| `flutter build apk --debug --no-pub` | 通过；APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk` |
+| 安装与启动 | 通过；`com.taplens.app/.MainActivity` 在 Android 15 / API 35 模拟器前台运行 |
 | `git diff --check` | 通过 |
-| Deep Link 数据集校验 | `public=6, fixtures=7, evaluation=3`，通过 |
-| A 纯 Dart 集成冒烟 | 通过：脱敏后的 Lxx/Cxx 输入、同分析 ID 守卫、Mock 成功和失败回退；使用临时脚本运行后已删除 |
-| 报告契约/Day 3 证据 Python 校验 | 当前两个 Python 环境都没有 `jsonschema` 依赖，未能运行 |
-| Flutter 测试、分析、APK 构建 | 未能运行。Flutter 启动器在当前权限下卡在 SDK 锁等待；直接运行 SDK 工具报告无法写入 `D:\FlutterSDK\flutter\bin\cache\lockfile`。本次没有 Flutter 测试结果，不把旧分支测试结果算作新改动的验证 |
-| Codespaces 实时接口 | B 记录的历史 E2E 曾通过；本次当前环境无法完成该临时地址的 TLS 连接，需服务重新启动后再测 |
 
-## 还需要接着完成
+## 仍被 B 阻塞的部分
 
-1. 在可写入 Flutter SDK 缓存、依赖可用的环境里运行 `flutter analyze`、`flutter test` 和 Debug APK 构建，确认新增报告路径通过。
-2. B 重启 Codespaces 或提供新的可访问地址后，从 APP 验收登录、创建任务、轮询和报告页面。
-3. 在 Android 模拟器上分别点一次 Mock 成功与失败回退，保存现场截图；真实 DeepSeek 请求仍是可选项，未使用真实 Key。
+- 本轮没有拿到 B 当前运行的后端地址、测试账号和 worker 启动确认，所以还没有真实完成手机端“登录 → 额度 → 创建任务 → 轮询 → 云端报告”。
+- [`fixed-demo-report.png`](day3-a-evidence/fixed-demo-report.png) 是仓库里的离线固定样例，用于检查报告页面和证据展示；它不代表本轮真实访问 B 后端，也不能作为云端成功截图。
+- 没有使用真实 DeepSeek Key。真实请求仍是可选项，Mock 已覆盖成功和失败回退的界面路径。
 
-测试时使用的 C、B fixture 原本属于不同分析，因此集成测试在内存中把 C fixture 的 `analysis_id` 对齐到 B fixture；生产 APP 则使用本次本地扫描生成的 ID 发起同 ID 云任务。
+## 下一步
+
+1. B 提供当次可访问地址、测试账号并启动 worker 后，从模拟器完成一次真实云端任务，并保存任务状态与 C01-C04 报告截图。
+2. 若演示需要真实模型，再由使用者自行输入 Key、确认可能产生费用后测试；A 不在仓库、后端或截图中记录 Key。

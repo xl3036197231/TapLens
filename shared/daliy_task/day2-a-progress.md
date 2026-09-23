@@ -4,6 +4,8 @@
 > 分支：`feat/a-mobile-function`
 > 已合并基线：A 最新功能已进入 main；第三天改动沿用 feat/a-mobile-function
 > 最近更新：2026-09-23
+> 当前 A 代码提交：`795c7f0`
+> 最新 Flutter / 模拟器复测：见 [`day3-a-progress.md`](day3-a-progress.md)（分析无问题、38 项测试通过、Debug APK 已安装运行）
 
 ## 今日已完成
 
