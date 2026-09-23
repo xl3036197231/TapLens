@@ -52,22 +52,25 @@ D 的 `AnalysisReportGuard` 使用 `^[LC][0-9]{2,}$` 校验证据编号，以上
 - fixture 不包含真实账号、真实 Key 或真实个人信息。
 - `target.parameters`、`target.extras`、`target.fallback_url` 和 `target.display_value` 均经过相同敏感字段规则处理。
 
-## 当前环境与尚待补录
+## 模拟器与 MethodChannel 实测（2026-09-23）
 
-当前电脑尚未安装 Android Studio、Android SDK、Flutter 或 `adb`，因此无法真实安装 APK、运行 `adb devices`、调用模拟器 MethodChannel 或保存截图。本文引用的 JSON 是离线契约 fixture，不是模拟器实测记录。
+- 工具链：Android Studio 2026.1、Flutter 3.47.5、Dart 3.13.4、Temurin JDK 21.0.12.1、Android SDK 35/36。
+- 设备：`emulator-5554`，`sdk_gphone64_x86_64`，Android 15 / API 35，`sys.boot_completed=1`。
+- `flutter test`：26 项全部通过。
+- `flutter build apk --debug`：成功，正式 APK 位于 `mobile/build/app/outputs/flutter-apk/app-debug.apk`。
+- `adb install -r`：成功；Debug 原生验证页冷启动成功。
+- 为验证真实通道，使用临时 Flutter 入口依次调用 `getDayThreeSamples` 与六次 `analyzeLocalEvidence`；验证后已删除临时入口并重新构建、安装正式默认 APK，没有改动正式业务入口。
+- 六次 MethodChannel 返回：4 次 `succeeded`、2 次 `failed`；六次均为 `launched_external_app=false`、`network_accessed=false`，敏感字段显示为 `[REDACTED]`。
+- Flutter 日志含 `DAY3_C_CHANNEL_1` 至 `DAY3_C_CHANNEL_6`，未出现 `PlatformException`、`MissingPluginException` 或 `FATAL EXCEPTION`。
+- 运行期间前台任务始终为 `com.taplens.app/.MainActivity`，没有浏览器或其他外部应用被唤起。
 
-环境安装完成后执行：
+实测证据位于 `shared/daliy_task/day3-c-evidence/`：
 
-```powershell
-cd mobile
-flutter pub get
-flutter build apk --debug
-adb devices -l
-adb install -r build\app\outputs\flutter-apk\app-debug.apk
-adb shell am start -a com.taplens.app.DEBUG_LOCAL_SAFETY
-```
-
-需要补录的仅剩：`adb devices -l` 输出、六类模拟器实际返回、启动日志和页面截图，并核对运行期间没有浏览器或外部 APP 被唤起。
+- `channel-logcat.txt`：六次真实 MethodChannel JSON 返回；
+- `channel-window.xml`：Flutter 验证页完整 UI 文本；
+- `channel-screen-top.png`、`channel-screen-final.png`：真实 Channel 首尾结果截图；
+- `window.xml`、`screen-*.png`：Debug 原生页的六类返回与滚动截图；
+- `logcat-filtered.txt`：Debug 原生页启动日志。
 
 ## 四句话交接
 
@@ -77,4 +80,4 @@ adb shell am start -a com.taplens.app.DEBUG_LOCAL_SAFETY
 
 正常会得到：成功或失败的完整 JSON、对应 `Lxx`/错误码，以及始终为 `false` 的外部启动与网络访问标记。
 
-目前还缺：当前电脑安装 Android/Flutter 工具链后的模拟器实测日志与截图。
+目前还缺：若团队最终要求“物理手机”而非模拟器，再连接手机补一份同样的 `adb` 记录即可；C 第三天要求的模拟器验证已经完成。
