@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "0e9d4f24-c047-4c7e-a684-e7479dcaaeb9",
+  "created_at": "2026-09-22T13:28:16.448318Z",
+  "risk_level": "high",
+  "consistency": "partially_inconsistent",
+  "title": "短链接进入需要账号信息的页面",
+  "target": {
+    "type": "url",
+    "display": "http://127.0.0.1:18765/go/campus",
+    "redacted": true
+  },
+  "summary": "受控短链接跳转到登录页，页面出现学号和密码字段；请先核实页面身份，不要直接填写真实账号。",
+  "claim": {
+    "summary": "入口页面显示为校园服务链接",
+    "subject": "Example Campus（虚构演示品牌）",
+    "purpose": "打开校园服务",
+    "requested_data": [],
+    "intended_target": "校园服务页面"
+  },
+  "observed_behavior": {
+    "summary": "云端观察到一次 HTTP 跳转，最终页包含两个敏感表单字段，并生成页面摘要和截图。",
+    "subjects": ["Example Campus single sign-on（页面自称）"],
+    "purposes": ["账号登录"],
+    "collected_data": ["student_id 字段", "password 字段"],
+    "destinations": ["http://127.0.0.1:18765/campus-login.html"],
+    "actions": ["redirect", "form_display", "screenshot"],
+    "evidence_ids": ["C01", "C02", "C03", "C04"]
+  },
+  "differences": [
+    {
+      "id": "D01",
+      "dimension": "target",
+      "severity": "warning",
+      "description": "入口链接最终进入登录页面，去向与入口上的普通校园服务表述不同。",
+      "evidence_ids": ["C01", "C03"]
+    },
+    {
+      "id": "D02",
+      "dimension": "data",
+      "severity": "critical",
+      "description": "最终页面要求填写学号和密码；入口没有说明这些敏感字段。",
+      "evidence_ids": ["C02"]
+    }
+  ],
+  "recommendations": [
+    "不要在该页面填写真实学号或密码。",
+    "通过自己已知的官方入口核对页面和活动信息。"
+  ],
+  "evidence": [
+    {
+      "id": "C01",
+      "source": "cloud",
+      "title": "云端跳转链",
+      "detail": "观察到1次HTTP跳转。"
+    },
+    {
+      "id": "C02",
+      "source": "cloud",
+      "title": "敏感表单字段",
+      "detail": "页面表单包含2个敏感输入字段。"
+    },
+    {
+      "id": "C03",
+      "source": "cloud",
+      "title": "云端页面摘要",
+      "detail": "页面标题：Example Campus single sign-on"
+    },
+    {
+      "id": "C04",
+      "source": "cloud",
+      "title": "云端页面截图",
+      "detail": "已生成受鉴权与过期时间保护的页面截图。"
+    }
+  ],
+  "uncertainty": {
+    "status": "partial",
+    "summary": "跳转、表单和页面内容已被沙箱观察；页面自称的官方身份尚未独立验证，表单也没有被提交。",
+    "reasons": ["页面运营者身份未独立验证", "沙箱未提交表单"],
+    "missing_evidence": ["页面运营者的可信验证"]
+  },
+  "sources": {"local": false, "cloud": true, "ai": false},
+  "token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  }
+}

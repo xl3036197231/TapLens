@@ -8,7 +8,11 @@ class AiReportResult {
   final bool usedFallback;
   final AiClientException? error;
 
-  const AiReportResult({required this.report, required this.usedFallback, this.error});
+  const AiReportResult({
+    required this.report,
+    required this.usedFallback,
+    this.error,
+  });
 }
 
 class AiReportService {
@@ -24,7 +28,10 @@ class AiReportService {
     String? hardRiskLevel,
   }) async {
     try {
-      final response = await client.analyze(apiKey: apiKey, sanitizedPayload: sanitizedPayload);
+      final response = await client.analyze(
+        apiKey: apiKey,
+        sanitizedPayload: sanitizedPayload,
+      );
       final modelReport = decodeJsonObject(response.rawReportJson);
       modelReport['sources'] = {
         ...?((modelReport['sources'] is Map<String, dynamic>)
@@ -43,16 +50,32 @@ class AiReportService {
         jsonEncode(modelReport),
         availableEvidenceIds: availableEvidenceIds,
         hardRiskLevel: hardRiskLevel,
+        expectedAnalysisId: ruleReport['analysis_id'] is String
+            ? ruleReport['analysis_id'] as String
+            : null,
       );
-      if (guarded.isValid) return AiReportResult(report: guarded.report!, usedFallback: false);
-      return AiReportResult(report: ruleReport, usedFallback: true, error: guarded.error);
+      if (guarded.isValid) {
+        return AiReportResult(report: guarded.report!, usedFallback: false);
+      }
+      return AiReportResult(
+        report: ruleReport,
+        usedFallback: true,
+        error: guarded.error,
+      );
     } on AiClientException catch (error) {
-      return AiReportResult(report: ruleReport, usedFallback: true, error: error);
+      return AiReportResult(
+        report: ruleReport,
+        usedFallback: true,
+        error: error,
+      );
     } on Exception {
       return AiReportResult(
         report: ruleReport,
         usedFallback: true,
-        error: const AiClientException(AiClientErrorCode.network, 'The AI request failed'),
+        error: const AiClientException(
+          AiClientErrorCode.network,
+          'The AI request failed',
+        ),
       );
     }
   }

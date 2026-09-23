@@ -23,23 +23,19 @@ class CloudAiReportInput {
         : <Map<String, dynamic>>[];
 
     return {
+      'report_context': {
+        'analysis_id': ruleReport.analysisId,
+        'created_at': ruleReport.createdAt.toUtc().toIso8601String(),
+      },
       'analysis_input': {
         'claims_text': '用户确认的链接，等待对云端跳转、页面和表单证据进行深度研判。',
         'privacy': {'raw_image_sent': false},
         'targets': [
-          {
-            'type': 'url',
-            'value': url,
-            'label': '用户确认链接',
-            'redacted': true,
-          },
+          {'type': 'url', 'value': url, 'label': '用户确认链接', 'redacted': true},
         ],
       },
       'local_evidence': null,
-      'cloud_evidence': {
-        'evidence': items,
-        'risk_hints': hardRisk,
-      },
+      'cloud_evidence': {'evidence': items, 'risk_hints': hardRisk},
       'hard_risk_findings': hardRisk,
     };
   }
@@ -63,11 +59,7 @@ class CloudAiReportInput {
       'risk_level': _riskValue(report.riskLevel),
       'consistency': _consistencyValue(report.consistency),
       'title': report.title,
-      'target': {
-        'type': 'url',
-        'display': report.target,
-        'redacted': true,
-      },
+      'target': {'type': 'url', 'display': report.target, 'redacted': true},
       'summary': report.summary,
       'claim': {
         'summary': '用户确认的链接',
@@ -77,7 +69,9 @@ class CloudAiReportInput {
         'intended_target': '用户确认的链接目标',
       },
       'observed_behavior': {
-        'summary': report.observedBehaviors.join('；'),
+        'summary': report.observedBehaviors.isEmpty
+            ? '当前没有足够的页面行为证据。'
+            : report.observedBehaviors.join('；'),
         'subjects': const <String>[],
         'purposes': const <String>[],
         'collected_data': const <String>[],
@@ -86,11 +80,17 @@ class CloudAiReportInput {
         'evidence_ids': report.evidence.map((item) => item.id).toList(),
       },
       'differences': [
-        for (var index = 0; index < report.differences.length; index++)
+        for (
+          var index = 0;
+          report.evidence.isNotEmpty && index < report.differences.length;
+          index++
+        )
           {
-            'id': 'D' + (index + 1).toString().padLeft(2, '0'),
-            'dimension': 'behavior',
-            'severity': report.riskLevel == RiskLevel.high ? 'critical' : 'warning',
+            'id': 'D${(index + 1).toString().padLeft(2, '0')}',
+            'dimension': _differenceDimension(report.differences[index]),
+            'severity': report.riskLevel == RiskLevel.high
+                ? 'critical'
+                : 'warning',
             'description': report.differences[index],
             'evidence_ids': report.evidence.map((item) => item.id).toList(),
           },
@@ -98,8 +98,12 @@ class CloudAiReportInput {
       'recommendations': report.recommendations,
       'evidence': evidence,
       'uncertainty': {
-        'status': report.riskLevel == RiskLevel.insufficientEvidence ? 'insufficient' : 'known',
-        'summary': report.uncertaintySummary,
+        'status': report.riskLevel == RiskLevel.insufficientEvidence
+            ? 'insufficient'
+            : 'known',
+        'summary': report.uncertaintySummary.isEmpty
+            ? '当前结论只覆盖已提供的证据。'
+            : report.uncertaintySummary,
         'reasons': const <String>[],
         'missing_evidence': const <String>[],
       },
@@ -135,16 +139,26 @@ class CloudAiReportInput {
   }
 
   static String _riskValue(RiskLevel value) => switch (value) {
-        RiskLevel.low => 'low',
-        RiskLevel.medium => 'medium',
-        RiskLevel.high => 'high',
-        RiskLevel.insufficientEvidence => 'insufficient_evidence',
-      };
+    RiskLevel.low => 'low',
+    RiskLevel.medium => 'medium',
+    RiskLevel.high => 'high',
+    RiskLevel.insufficientEvidence => 'insufficient_evidence',
+  };
+
+  static String _differenceDimension(String description) {
+    if (description.contains('跳转') || description.contains('地址')) {
+      return 'target';
+    }
+    if (description.contains('表单') || description.contains('字段')) {
+      return 'data';
+    }
+    return 'action';
+  }
 
   static String _consistencyValue(Consistency value) => switch (value) {
-        Consistency.consistent => 'consistent',
-        Consistency.partiallyInconsistent => 'partially_inconsistent',
-        Consistency.contradictory => 'contradictory',
-        Consistency.unknown => 'unknown',
-      };
+    Consistency.consistent => 'consistent',
+    Consistency.partiallyInconsistent => 'partially_inconsistent',
+    Consistency.contradictory => 'contradictory',
+    Consistency.unknown => 'unknown',
+  };
 }
