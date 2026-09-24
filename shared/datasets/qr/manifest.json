@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Day 4 synthetic QR decoding and safe-preview fixtures; not live field evidence",
+  "cases": [
+    {
+      "id": "QR01",
+      "png": "png/qr01-campus-short.png",
+      "payload": "https://campus.example.test/go/campus",
+      "expected_type": "http_url",
+      "possible_action": "打开虚构校园短链接并可能跳转到登录页",
+      "risk_explanation": "二维码只提供链接文本；扫描时无法确认跳转目标或页面真实运营者。静态 .test 地址不可用作现场云任务。",
+      "taplens_action": "本地预览并静态解析；仅用户确认后才考虑云分析，现场改用 B 当次受控站动态二维码。",
+      "local_route": "analyzeLocalEvidence",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR02",
+      "png": "png/qr02-intent-package-mismatch.png",
+      "payload": "intent://scan/#Intent;scheme=taplens;package=com.example.otherapp;S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end",
+      "expected_type": "intent_deep_link",
+      "possible_action": "启动指定应用或打开 fallback 链接",
+      "risk_explanation": "目标包名与预期 com.taplens.app 不一致，fallback 也不能自动访问。",
+      "taplens_action": "只展示脱敏的目标包名和 fallback，静态解析并提示不一致；不启动应用。",
+      "local_route": "analyzeLocalEvidence",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR03",
+      "png": "png/qr03-wifi.png",
+      "payload": "WIFI:T:WPA;S:TapLens-Training-Only;P:NOT_A_REAL_PASSWORD;;",
+      "expected_type": "wifi",
+      "possible_action": "连接二维码指定的 Wi-Fi 网络",
+      "risk_explanation": "自动入网可能改变网络环境；这里的 SSID 和密码均为无效训练值。",
+      "taplens_action": "只显示网络类型、虚构 SSID 和已遮盖的密码；不连接、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR04",
+      "png": "png/qr04-sms.png",
+      "payload": "SMSTO:+00000000000:TapLens training only",
+      "expected_type": "sms",
+      "possible_action": "向二维码指定号码发送预填短信",
+      "risk_explanation": "发送短信可能产生费用或泄露信息；号码为不可用的虚构示例。",
+      "taplens_action": "只显示已遮盖的号码和预填内容摘要；不打开短信应用、不发送、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR05",
+      "png": "png/qr05-phone.png",
+      "payload": "tel:+00000000000",
+      "expected_type": "phone",
+      "possible_action": "拨打二维码指定号码",
+      "risk_explanation": "拨号属于系统外部行为，号码仅为虚构训练值。",
+      "taplens_action": "只显示遮盖后的号码和拨号风险；不唤起拨号器、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR06",
+      "png": "png/qr06-email.png",
+      "payload": "mailto:demo@example.test?subject=TapLens%20training",
+      "expected_type": "email",
+      "possible_action": "打开邮件应用并预填收件人与主题",
+      "risk_explanation": "预填邮件可能把内容发往不明收件人；.test 邮箱为虚构值。",
+      "taplens_action": "只预览脱敏收件人及主题；不唤起邮件应用、不发送、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR07",
+      "png": "png/qr07-vcard.png",
+      "payload": "BEGIN:VCARD\nVERSION:3.0\nFN:Example Person\nTEL:+00000000000\nEMAIL:demo@example.test\nEND:VCARD",
+      "expected_type": "vcard",
+      "possible_action": "导入联系人信息",
+      "risk_explanation": "联系人卡片可能包含个人信息；此样例全部是虚构值。",
+      "taplens_action": "只显示字段类型与脱敏摘要；不导入联系人、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR08",
+      "png": "png/qr08-apk-download.png",
+      "payload": "https://download.example.test/taplens-demo.apk",
+      "expected_type": "apk_download",
+      "possible_action": "下载并可能安装 APK",
+      "risk_explanation": "即使是 HTTPS，APK 下载仍有安装未知程序的风险；该域名不可解析，仅作样例。",
+      "taplens_action": "只预览下载地址与安装风险；不打开、不下载、不安装、不提交云端。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR09",
+      "png": "png/qr09-app-store.png",
+      "payload": "market://details?id=com.example.taplensdemo",
+      "expected_type": "app_store",
+      "possible_action": "打开应用商店的应用详情页",
+      "risk_explanation": "应用商店链接也是外部系统动作，不能把包名视为已验证发布者。",
+      "taplens_action": "只预览虚构包名和外部跳转风险；不打开商店、不安装、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR10",
+      "png": "png/qr10-plain-text.png",
+      "payload": "TapLens training sample: plain text only",
+      "expected_type": "plain_text",
+      "possible_action": "无系统动作",
+      "risk_explanation": "普通文本不等于链接，也不能推断目标安全性。",
+      "taplens_action": "只显示文本预览；不触发本地链接解析、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR11",
+      "png": "png/qr11-invalid-content.png",
+      "payload": "://broken",
+      "expected_type": "invalid_content",
+      "possible_action": "无可识别的安全操作",
+      "risk_explanation": "内容不构成合法 URL 或受支持二维码格式。",
+      "taplens_action": "明确提示无法识别，不执行、不上传。",
+      "local_route": "preview_only",
+      "allow_cloud": false
+    }
+  ]
+}

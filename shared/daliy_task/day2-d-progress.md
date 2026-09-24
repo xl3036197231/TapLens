@@ -8,7 +8,7 @@
 
 `EVIDENCE-AUDITED`（2026-09-23 追记）：D 的网站、数据集、Mock、AI 客户端与规则报告已进入 `main`；B 已交付真实采集的 `C01–C04` 快照，D 已用同一 `analysis_id` 的 Day 3 报告复核引用。A 已把 AI 客户端接入报告页。
 
-`PENDING-DEVICE`：C 的 Day 2 五类证据仍在其功能分支，尚未合入当前 `main`；A/C/D 的同一次分析模拟器联调和手机端 Mock 成功/失败页面尚无运行记录。真实 DeepSeek 请求未做，且不是主流程前置条件。
+`PENDING-JOINT-SCAN`（2026-09-24 追记）：C 的正式 Schema、六类本地证据和模拟器通道记录已合入 `main`；A 的正式 APP 页面已有固定离线报告及 Mock 成功/失败回退的模拟器截图，D 的四条 Mock Android 集成路径也已通过。仍缺 A/B/C/D 同一新 `analysis_id` 的手机云端联合验收。真实 DeepSeek 请求未做，且不是主流程前置条件。
 
 ## 本次完成
 

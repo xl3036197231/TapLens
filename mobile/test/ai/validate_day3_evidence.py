@@ -1,13 +1,8 @@
-"""Audit B's captured cloud evidence and C's current Day 2 local fixtures.
-
-Until C's branch is merged, C inputs are read from the fetched remote ref.
-They are never combined with B's separate analysis ID.
-"""
+"""Audit historical B/C fixtures without treating them as one live scan."""
 
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -16,7 +11,6 @@ from referencing import Registry, Resource
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "shared" / "contracts"
-C_REF = "origin/feat/c-day2-device-validation"
 C_FILES = (
     "case01-local-succeeded.json",
     "case03-local-url-succeeded.json",
@@ -28,18 +22,7 @@ C_FILES = (
 
 
 def read_json(path: str) -> dict:
-    local = ROOT / path
-    if local.exists():
-        return json.loads(local.read_text(encoding="utf-8"))
-    output = subprocess.run(
-        ["git", "show", f"{C_REF}:{path}"],
-        cwd=ROOT,
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=True,
-    )
-    return json.loads(output.stdout)
+    return json.loads((ROOT / path).read_text(encoding="utf-8"))
 
 
 def validator_for(schema: dict, *, local_override: dict | None = None) -> Draft202012Validator:
@@ -59,18 +42,6 @@ def assert_schema(validator: Draft202012Validator, item: dict, label: str) -> No
 
 def main() -> None:
     local_schema = read_json("shared/contracts/local-evidence.schema.json")
-    # main still carries the Day 1 local schema; use C's branch contract when
-    # reading its Day 2 fixtures before that branch is merged.
-    if "risk_hints" not in local_schema.get("properties", {}):
-        output = subprocess.run(
-            ["git", "show", f"{C_REF}:shared/contracts/local-evidence.schema.json"],
-            cwd=ROOT,
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-            check=True,
-        )
-        local_schema = json.loads(output.stdout)
     local_validator = validator_for(local_schema, local_override=local_schema)
     local_ids = set()
     local_by_name = {}

@@ -5,10 +5,11 @@
 ## 演示前检查
 
 - [x] B 的历史实测快照 `shared/fixtures/cloud/day2-short-link-succeeded.json` 含 `C01 redirect`、`C02 form`、`C03 page`、`C04 screenshot`；D 的 `day3-short-link-verified.json` 同属分析 `0e9d4f24-c047-4c7e-a684-e7479dcaaeb9`，四条证据标题、详情和引用一致。
-- [x] C 分支的六类本地 JSON（含 Day 3 新增证据不足成功样例）通过其 Schema，`Lxx` 与风险提示引用存在；解析没有自动唤起 App 或访问网络。
+- [x] C 的六类本地 JSON（含 Day 3 新增证据不足成功样例）通过其 Schema，`Lxx` 与风险提示引用存在；实现、fixture 和模拟器实测记录现已合入 `main`，解析没有自动唤起 App 或访问网络。
 - [x] D 在 `TapLens_API_35` 上跑通 4 条 AI 报告集成测试：Mock 高风险成功、`C99` 拒绝、非法 JSON 与超时回退，手机 Key 通道读写后清除测试值。
 - [ ] B 给出**本次**后端地址、测试站地址和任务结果；A/C 在模拟器上跑出**同一次分析**的 `Lxx/Cxx`。历史 B、C fixture 的 `analysis_id` 不同，不能直接拼成联合报告。
-- [ ] A 在生产页面的模拟器演示中展示 Mock 成功、未知证据拒绝、超时/非法 JSON 回退。D 的 Flutter widget、服务与独立 Android 集成测试已通过，生产页尚未接入可选 Mock 入口。
+- [x] A 已在正式 APP 路径接入固定离线报告和 Mock 成功/非法 JSON 失败回退，模拟器截图见 `day3-a-evidence/`；这些均不联网、不读取 Key、不消耗 Token。
+- [ ] `C99` 拒绝和超时由 D 的 Android 集成测试覆盖，但尚无正式 APP 页面现场点选截图；不得把自动化测试写成正式页面验收。
 
 ## 五个固定场景
 
@@ -18,7 +19,7 @@
 | 仿冒校园登录短链 | B `day2-short-link-succeeded.json` | `C01` 跳转、`C02` 学号/密码字段、`C03` 页面标题、`C04` 截图；规则高风险 | 实测快照与 D 报告引用通过；新任务待验 |
 | `intent://` 包名不一致 | D `FIX-DL-003`，C 静态解析器 | 预期 `L01` 目标、`L02` 包名，`LOCAL_PACKAGE_MISMATCH`；不要自动启动目标 App | 构造样例/规则已验证；模拟器待验 |
 | 证据不足 | C `case03`、`case05`、`case06`、`case07` | 成功静态解析只引用自己的 `L01`；非法输入无 `Lxx`，不得宣称安全 | 离线通过；模拟器待验 |
-| AI 失败回退 | D Mock AI + B 同分析证据 | 错误 `C99` 被拒，超时/非法 JSON 时保留原高风险规则报告和 `C01–C04` | D 的独立 Android 测试通过；正式页面演示待 A 接入 |
+| AI 失败回退 | D Mock AI + B 同分析证据 | 错误 `C99` 被拒，超时/非法 JSON 时保留原高风险规则报告和 `C01–C04` | 独立 Android 测试通过；正式页面已有固定样例的 Mock 成功/非法 JSON 回退入口，`C99`/超时现场点选未验 |
 
 ## 给普通用户的一句话
 
