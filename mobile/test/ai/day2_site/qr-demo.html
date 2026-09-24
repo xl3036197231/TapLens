@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="case-id" content="day4-qr-realistic-entry">
+  <meta name="data-policy" content="test-only-no-external-action">
+  <title>槐序 Campus · 扫码前，先看一眼</title>
+  <link rel="stylesheet" href="qr-demo.css">
+  <link rel="stylesheet" href="qr-demo-extra.css">
+  <script src="qr-demo.js" defer></script>
+</head>
+<body>
+  <div class="fixture-banner">TAPLENS 受控演示 · 所有品牌、账号、网址与号码均为虚构 · 请勿输入真实信息</div>
+  <header class="site-header">
+    <a class="brand" href="deep-link-demo.html"><span class="brand-mark">槐</span><span>槐序 <small>CAMPUS LIFE</small></span></a>
+    <nav aria-label="演示导航"><a href="deep-link-demo.html">Deep Link 演示</a><a href="#scenes">扫码场景</a><a href="#method">验证方式</a></nav>
+    <span class="edition">FIELD NOTES / 2026</span>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">11 EVERYDAY SCANS · ONE PAUSE</p>
+        <h1>扫码之前，<br><em>先看一眼。</em></h1>
+        <p>公告栏、群消息、咖啡角、活动海报——二维码常常出现在我们最顺手点击的地方。选一个情境，看看扫码后<strong>可能</strong>发生什么，再决定下一步。</p>
+        <a class="hero-cta" href="#scenes">进入场景展板 <span aria-hidden="true">↗</span></a>
+        <span class="hero-footnote">固定离线样例 · 不自动访问链接或唤起系统功能</span>
+      </div>
+      <div class="hero-scene" aria-hidden="true">
+        <div class="notice-paper"><span class="paper-pin"></span><small>学生事务中心 / NOTICE 04</small><strong>一个码，<br>不止一个去向。</strong><p>信息藏在方格里，风险不该藏在下一步。</p><div class="paper-qr"></div></div>
+        <div class="coffee-tag"><span>LIBRARY / CAFÉ</span><strong>FREE<br>WI‑FI?</strong><i>SCAN WITH CARE ↗</i></div>
+        <span class="scene-caption">现场样例均来自 shared/datasets/qr/manifest.json</span>
+      </div>
+    </section>
+    <section class="intro" id="scenes">
+      <div><p class="eyebrow">THE SCENE BOARD</p><h2>它看起来像什么，<br>里面又是什么？</h2></div>
+      <p>这些卡片还原二维码出现的日常场合。可用另一台设备扫屏幕上的码，或点“模拟扫码”查看基于清单的<strong>预期安全预览</strong>。这里不是实际 APP 扫码结果，也不是云端证据。</p>
+    </section>
+    <div class="filters" id="filters" role="group" aria-label="筛选扫码情境">
+      <button type="button" data-filter="all" aria-pressed="true">全部 11 个</button>
+      <button type="button" data-filter="link" aria-pressed="false">链接与应用</button>
+      <button type="button" data-filter="system" aria-pressed="false">系统动作</button>
+      <button type="button" data-filter="content" aria-pressed="false">内容与异常</button>
+    </div>
+    <div class="scene-grid" id="scene-grid" aria-live="polite"><p class="loading">正在读取本地二维码清单…</p></div>
+    <section class="method" id="method">
+      <div><span class="method-no">01</span><h3>看来源</h3><p>海报或消息的外观不能证明发布者身份。</p></div>
+      <div><span class="method-no">02</span><h3>先预览</h3><p>确认码的类型、脱敏内容和可能触发的动作。</p></div>
+      <div><span class="method-no">03</span><h3>再验证</h3><p>用 APP 实扫或从相册导入；正式证据另行采集。</p></div>
+    </section>
+  </main>
+  <dialog id="preview-dialog" aria-labelledby="preview-title">
+    <div class="dialog-bar"><span>TapLens · 静态预期预览</span><button id="close-preview" type="button" aria-label="关闭预览">×</button></div>
+    <div class="dialog-content">
+      <div class="preview-icon" aria-hidden="true">⌗</div>
+      <p class="preview-id" id="preview-id"></p>
+      <h2 id="preview-title"></h2>
+      <p class="preview-origin" id="preview-origin"></p>
+      <div class="preview-data"><span>类型</span><strong id="preview-type"></strong><span>脱敏内容</span><code id="preview-value"></code></div>
+      <div class="preview-warning"><strong>可能发生</strong><p id="preview-action"></p><strong>为什么要停一下</strong><p id="preview-risk"></p></div>
+      <div class="preview-safe"><strong>TapLens 应做什么</strong><p id="preview-safe"></p></div>
+      <p class="preview-disclaimer">这是 manifest 中的预期说明，不代表 APP 已解析、目标已访问、身份已核验或链接安全。此页不会打开链接、拨号、发短信、连接 Wi‑Fi、下载 APK 或启动其他 APP。</p>
+      <button class="dialog-done" id="done-preview" type="button">我已了解，返回场景</button>
+    </div>
+  </dialog>
+  <dialog id="scan-dialog" aria-labelledby="scan-title">
+    <div class="dialog-bar"><span>TapLens · 扫码测试</span><button id="close-scan" type="button" aria-label="关闭二维码">×</button></div>
+    <div class="scan-content">
+      <p class="preview-id" id="scan-id"></p>
+      <h2 id="scan-title"></h2>
+      <img id="scan-image" alt="放大的测试二维码" width="320" height="320">
+      <p>请使用另一台设备上的 TapLens 安全预览进行实扫，或从相册导入原始 PNG。不要用系统扫码器直接打开链接或执行动作。这里展示的是固定样例，不会自动产生 Lxx/Cxx 证据。</p>
+      <button class="dialog-done" id="done-scan" type="button">返回场景</button>
+    </div>
+  </dialog>
+  <footer><span>槐序 Campus 是虚构品牌 · TapLens 教学测试样例</span><span>离线素材 · 无外部资源 · 无自动动作</span></footer>
+</body>
+</html>

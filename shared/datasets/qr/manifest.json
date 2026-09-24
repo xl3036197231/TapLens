@@ -4,6 +4,14 @@
   "cases": [
     {
       "id": "QR01",
+      "scene": {
+        "surface": "学生事务中心 · 公告栏海报",
+        "headline": "秋季校园服务预约开放",
+        "body": "本周五前查看办理事项与预约入口。海报上的二维码不代表链接已经过校方认证。",
+        "scan_prompt": "扫码查看服务入口",
+        "tone": "campus"
+      },
+      "expected_preview": "https://campus.example.test/go/campus",
       "png": "png/qr01-campus-short.png",
       "payload": "https://campus.example.test/go/campus",
       "expected_type": "http_url",
@@ -15,6 +23,14 @@
     },
     {
       "id": "QR02",
+      "scene": {
+        "surface": "社团群消息 · 活动票务卡片",
+        "headline": "今晚的入场码换了入口？",
+        "body": "群里流传的活动卡片写着“在 App 中查看”，实际指定的包名却不是预期应用。",
+        "scan_prompt": "扫码打开活动 App",
+        "tone": "community"
+      },
+      "expected_preview": "intent://scan/… · 指定包名 com.example.otherapp · fallback 待核对",
       "png": "png/qr02-intent-package-mismatch.png",
       "payload": "intent://scan/#Intent;scheme=taplens;package=com.example.otherapp;S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end",
       "expected_type": "intent_deep_link",
@@ -26,6 +42,14 @@
     },
     {
       "id": "QR03",
+      "scene": {
+        "surface": "图书馆咖啡角 · 桌面立牌",
+        "headline": "访客网络，一扫即连",
+        "body": "公共空间的 Wi-Fi 立牌可能让手机快速切换网络；先看清网络名称和将发生的动作。",
+        "scan_prompt": "扫码连接访客 Wi-Fi",
+        "tone": "wifi"
+      },
+      "expected_preview": "WIFI · SSID TapLens-Training-Only · 密码 [已遮盖]",
       "png": "png/qr03-wifi.png",
       "payload": "WIFI:T:WPA;S:TapLens-Training-Only;P:NOT_A_REAL_PASSWORD;;",
       "expected_type": "wifi",
@@ -37,6 +61,14 @@
     },
     {
       "id": "QR04",
+      "scene": {
+        "surface": "宿舍楼下 · 失物招领通知",
+        "headline": "找回遗失物品，请先确认",
+        "body": "通知纸张把“查询进度”放进二维码，扫开后却是预填短信，而不是查询网页。",
+        "scan_prompt": "扫码查询处理进度",
+        "tone": "sms"
+      },
+      "expected_preview": "短信 · 号码 +00•••••••• · 预填 TapLens training only",
       "png": "png/qr04-sms.png",
       "payload": "SMSTO:+00000000000:TapLens training only",
       "expected_type": "sms",
@@ -48,6 +80,14 @@
     },
     {
       "id": "QR05",
+      "scene": {
+        "surface": "运动馆门口 · 场地预约提示",
+        "headline": "预约咨询，请扫码联系",
+        "body": "看似是预约入口，实际二维码内容是电话协议。展示号码前先遮盖，绝不自动拨号。",
+        "scan_prompt": "扫码联系场馆",
+        "tone": "phone"
+      },
+      "expected_preview": "电话 · +00••••••••",
       "png": "png/qr05-phone.png",
       "payload": "tel:+00000000000",
       "expected_type": "phone",
@@ -59,6 +99,14 @@
     },
     {
       "id": "QR06",
+      "scene": {
+        "surface": "设计学院 · 作品征集海报",
+        "headline": "给策展团队发一封邮件",
+        "body": "海报二维码预填收件人与主题；扫码只是读取草稿参数，不代表应该立即发送。",
+        "scan_prompt": "扫码联系策展团队",
+        "tone": "email"
+      },
+      "expected_preview": "邮件 · d***@example.test · 主题 TapLens training",
       "png": "png/qr06-email.png",
       "payload": "mailto:demo@example.test?subject=TapLens%20training",
       "expected_type": "email",
@@ -70,6 +118,14 @@
     },
     {
       "id": "QR07",
+      "scene": {
+        "surface": "开放讲座 · 嘉宾胸牌",
+        "headline": "交换联系方式",
+        "body": "胸牌二维码是一张电子名片，包含姓名、电话和邮箱；不能静默导入联系人。",
+        "scan_prompt": "扫码保存嘉宾名片",
+        "tone": "contact"
+      },
+      "expected_preview": "vCard · Example Person · 电话 [已遮盖] · 邮箱 [已遮盖]",
       "png": "png/qr07-vcard.png",
       "payload": "BEGIN:VCARD\nVERSION:3.0\nFN:Example Person\nTEL:+00000000000\nEMAIL:demo@example.test\nEND:VCARD",
       "expected_type": "vcard",
@@ -81,6 +137,14 @@
     },
     {
       "id": "QR08",
+      "scene": {
+        "surface": "自习室电脑旁 · 版本更新贴纸",
+        "headline": "学习工具需要更新？",
+        "body": "贴纸声称“新版客户端”，但二维码直接指向 APK 下载。即使是 HTTPS 也不应自动下载。",
+        "scan_prompt": "扫码下载新版应用",
+        "tone": "download"
+      },
+      "expected_preview": "APK 下载 · https://download.example.test/taplens-demo.apk",
       "png": "png/qr08-apk-download.png",
       "payload": "https://download.example.test/taplens-demo.apk",
       "expected_type": "apk_download",
@@ -92,6 +156,14 @@
     },
     {
       "id": "QR09",
+      "scene": {
+        "surface": "社团招新摊位 · 应用推荐卡",
+        "headline": "在商店查看社团应用",
+        "body": "卡片的码会请求打开应用商店；包名本身不能证明开发者身份或应用安全。",
+        "scan_prompt": "扫码查看应用",
+        "tone": "store"
+      },
+      "expected_preview": "应用商店 · com.example.taplensdemo",
       "png": "png/qr09-app-store.png",
       "payload": "market://details?id=com.example.taplensdemo",
       "expected_type": "app_store",
@@ -103,6 +175,14 @@
     },
     {
       "id": "QR10",
+      "scene": {
+        "surface": "迎新活动 · 解谜任务卡",
+        "headline": "这一关的线索就在这里",
+        "body": "有些二维码只存一段文本；不能为了让流程继续就把文本当成网址。",
+        "scan_prompt": "扫码查看线索",
+        "tone": "text"
+      },
+      "expected_preview": "普通文本 · TapLens training sample: plain text only",
       "png": "png/qr10-plain-text.png",
       "payload": "TapLens training sample: plain text only",
       "expected_type": "plain_text",
@@ -114,6 +194,14 @@
     },
     {
       "id": "QR11",
+      "scene": {
+        "surface": "旧公告栏 · 印刷受损的贴纸",
+        "headline": "这张码还有效吗？",
+        "body": "二维码可以被读出字符，但内容不是受支持的链接或动作格式。",
+        "scan_prompt": "扫码查看内容",
+        "tone": "broken"
+      },
+      "expected_preview": "无法识别的内容 · ://broken",
       "png": "png/qr11-invalid-content.png",
       "payload": "://broken",
       "expected_type": "invalid_content",
