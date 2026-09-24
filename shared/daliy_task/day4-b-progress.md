@@ -4,13 +4,13 @@
 > 分支：`feat/b-backend-bootstrap`  
 > 更新日期：2026-09-24  
 > 当前基线：`main@f8f282f`  
-> 状态：✅ **独立验证完成**；⏳ **等待恢复 Codespace 与 A 发起同一分析的手机联调**
+> 状态：✅ **独立验证和 Codespaces 公网恢复完成**；⏳ **等待 A 发起同一分析的手机联调**
 
 ## 1. 本轮完成结论
 
 B 已在最新 `main` 上完成后端全量回归、安全/异常专项回归和本机同栈冒烟。API、worker、受控测试站、真实 `302`、Playwright 采集、额度扣减、任务轮询、鉴权截图下载和 PNG 签名检查均通过；云证据实际包含 `C01-C04`，表单只记录字段名称、类型和敏感标记，没有记录输入值。
 
-本轮没有把昨天的 Codespaces 地址继续声明为可用地址：检查时两个公网入口均返回 `404`，说明服务已随 Codespace 休眠或端口状态变化而失效。B 的独立代码验证已经完成；给 A 的最新地址必须等 Codespace 恢复后重新验证并当次交接。
+本轮先发现旧的端口隧道返回 `404`，随后在 Codespace 中重新启动 API、worker 和受控测试站，并将 `8000/8765` 重新转发为 Public。2026-09-24 03:23（Asia/Shanghai）从 Codespace 对当次公网地址复核：健康接口返回 `200`，受控入口返回 `302`。地址已可交给 A 做跨网络和 Android APP 实测；Codespace 休眠、重启或端口重建后仍需重新确认。
 
 ## 2. 实际测试记录
 
@@ -61,12 +61,19 @@ backend/.venv/bin/python -m pytest -q \
 
 ## 4. Codespaces 当前状态与恢复步骤
 
-检查的历史入口：
+本次运行入口：
 
 - API：`https://opulent-fishstick-4rvvr647jpqf7prq-8000.app.github.dev/api/v1`
 - 受控站：`https://opulent-fishstick-4rvvr647jpqf7prq-8765.app.github.dev/go/campus`
 
-2026-09-24 本轮检查时两者均已失效，不能交给 A 使用。恢复 Codespace 后，在 `backend/` 执行：
+2026-09-24 03:23（Asia/Shanghai）实际检查结果：
+
+- `8000`、`8765` 均显示为 `public`；
+- 公网 `/api/v1/health` 返回 `HTTP 200` 和 `status=ok`；
+- 本机及公网 `/go/campus` 均返回 `HTTP 302`，`Location: /campus-login.html`；
+- 可以交给 A 进行当次 Android APP 联调，但 A 仍需在自己的网络上先复查健康接口。
+
+恢复 Codespace 后，在 `backend/` 执行：
 
 ```bash
 nohup .venv/bin/python scripts/runcodespace.py >/tmp/taplens-codespace.log 2>&1 &
@@ -74,7 +81,7 @@ nohup .venv/bin/python scripts/runcodespace.py >/tmp/taplens-codespace.log 2>&1 
 curl http://127.0.0.1:8000/api/v1/health
 ```
 
-随后必须从公网重新确认：API 健康检查为 `200`、受控站 `/go/campus` 为 `302`，再将**当次有效**的 HTTPS 地址交给 A。Codespace 休眠、重建、停止或端口恢复为 Private 后，地址即不再视为有效。
+随后必须从公网重新确认：API 健康检查为 `200`、受控站 `/go/campus` 为 `302`，再将**当次有效**的 HTTPS 地址交给 A。Codespace 休眠、重建、停止或端口恢复为 Private 后，地址即不再视为有效。不要使用 `curl -I` 检查受控短链，因为当前测试处理器只为 `GET` 实现跳转，`HEAD` 会落到静态文件处理并返回 `404`。
 
 ## 5. 等待 A 后完成的联合部分
 
@@ -91,7 +98,7 @@ curl http://127.0.0.1:8000/api/v1/health
 我完成了：最新 main 的后端 98 项全量回归、49 项安全/异常专项回归，以及本机 API + worker + 受控站完整冒烟。
 你可以这样试：Codespace 恢复后执行 backend/README.md 的两条恢复命令，再检查 /api/v1/health 和 /go/campus。
 正常会得到：健康检查 200、短链 302、云任务 succeeded、C01-C04、鉴权 PNG 截图。
-目前还缺：恢复当次 Codespaces 公网地址；A 从 Android APP 发起同 analysis_id 的联合任务；D 审核该任务报告。
+目前还缺：A 在其网络复查当次地址，并从 Android APP 发起同 analysis_id 的联合任务；D 审核该任务报告。
 状态：READY（独立部分）/ BLOCKED（手机联合验收）
 影响成员：A、D
 ```
