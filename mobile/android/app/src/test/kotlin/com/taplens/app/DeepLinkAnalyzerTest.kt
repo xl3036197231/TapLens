@@ -63,4 +63,24 @@ class DeepLinkAnalyzerTest {
             DeepLinkAnalyzer.analyze("https://example.test/\u0000hidden")
         }
     }
+
+    @Test
+    fun rejectsQrPayloadsThatWouldTriggerSystemActions() {
+        val unsupportedPayloads = listOf(
+            "WIFI:T:WPA;S:TapLens-Test;P:not-a-real-password;;",
+            "SMSTO:+10000000000:TapLens test message",
+            "tel:+10000000000",
+            "mailto:test@example.test?subject=TapLens",
+            "BEGIN:VCARD",
+            "MECARD:N:Example;TEL:+10000000000;;",
+            "market://details?id=com.example.fakecampus",
+            "intent://call#Intent;scheme=tel;end",
+        )
+
+        unsupportedPayloads.forEach { payload ->
+            assertThrows("Expected rejection for $payload", IllegalArgumentException::class.java) {
+                DeepLinkAnalyzer.analyze(payload)
+            }
+        }
+    }
 }

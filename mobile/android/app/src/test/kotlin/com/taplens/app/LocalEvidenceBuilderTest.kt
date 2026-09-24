@@ -106,6 +106,21 @@ class LocalEvidenceBuilderTest {
         }
     }
 
+    @Test
+    fun parsesApkDownloadAsStaticUrlWithoutExecutingIt() {
+        val result = LocalEvidenceBuilder.build(
+            analysisId = analysisId,
+            rawValue = "https://download.example.test/apps/fake-campus.apk",
+            processedAt = processedAt,
+        )
+
+        assertEquals("succeeded", result["processing_status"])
+        assertEquals("url", result.map("target")["input_type"])
+        assertEquals(false, result.map("observations")["launched_external_app"])
+        assertEquals(false, result.map("observations")["network_accessed"])
+        assertEquals("not_started", result.map("preflight")["status"])
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun Map<String, Any?>.map(key: String): Map<String, Any?> =
         get(key) as Map<String, Any?>
