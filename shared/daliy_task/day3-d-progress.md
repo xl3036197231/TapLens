@@ -23,18 +23,20 @@
 | 后端全量测试 | 安装 Playwright Headless Shell 后，`python -m pytest backend/tests -q -o addopts=`：`98 passed`；之前两项失败确认为运行环境缺浏览器。B 分支的 Day 3 记录报告 `96 passed` |
 | Android 模拟器 Mock 测试 | `TapLens_API_35` 上运行 `mobile/test/ai/run_day3_device.ps1`：4 项通过（高风险成功、`C99` 拒绝、非法 JSON 回退、超时回退）；使用手机原生 Key 存储通道，测试占位 Key 在每项后清除 |
 
-旧 `high-risk.json`、`low-risk.json`、`insufficient-evidence.json` 是早期独立示例，`analysis_id` 与 B/C 当前快照不一致。它们可检查格式，不能当作同一次分析的联合报告。C 的 Day 3 证据仍在 `feat/c-day2-device-validation`，当前 `main` 的 local-evidence Schema 还是旧版；本次审计读取了 C 分支的正式 Schema 与六份 fixture。普通 URL 仅有 `L01` 时应为证据不足；现有“低风险”示例缺少同分析 ID 的真实安全页快照，不能标作 Day 3 实测低风险。
+旧 `high-risk.json`、`low-risk.json`、`insufficient-evidence.json` 是早期独立示例，`analysis_id` 与 B/C 当前快照不一致。它们可检查格式，不能当作同一次分析的联合报告。普通 URL 仅有 `L01` 时应为证据不足；现有“低风险”示例缺少同分析 ID 的真实安全页快照，不能标作 Day 3 实测低风险。
+
+2026-09-24 追记：C 的正式 local-evidence Schema、六份 fixture、实现和模拟器证据现已合入 `main`；`validate_day3_evidence.py` 已直接读取 `main` 中的文件，不再读取 C 远端分支。这不改变历史 B/C fixture 属于不同分析的事实。
 
 C 当前六份固定结果只有“静态证据不足”和部分中风险提示，没有实测低风险或高风险结论；高风险本次由 B 的云端 `C01/C02` 支撑。因此 Day 2 提出的“用 C 五类证据验收低/不足/高三类 `Lxx`”目前只能完成证据不足部分，不能把早期报告的 `Lxx` 移植到 C 的新分析 ID 上。
 
 ## 待四方联合验收
 
-1. C 将 Day 3 Schema/fixture 合入 `main`，在模拟器按正式接口取得六类实时 JSON。
-2. B 提供本次可从模拟器访问的后端与受控站地址，A 生成同一次分析的本地、云端结果，并展示报告页。
-3. D 的四条 Mock 手机端集成测试已有运行日志；当前生产页面只接真实 DeepSeek 客户端，Mock 是测试注入。要在正式 APP 页面现场点选 Mock 结果，还需 A 接入可选择的演示入口并保存正式页面截图。
+1. 已完成：C 的 Day 3 Schema/fixture 已合入 `main`，六类实时 MethodChannel JSON、日志和截图见 `day3-c-evidence/`。
+2. 待联合验收：B 提供本次可从模拟器访问的后端与受控站地址，A/C 生成同一次分析的本地、云端结果；D 对照正式报告逐条审计引用。
+3. 已部分完成：D 的四条 Mock 手机端集成测试已有记录；A 已在正式 APP 路径接入“固定离线报告 → Mock 成功/失败回退”，模拟器截图见 `day3-a-evidence/`。`C99` 拒绝与超时目前由 D 的集成测试覆盖，不应说成正式页面可直接点选的两个演示按钮。
 4. 真实 DeepSeek Key 未提供，也未尝试真实请求；若用户自愿验证，只记录响应类型、Token 用量和 Schema 结果，不保存 Key。
 
 我完成了：D 的 Day 2 遗留证据复核、Day 3 报告样例与守卫修正、Android Mock 集成测试、检查表和讲解词。
 你可以这样试：在仓库根目录运行 `python mobile/test/ai/validate_day3_evidence.py`；在已启动模拟器且配置 Flutter/Android SDK 的 PowerShell 中运行 `mobile/test/ai/run_day3_device.ps1`。
 正常会得到：同分析 ID 的 `C01–C04` 引用通过；Mock 合法结果显示高风险，错误编号和超时/非法 JSON 保留规则报告。
-目前还缺：C 分支合并、四方同分析联合证据、正式 APP 的 Mock 演示入口及可选真实模型验收。
+目前还缺：四方同分析联合证据与正式 APP 云端任务截图。真实模型验收为可选项，不阻塞主线。
