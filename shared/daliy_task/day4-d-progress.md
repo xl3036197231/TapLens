@@ -68,3 +68,17 @@ python mobile/test/ai/validate_day4_evidence.py `
 
 状态：D 的独立交付 **READY**；四方联合验收 **BLOCKED**（等待 B 当前服务与 A/C 本次证据）。
 影响成员：A、B、C、D。
+
+## 正式任务审计追记：暂为 BLOCKED
+
+本次仅审 `analysis_id=aa4e3f03-6141-4799-a229-04c879d3bb02`、`task_id=5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0`。`ea7652d6-1614-4f63-beac-4289b3c5cfc7` 与 `32efd9e6-5802-4bec-b8a7-9242d0f97e10` 是公网提示页排障任务，未纳入验收。
+
+2026-09-24 收到 B 的脱敏云证据**摘录**：状态声明为 `succeeded`；`C01=redirect` 对应一次 302，`C02=form` 对应 `student_id` 和 `password` 两个敏感字段的元数据，`C03=page` 对应页面标题与摘要，`C04=screenshot` 对应截图证据说明。上述结构可支持“观察到跳转并出现敏感登录表单，因此需谨慎核实来源”的高风险提示；表单声明 `method=POST` **不等于已实际提交**，页面标题和截图也不验证真实运营者身份。B 声明截图为有效 PNG 1280×1005，但 D 尚未取得文件或截图元数据做独立复核。
+
+本次仍不能出具 PASS，原因及责任人：
+
+1. **A：缺最终报告 JSON 或正式 APP 报告截图。** 仓库 A 分支尚无该 `task_id` 的报告；用户提供的是 `cloud_evidence` 摘录，不是 `analysis-report.schema.json` 对象。无法核对报告 `evidence`、`risk_level`、`uncertainty.status`、`token_usage`、结论文字及 APP 实际显示。
+2. **C/A：同 ID 本地目标与云端目标尚未对齐。** C 的现有同 ID MethodChannel 记录输入为 `https://scholarship.example.test/apply?source=poster`，本次云摘录的 `initial_url` 为受控站 `/go/campus`。仅 ID 相同不足以证明同一次目标分析；需提交 A 本次真实输入对应的完整脱敏本地 JSON，或由 A/B 给出两者映射/跳转链的可复核证据。不可直接借用 C 的旧 `L01/L02`。
+3. **B：缺完整云证据 Schema 文件及截图元数据。** 摘录未含 `generated_at`、`requests`、`blocked_actions`、`screenshot`、`limitations`、`expires_at`，因此不能作为完整 `cloud-evidence.schema.json` 输入。请只提供该正式 `task_id` 的脱敏快照和截图核验记录，不提供密码、Token、Cookie 或 Key。
+
+当前 `validate_day4_evidence.py` 对历史样例的 3 项单元测试和 `validate_report_contract.py` 的 7 份旧报告检查均通过；Flutter AI 专项 27 项通过，证明**已有代码路径**能够处理标准字段和拒绝未知 `C99`，不证明本次缺失的最终报告已经被 APP 正确读取。取得 A/B/C 的完整同目标 JSON 后，再运行本文件前述 Day 4 审计命令，人工复核文案，并更新 PASS/BLOCKED。
