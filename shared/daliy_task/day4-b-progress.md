@@ -4,7 +4,8 @@
 > 分支：`feat/b-backend-bootstrap`  
 > 更新日期：2026-09-24  
 > 当前基线：`main@f8f282f`  
-> 状态：✅ **独立验证和 Codespaces 公网恢复完成**；⏳ **等待 A 发起同一分析的手机联调**
+> 状态：✅ **B Day 4 完成；正式云证据 C01–C04 已经 D 阶段审计 PASS**
+> 范围边界：⏳ **Lxx 同目标绑定、完整报告 Schema 与 Token 字段仍由 A/C/D 继续验收**
 
 ## 1. 本轮完成结论
 
@@ -83,14 +84,26 @@ curl http://127.0.0.1:8000/api/v1/health
 
 随后必须从公网重新确认：API 健康检查为 `200`、受控站 `/go/campus` 为 `302`，再将**当次有效**的 HTTPS 地址交给 A。Codespace 休眠、重建、停止或端口恢复为 Private 后，地址即不再视为有效。不要使用 `curl -I` 检查受控短链，因为当前测试处理器只为 `GET` 实现跳转，`HEAD` 会落到静态文件处理并返回 `404`。
 
-## 5. 等待 A 后完成的联合部分
+## 5. Android 联合任务与云证据结果
 
-以下项目必须使用 A 当天从 Android 模拟器发起的新任务，当前不能用 B 的本机任务冒充完成：
+A 已从 Android 模拟器完成登录、额度查询、创建任务、轮询和报告展示。本次联调统一使用：
 
-1. 接收 A/C 共同使用的新 `analysis_id`，让 APP 登录、查询额度、创建任务并轮询同一 `task_id`。
-2. 记录该任务的成功状态、耗时、`C01-C04`、截图鉴权和 PNG 检查结果。
-3. 把同一任务的脱敏字段清单交给 A、D；不提交认证头、密码、Token 或运行密钥。
-4. 由 D 核对报告只引用这次任务及同 `analysis_id` 的本地证据。
+- `analysis_id`：`aa4e3f03-6141-4799-a229-04c879d3bb02`
+- 正式 `task_id`：`5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0`
+- 任务状态：`succeeded`
+- APP 创建第三条独立任务后，额度从 `9/10` 更新为 `8/10`
+- 证据：`C01 redirect`、`C02 form`、`C03 page`、`C04 screenshot`
+- 表单：`student_id` 类型为 `input`、`password` 类型为 `password`，两者 `sensitive=true`；只保存字段元数据，未保存输入值
+- 截图：有效 PNG，`1280×1005`
+
+Codespaces 公网端口会向新的 Playwright 上下文显示 `Codespaces Access Port` 中间确认页。联调时 APP 仍通过公网 `8000` 访问 API，而 worker 对显式允许的受控站使用 `http://127.0.0.1:8765/go/campus`，从同一 Codespace 内部访问真实测试页。这仅是临时联调映射；正式部署应换成独立、稳定的公网 HTTPS 受控站，并恢复禁止 localhost/私网目标的生产策略。
+
+两条排障任务不得当作正式证据：
+
+- `ea7652d6-1614-4f63-beac-4289b3c5cfc7`：首次公网中间页排障，后续已过期
+- `32efd9e6-5802-4bec-b8a7-9242d0f97e10`：采集到 Codespaces 提示页，只有 page/screenshot
+
+D 已在 `feat/d-ai@b788f85` 记录阶段审计：正式任务的 `C01-C04` 编号、类型、含义与 APP 展示一致，高风险提示有 `C01/C02` 支撑，且没有将表单存在误写为已提交。结论为 **C01-C04 阶段 PASS**。该结论不包含 `Lxx` 同目标绑定、完整 `cloud-evidence`/`analysis-report` Schema、Token 字段和整条 Day 4 最终验收。
 
 ## 6. 统一交接
 
@@ -98,7 +111,8 @@ curl http://127.0.0.1:8000/api/v1/health
 我完成了：最新 main 的后端 98 项全量回归、49 项安全/异常专项回归，以及本机 API + worker + 受控站完整冒烟。
 你可以这样试：Codespace 恢复后执行 backend/README.md 的两条恢复命令，再检查 /api/v1/health 和 /go/campus。
 正常会得到：健康检查 200、短链 302、云任务 succeeded、C01-C04、鉴权 PNG 截图。
-目前还缺：A 在其网络复查当次地址，并从 Android APP 发起同 analysis_id 的联合任务；D 审核该任务报告。
-状态：READY（独立部分）/ BLOCKED（手机联合验收）
-影响成员：A、D
+正式联调：analysis_id=aa4e3f03-6141-4799-a229-04c879d3bb02，task_id=5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0，C01-C04 已获 D 阶段 PASS。
+目前还缺：A/C/D 完成 Lxx 同目标绑定、最终报告 JSON/Schema 和 Token 字段验收；不属于 B 云证据阶段阻塞。
+状态：DONE（B Day 4）/ PASS（C01-C04 阶段）/ PENDING（完整四方验收）
+影响成员：A、C、D
 ```
