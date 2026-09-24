@@ -88,3 +88,16 @@ python mobile/test/ai/validate_day4_evidence.py `
 用户随后提供了两张 Android 报告页截图（本轮会话附件，未作为仓库 fixture）。截图显示高风险、一句话结论“云端页面包含敏感表单字段，且未执行提交动作”，以及与 B 摘录的标题/详情一致的 `C01 redirect`、`C02 form`、`C03 page`、`C04 screenshot`。页面还显示 `L01` 的静态目标为本次 Codespaces 公网 `/go/campus`，不同于 C 之前同 ID 的 `scholarship.example.test/apply`；旧 C `L01/L02` 不可继续充当本次本地证据。截图没有把页面标题或截图说成官方身份已验证，`C02` 支撑高风险提示，`C01` 支撑跳转事实。
 
 截图仍未显示 `analysis_id`、`task_id`、完整报告引用字段、`uncertainty.status` 或 `token_usage`；也未提供可供脚本读取的最终报告 JSON、A 本次公网短链的完整本地 JSON、B 的完整云端 Schema 快照。因此**截图展示部分通过，最终契约审计仍为 BLOCKED**。A 应导出本次报告与本地 JSON；B 应提供该正式任务的完整脱敏云快照，并说明公网短链与沙箱内部 `127.0.0.1:8765` 地址的对应关系。报告页红色“高风险”下方的“暂时无法判断”来自 `consistency=unknown`，含义是页面宣称与身份一致性未确认，不是风险等级未知；A 可在 UI 加标签以免演示时误读，此为文案改进建议而非 Schema 失败。
+
+## C01–C04 阶段验收：PASS（仅此范围）
+
+按 2026-09-24 的阶段交接要求，当前只结案正式任务 `5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0` 的**云端证据编号、类型、含义与 APP 展示**。依据为 B 提供的带 `analysis_id=aa4e3f03-6141-4799-a229-04c879d3bb02` 的云证据摘录，以及用户转来的 A 报告页截图；两条 Codespaces 提示页排障任务仍排除。
+
+| 编号 | B 摘录中的观察 | A 页面展示 | 阶段结论 |
+|---|---|---|---|
+| `C01 redirect` | `/go/campus` 到 `/campus-login.html`，HTTP 302 | “云端跳转链：观察到1次HTTP跳转” | 匹配 |
+| `C02 form` | `student_id` 文本字段、`password` 密码字段，均标记敏感；无输入值 | “敏感表单字段：页面表单包含2个敏感输入字段” | 匹配；表单的 POST 方法不代表已提交 |
+| `C03 page` | 标题 `Example Campus single sign-on` 和受控页摘要 | 同标题的页面摘要 | 匹配；仅为页面自称，不验证运营者身份 |
+| `C04 screenshot` | B 声明有效 PNG，1280×1005 | “云端页面截图：已生成受鉴权与过期时间保护的页面截图” | 条目与展示匹配；D 未独立读取 PNG 二进制 |
+
+APP 上的高风险提示由跳转与敏感登录表单支撑，且明确说“未执行提交动作”。因此上述**Cxx 展示阶段 PASS**。这个 PASS 不含完整 `cloud-evidence`/`analysis-report` Schema、截图文件独立校验、`Lxx` 同目标绑定、Token 字段或整条 Day 4 最终验收；它们仍按上一节的 BLOCKED 清单处理，不能被本阶段结论覆盖。
