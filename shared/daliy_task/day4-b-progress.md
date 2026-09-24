@@ -1,9 +1,9 @@
 # B Day 4 工作进度
 
-> 负责人：B  
-> 分支：`feat/b-backend-bootstrap`  
-> 更新日期：2026-09-24  
-> 当前基线：`main@f8f282f`  
+> 负责人：B
+> 分支：`feat/b-backend-bootstrap`
+> 更新日期：2026-09-24
+> 当前基线：`main@f8f282f`
 > 状态：✅ **B Day 4 完成；正式云证据 C01–C04 已经 D 阶段审计 PASS**
 > 范围边界：⏳ **Lxx 同目标绑定、完整报告 Schema 与 Token 字段仍由 A/C/D 继续验收**
 
