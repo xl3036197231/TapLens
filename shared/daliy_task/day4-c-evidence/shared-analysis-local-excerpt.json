@@ -1,0 +1,28 @@
+{
+  "record_type": "redacted_method_channel_return_excerpt",
+  "analysis_id": "aa4e3f03-6141-4799-a229-04c879d3bb02",
+  "processed_at": "2026-09-24T03:11:22.836815Z",
+  "processing_status": "succeeded",
+  "target": {
+    "input_type": "url",
+    "scheme": "https",
+    "host": "scholarship.example.test",
+    "path": "/apply",
+    "display_value": "https://scholarship.example.test/apply?source=poster"
+  },
+  "observations": {
+    "launched_external_app": false,
+    "network_accessed": false,
+    "parser_version": "android-static-v1"
+  },
+  "preflight": {
+    "attempted": false,
+    "status": "not_started"
+  },
+  "evidence_ids": [
+    "L01",
+    "L02"
+  ],
+  "error_codes": [],
+  "source": "emulator-5554 Flutter-to-Android MethodChannel run; see channel-logcat.txt and channel-window.xml"
+}

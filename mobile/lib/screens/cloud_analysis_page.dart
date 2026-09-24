@@ -17,12 +17,14 @@ class CloudAnalysisPage extends StatefulWidget {
   final String initialUrl;
   final String? analysisId;
   final Map<String, dynamic>? localEvidence;
+  final String? initialBaseUrl;
 
   const CloudAnalysisPage({
     super.key,
     required this.initialUrl,
     this.analysisId,
     this.localEvidence,
+    this.initialBaseUrl,
   });
 
   @override
@@ -31,9 +33,7 @@ class CloudAnalysisPage extends StatefulWidget {
 
 class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   late final TextEditingController _urlController;
-  final _baseUrlController = TextEditingController(
-    text: 'http://10.0.2.2:8000/api/v1',
-  );
+  late final TextEditingController _baseUrlController;
   final _usernameController = TextEditingController(text: 'demo_user');
   final _passwordController = TextEditingController();
 
@@ -47,6 +47,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   void initState() {
     super.initState();
     _urlController = TextEditingController(text: widget.initialUrl);
+    final configuredBaseUrl = const String.fromEnvironment(
+      'TAPLENS_API_BASE_URL',
+    );
+    _baseUrlController = TextEditingController(
+      text: widget.initialBaseUrl ??
+          (configuredBaseUrl.isEmpty
+              ? 'http://10.0.2.2:8000/api/v1'
+              : configuredBaseUrl),
+    );
   }
 
   @override
@@ -181,7 +190,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
         'AUTH_INVALID_CREDENTIALS' => '用户名或密码不正确。',
         'AUTH_TOKEN_MISSING' ||
         'AUTH_TOKEN_INVALID' ||
-        'AUTH_TOKEN_EXPIRED' => '登录状态已失效，请重新登录后再试。',
+        'AUTH_TOKEN_EXPIRED' =>
+          '登录状态已失效，请重新登录后再试。',
         'QUOTA_EXHAUSTED' => '今日云端分析额度已用完。',
         'CLOUD_URL_INVALID' => '链接格式不正确，请检查后再试。',
         'CLOUD_SCHEME_BLOCKED' => '云端分析只接受 http 或 https 链接。',
@@ -200,9 +210,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     } else if (error is SocketException) {
       message = '无法连接后端，请检查地址、网络和服务是否已启动。';
     } else {
-      message = hasActiveTask
-          ? '暂时无法查询。任务已创建，恢复连接后点击“继续查询”。'
-          : '云端服务暂时不可用，请稍后重试。';
+      message =
+          hasActiveTask ? '暂时无法查询。任务已创建，恢复连接后点击“继续查询”。' : '云端服务暂时不可用，请稍后重试。';
     }
     setState(() => _error = message);
   }
@@ -318,7 +327,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.timeout => 'AI 请求超时',
       AiClientErrorCode.network => '无法连接 AI 服务',
       AiClientErrorCode.invalidJson ||
-      AiClientErrorCode.reportSchemaInvalid => 'AI 返回内容无法通过格式校验',
+      AiClientErrorCode.reportSchemaInvalid =>
+        'AI 返回内容无法通过格式校验',
       AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消 AI 请求',
       AiClientErrorCode.invalidEvidenceId => 'AI 引用了不存在的证据',
       AiClientErrorCode.hardRiskDowngraded => 'AI 试图降低规则确认的高风险',
@@ -446,9 +456,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                                 task.cloudEvidence ?? const <String, dynamic>{};
                             final cloudRuleReport =
                                 AnalysisReport.fromCloudEvidence(
-                                  cloudEvidence,
-                                  fallbackTarget: _urlController.text.trim(),
-                                );
+                              cloudEvidence,
+                              fallbackTarget: _urlController.text.trim(),
+                            );
                             final ruleReport = AnalysisReport.fromJson(
                               CloudAiReportInput.buildRuleReport(
                                 cloudRuleReport,

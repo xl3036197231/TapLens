@@ -12,6 +12,23 @@ object DeepLinkAnalyzer {
     private const val INTENT_MARKER = "#Intent;"
     private const val INTENT_END = ";end"
     private const val MAX_INPUT_LENGTH = 4096
+    private val unsupportedActionSchemes = setOf(
+        "begin",
+        "content",
+        "data",
+        "file",
+        "geo",
+        "javascript",
+        "mailto",
+        "market",
+        "mecard",
+        "mms",
+        "mmsto",
+        "sms",
+        "smsto",
+        "tel",
+        "wifi",
+    )
 
     fun analyze(rawValue: String): ParsedTarget {
         val value = rawValue.trim()
@@ -30,6 +47,7 @@ object DeepLinkAnalyzer {
             .getOrElse { throw IllegalArgumentException("Malformed URI", it) }
         val scheme = uri.scheme?.lowercase()
             ?: throw IllegalArgumentException("URI scheme is required")
+        requireSupportedScheme(scheme)
         val kind = if (scheme == "http" || scheme == "https") "url" else "deep_link"
 
         return ParsedTarget(
@@ -79,6 +97,7 @@ object DeepLinkAnalyzer {
         require(resolvedScheme.matches(Regex("^[a-z][a-z0-9+.-]*$"))) {
             "Intent URI scheme is invalid"
         }
+        requireSupportedScheme(resolvedScheme)
         val syntheticUri = runCatching {
             URI(resolvedScheme + base.removePrefix("intent"))
         }.getOrElse { throw IllegalArgumentException("Malformed intent target", it) }
@@ -108,6 +127,12 @@ object DeepLinkAnalyzer {
 
     private fun decode(value: String): String =
         URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+
+    private fun requireSupportedScheme(scheme: String) {
+        require(scheme !in unsupportedActionSchemes) {
+            "System-action payloads must be classified locally and are not supported as links"
+        }
+    }
 }
 
 data class ParsedTarget(

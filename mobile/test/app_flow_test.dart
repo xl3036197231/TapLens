@@ -49,7 +49,10 @@ void main() {
     await tester.tap(localCheck);
     await tester.pumpAndSettle();
     expect(find.text('本地解析结果'), findsOneWidget);
-    expect(find.text('安全保证：未启动外部应用，未访问网络。'), findsOneWidget);
+    expect(
+      find.text('静态解析不能证明目标安全。这里只解析了链接，没有启动外部应用或访问网络。'),
+      findsOneWidget,
+    );
     final reportButton = find.text('查看固定演示报告');
     expect(reportButton, findsOneWidget);
     await tester.scrollUntilVisible(
