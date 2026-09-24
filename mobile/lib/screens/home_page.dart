@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models/analysis_report.dart';
+import 'qr_code_scanner_page.dart';
 import 'local_check_page.dart';
+import 'qr_payload_review_page.dart';
 import 'report_page.dart';
+
+const _day4AnalysisId = String.fromEnvironment('TAPLENS_ANALYSIS_ID');
+const _day4ApiBaseUrl = String.fromEnvironment('TAPLENS_API_BASE_URL');
+const _day4TargetUrl = String.fromEnvironment('TAPLENS_TARGET_URL');
 
 class HomePage extends StatelessWidget {
   final AnalysisReport report;
@@ -50,12 +56,12 @@ class HomePage extends StatelessWidget {
                   _EntryCard(
                     icon: Icons.qr_code_scanner_rounded,
                     label: '扫码检查',
-                    onTap: () => _openLocalCheck(context),
+                    onTap: () => _openQrScanner(context),
                   ),
                   _EntryCard(
                     icon: Icons.photo_library_outlined,
                     label: '导入海报',
-                    onTap: () => _openLocalCheck(context),
+                    onTap: () => _openQrScanner(context, galleryOnly: true),
                   ),
                   _EntryCard(
                     icon: Icons.content_paste_rounded,
@@ -97,7 +103,34 @@ class HomePage extends StatelessWidget {
 
   void _openLocalCheck(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const LocalCheckPage()),
+      MaterialPageRoute<void>(
+        builder: (_) => LocalCheckPage(
+          initialValue: _day4TargetUrl.isEmpty ? null : _day4TargetUrl,
+          analysisId: _day4AnalysisId.isEmpty ? null : _day4AnalysisId,
+          initialApiBaseUrl: _day4ApiBaseUrl.isEmpty ? null : _day4ApiBaseUrl,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openQrScanner(
+    BuildContext context, {
+    bool galleryOnly = false,
+  }) async {
+    final payload = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => QrCodeScannerPage(galleryOnly: galleryOnly),
+      ),
+    );
+    if (payload == null || !context.mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => QrPayloadReviewPage(
+          payload: payload,
+          analysisId: _day4AnalysisId.isEmpty ? null : _day4AnalysisId,
+          initialApiBaseUrl: _day4ApiBaseUrl.isEmpty ? null : _day4ApiBaseUrl,
+        ),
+      ),
     );
   }
 

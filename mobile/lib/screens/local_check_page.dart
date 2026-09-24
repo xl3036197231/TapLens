@@ -6,24 +6,41 @@ import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../models/local_evidence.dart';
 import '../services/local_safety_service.dart';
+import '../services/qr_payload_inspector.dart';
 import 'report_page.dart';
 import 'cloud_analysis_page.dart';
 
 class LocalCheckPage extends StatefulWidget {
-  const LocalCheckPage({super.key});
+  final String? initialValue;
+  final String? analysisId;
+  final String? initialApiBaseUrl;
+
+  const LocalCheckPage({
+    super.key,
+    this.initialValue,
+    this.analysisId,
+    this.initialApiBaseUrl,
+  });
 
   @override
   State<LocalCheckPage> createState() => _LocalCheckPageState();
 }
 
 class _LocalCheckPageState extends State<LocalCheckPage> {
-  final _controller = TextEditingController(
-    text: 'https://scholarship.example.test/apply?source=poster',
-  );
+  late final TextEditingController _controller;
   final _service = LocalSafetyService();
   LocalSafetyResult? _result;
   LocalEvidence? _evidence;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.initialValue ??
+          'https://scholarship.example.test/apply?source=poster',
+    );
+  }
 
   @override
   void dispose() {
@@ -33,7 +50,9 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
 
   Future<void> _analyze() async {
     setState(() => _loading = true);
-    final analysisId = LocalEvidence.createAnalysisId();
+    final analysisId = widget.analysisId?.trim().isNotEmpty == true
+        ? widget.analysisId!.trim()
+        : LocalEvidence.createAnalysisId();
     final analysis = await _service.analyzeWithEvidence(
       _controller.text,
       analysisId: analysisId,
@@ -141,7 +160,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('查看固定演示报告'),
               ),
-              if (result.isSuccess) ...[
+              if (_canSubmitToCloud(result)) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: () {
@@ -151,6 +170,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                           initialUrl: result.safeValue,
                           analysisId: evidence.analysisId,
                           localEvidence: evidence.toJson(),
+                          initialBaseUrl: widget.initialApiBaseUrl,
                         ),
                       ),
                     );
@@ -164,6 +184,14 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
         ),
       ),
     );
+  }
+
+  bool _canSubmitToCloud(LocalSafetyResult result) {
+    if (!result.isSuccess || result.inputType != 'url') return false;
+    final uri = Uri.tryParse(result.safeValue);
+    return uri != null &&
+        !uri.path.toLowerCase().endsWith('.apk') &&
+        isCloudEligibleHttpUrl(result.safeValue);
   }
 }
 
@@ -212,6 +240,11 @@ class _ResultCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 6),
+            SelectableText(
+              'analysis_id: ${evidence.analysisId}',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+            ),
             const SizedBox(height: 12),
             for (final entry in fields.entries)
               Padding(
@@ -232,11 +265,20 @@ class _ResultCard extends StatelessWidget {
               ),
             const Divider(),
             Text(
-              '安全保证：未启动外部应用，未访问网络。',
+              '静态解析不能证明目标安全。这里只解析了链接，没有启动外部应用或访问网络。',
               style: TextStyle(
                 color: colors.primary,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '外部应用启动：${evidence.observations.launchedExternalApp ? '是' : '否'}；网络访问：${evidence.observations.networkAccessed ? '是' : '否'}。',
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+            Text(
+              'preflight.status: ${evidence.preflight?['status'] ?? '未返回'}',
+              style: TextStyle(color: colors.onSurfaceVariant),
             ),
             if (evidence.evidence.isNotEmpty) ...[
               const SizedBox(height: 12),

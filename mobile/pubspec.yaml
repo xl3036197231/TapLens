@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.2
+  image_picker: ^1.2.3
+  mobile_scanner: ^7.4.2
 
 dev_dependencies:
   flutter_test:
