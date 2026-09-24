@@ -82,3 +82,9 @@ python mobile/test/ai/validate_day4_evidence.py `
 3. **B：缺完整云证据 Schema 文件及截图元数据。** 摘录未含 `generated_at`、`requests`、`blocked_actions`、`screenshot`、`limitations`、`expires_at`，因此不能作为完整 `cloud-evidence.schema.json` 输入。请只提供该正式 `task_id` 的脱敏快照和截图核验记录，不提供密码、Token、Cookie 或 Key。
 
 当前 `validate_day4_evidence.py` 对历史样例的 3 项单元测试和 `validate_report_contract.py` 的 7 份旧报告检查均通过；Flutter AI 专项 27 项通过，证明**已有代码路径**能够处理标准字段和拒绝未知 `C99`，不证明本次缺失的最终报告已经被 APP 正确读取。取得 A/B/C 的完整同目标 JSON 后，再运行本文件前述 Day 4 审计命令，人工复核文案，并更新 PASS/BLOCKED。
+
+### A 报告页截图补充复核
+
+用户随后提供了两张 Android 报告页截图（本轮会话附件，未作为仓库 fixture）。截图显示高风险、一句话结论“云端页面包含敏感表单字段，且未执行提交动作”，以及与 B 摘录的标题/详情一致的 `C01 redirect`、`C02 form`、`C03 page`、`C04 screenshot`。页面还显示 `L01` 的静态目标为本次 Codespaces 公网 `/go/campus`，不同于 C 之前同 ID 的 `scholarship.example.test/apply`；旧 C `L01/L02` 不可继续充当本次本地证据。截图没有把页面标题或截图说成官方身份已验证，`C02` 支撑高风险提示，`C01` 支撑跳转事实。
+
+截图仍未显示 `analysis_id`、`task_id`、完整报告引用字段、`uncertainty.status` 或 `token_usage`；也未提供可供脚本读取的最终报告 JSON、A 本次公网短链的完整本地 JSON、B 的完整云端 Schema 快照。因此**截图展示部分通过，最终契约审计仍为 BLOCKED**。A 应导出本次报告与本地 JSON；B 应提供该正式任务的完整脱敏云快照，并说明公网短链与沙箱内部 `127.0.0.1:8765` 地址的对应关系。报告页红色“高风险”下方的“暂时无法判断”来自 `consistency=unknown`，含义是页面宣称与身份一致性未确认，不是风险等级未知；A 可在 UI 加标签以免演示时误读，此为文案改进建议而非 Schema 失败。
