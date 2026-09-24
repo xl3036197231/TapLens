@@ -75,6 +75,14 @@ nohup .venv/bin/python scripts/runcodespace.py &
 
 `runcodespace.py` 会同时启动 FastAPI、worker 和 D 的受控测试站；`publicports.py` 会将 `8000` 和 `8765` 临时设为公开。具体 URL 根据 `CODESPACE_NAME` 自动生成，不得把某个 Codespace 的名称写死到业务代码。
 
+联调期间可另开一个终端运行只读监控；它每 10 秒检查本机 API、公网 API、受控站 `302` 和最近三条任务，不会创建任务或输出账号、Token、Cookie 与证据正文：
+
+```bash
+.venv/bin/python scripts/monitor_codespace.py --interval 10
+```
+
+需要单次健康检查时使用 `--once`。任一网络检查失败时脚本会显示 `FAIL`，但不会自动重启服务或修改端口权限；持续监控按 `Ctrl+C` 停止。
+
 验证完成后应把端口改回私有或停止 Codespace。Codespace 休眠或重建后服务会停止，需重新执行上述后两条启动命令；这是临时联调环境，不是生产托管。
 
 ## Playwright 最小实验
