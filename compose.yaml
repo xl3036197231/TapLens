@@ -1,5 +1,11 @@
 name: taplens
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-backend: &backend
   build:
     context: .
@@ -20,6 +26,7 @@ x-backend: &backend
     - backend
   security_opt:
     - no-new-privileges:true
+  logging: *default-logging
 
 services:
   api:
@@ -79,6 +86,7 @@ services:
       - backend
     security_opt:
       - no-new-privileges:true
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 15s

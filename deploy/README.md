@@ -11,6 +11,9 @@ artifacts. All services use `restart: unless-stopped` and define container healt
 checks. `GET /healthz` verifies that Nginx can reach the API and that the API can
 read SQLite and write the artifact directory.
 
+Container JSON logs rotate at 10 MiB with three files retained per service, so a
+long-running competition demo cannot fill the system disk with Docker logs.
+
 The Python and Nginx base images are pinned by digest through the DaoCloud mirror
 because the Beijing ECS cannot reliably reach Docker Hub. Digest pinning prevents
 an upstream tag change from silently changing the deployed base image.
@@ -31,8 +34,7 @@ Copy `.env.example` to the untracked `.env`, set a random JWT secret of at least
 ```bash
 docker compose build
 docker compose up -d
-docker compose ps
-curl http://127.0.0.1/healthz
+deploy/scripts/status.sh
 ```
 
 The temporary public endpoints are:
@@ -59,13 +61,77 @@ After a domain has completed real-name verification and ICP filing:
 Production refuses an HTTP public base URL and both staging and production refuse
 `TAPLENS_TEST_ALLOWED_ORIGINS`.
 
-## Backup and cleanup
+## Operations
 
-Back up SQLite before upgrades or final cleanup:
+Run all commands from the repository root on the ECS host. The scripts validate
+`deploy/.env` and the Compose model before changing containers.
+
+### Inspect the deployment
 
 ```bash
-docker compose exec api python -c "import sqlite3; source=sqlite3.connect('/var/lib/taplens/taplens.db'); target=sqlite3.connect('/var/lib/taplens/backup.db'); source.backup(target)"
+deploy/scripts/status.sh
 ```
 
-Stopping the deployment preserves data. Removing the named volume permanently
-deletes accounts, quota records, tasks, and remaining artifacts.
+The check requires all three containers to be healthy, verifies that exactly one
+worker exists, runs SQLite `PRAGMA quick_check`, requests the local readiness
+endpoint, and reports volume and filesystem usage.
+
+### Apply an update
+
+```bash
+deploy/scripts/update.sh
+```
+
+If the API is running, the update creates an online backup before rebuilding and
+recreating the stack. It waits until every service is healthy and then runs the
+full status check. Use `--skip-build` only when the required image is already
+present. In a Git checkout the deployed revision is recorded in the ignored
+`deploy/.deployed-revision` file.
+
+For a code rollback, check out or copy the last known-good repository revision
+onto the ECS host and run `deploy/scripts/update.sh` again. The pre-update backup
+keeps the database recoverable if the older code needs matching data.
+
+### Back up persistent data
+
+Create a consistent online backup:
+
+```bash
+deploy/scripts/backup.sh
+```
+
+The archive is written under the ignored `backups/` directory with mode `0600`
+and a SHA-256 checksum. It contains a SQLite online-backup snapshot, its
+`quick_check` result, a format manifest, and current screenshot artifacts. It
+does not contain `deploy/.env` or the JWT secret. Pass a directory as the first
+argument to store the archive elsewhere.
+
+Restore an archive only after copying it to the ECS host:
+
+```bash
+deploy/scripts/restore.sh backups/taplens-backup-YYYYMMDDTHHMMSSZ.tar.gz --confirm-restore
+```
+
+Restore verifies the checksum when present, creates a safety backup of the
+current data, stops API and worker writes, validates archive paths and SQLite,
+atomically replaces the database and artifacts, then waits for the whole stack
+to become healthy.
+
+### Stop or remove the deployment
+
+Stop and remove containers while preserving the named volume:
+
+```bash
+deploy/scripts/cleanup.sh
+```
+
+Permanently remove the Compose volume and locally built images:
+
+```bash
+deploy/scripts/cleanup.sh --purge-data taplens
+```
+
+The destructive form first writes a backup under `backups/`. After the contest,
+also remove the ECS TCP/80 security-group rule and delete `/opt/taplens` after
+copying any backups that must be retained. The base VPS operating system is not
+modified by the cleanup script.
