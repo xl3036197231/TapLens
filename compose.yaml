@@ -1,0 +1,94 @@
+name: taplens
+
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  restart: unless-stopped
+  env_file:
+    - deploy/.env
+  environment:
+    PYTHONPATH: /srv/taplens/backend
+    TAPLENS_HOST: 0.0.0.0
+    TAPLENS_PORT: 8000
+    TAPLENS_DATABASE_PATH: /var/lib/taplens/taplens.db
+    TAPLENS_ARTIFACT_DIRECTORY: /var/lib/taplens/artifacts
+    TAPLENS_TEST_ALLOWED_ORIGINS: ""
+  volumes:
+    - taplens-data:/var/lib/taplens
+  networks:
+    - backend
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  api:
+    <<: *backend
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=3));
+          assert data['status']=='ready'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ["python", "scripts/run_worker.py"]
+    shm_size: 512mb
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          from pathlib import Path;
+          assert b'run_worker.py' in Path('/proc/1/cmdline').read_bytes()
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    image: docker.m.daocloud.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:8080"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./mobile/test/ai/day2_site:/srv/controlled:ro
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  backend:
+    internal: false
+
+volumes:
+  taplens-data:

@@ -153,6 +153,25 @@ def test_invalid_transition_is_rejected(tmp_path) -> None:
     assert captured.value.code == "CLOUD_TASK_INVALID_STATE"
 
 
+def test_running_task_is_requeued_after_worker_restart(tmp_path) -> None:
+    service, repository, user_id = build_service(tmp_path)
+    task = service.create(
+        user_id=user_id,
+        analysis_id=uuid4(),
+        target_url="https://8.8.8.8/example",
+        now=NOW,
+    )
+    service.start(task.id, now=NOW + timedelta(seconds=1))
+
+    assert repository.requeue_running() == 1
+    recovered = repository.get(task.id)
+
+    assert recovered is not None
+    assert recovered.status == TaskStatus.QUEUED
+    assert recovered.started_at is None
+    assert recovered.target_url == "https://8.8.8.8/example"
+
+
 def test_task_owner_cannot_read_another_users_task(tmp_path) -> None:
     service, _, user_id = build_service(tmp_path)
     task = service.create(

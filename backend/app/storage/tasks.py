@@ -99,6 +99,18 @@ class TaskRepository:
             ).fetchall()
         return [row_to_task(row) for row in rows]
 
+    def requeue_running(self) -> int:
+        """Return tasks interrupted by a previous single-worker process to the queue."""
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE cloud_scan_tasks
+                SET status = 'queued', started_at = NULL
+                WHERE status = 'running'
+                """
+            )
+            return cursor.rowcount
+
     def list_due_for_expiry(self, now: datetime) -> list[UUID]:
         with self.database.connect() as connection:
             rows = connection.execute(

@@ -33,6 +33,7 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         ),
         public_base_url=settings.public_base_url,
     )
+    repository.requeue_running()
 
     while True:
         queued = repository.list_queued(limit=10)
