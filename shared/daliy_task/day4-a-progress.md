@@ -72,15 +72,15 @@
 
 ### A 新增交付
 
-- 云端分析页现在支持输入**已有云任务 ID**。提交前先检查 API 健康接口并登录，再只查询/轮询该任务；该路径不查询额度、不调用创建任务接口，也不消耗新额度。返回的 `task_id` 和 `analysis_id` 必须与输入及当前本地分析一致。
+- 云端分析页现在支持输入**已有云任务 ID**。提交前先检查 API 健康接口并登录，再只查询/轮询该任务；该路径不查询额度、不调用创建任务接口，也不消耗新额度。若页面当前本地 `analysis_id` 不同，APP 会用任务返回的 ID 在手机重新做一次静态解析，并核对 URL 结构与原本地目标一致后再生成报告。
 - 调试版的成功任务页增加“复制调试审计 JSON”入口。复制包包括同 ID 的本地证据、完整云证据快照和规则报告；遮盖 URL 查询值、本地参数值和凭据，并移除本地私有截图路径。云端截图只含元数据，不含 PNG 二进制。
 - `mobile/test/ai/validate_day4_evidence.py` 现在支持 `--bundle`，会继续按原有本地、云端和报告 Schema 严格校验，并检查包级任务 ID、分析 ID 与状态一致。
 
 恢复正式任务时，在 APP 输入当前 API 地址、虚构账号及密码，并填入：
 
 ```text
-analysis_id: aa4e3f03-6141-4799-a229-04c879d3bb02
-task_id:     5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0
+analysis_id: aa4e3f03-6141-4799-a229-04c879d3bb02（APP 从已有任务读取并用于本地重解析）
+task_id:     5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0（在“已有云任务 ID”输入框填写）
 ```
 
 URL 保持当前同一受控目标。任务完成后复制调试审计 JSON，保存为 `day4-audit.json`，再运行：
@@ -94,7 +94,7 @@ python mobile/test/ai/validate_day4_evidence.py --bundle day4-audit.json
 | 检查 | 结果 |
 |---|---|
 | `flutter analyze --no-pub` | 通过，无静态分析问题 |
-| `flutter test --no-pub` | 通过，50 项 |
+| `flutter test --no-pub` | 通过，53 项 |
 | Android Debug APK | `:app:assembleDebug --no-daemon -Pkotlin.incremental=false` 构建通过 |
 | Python 审计脚本语法 | `py_compile` 通过 |
 | Python JSON Schema/审计单测 | 本机 Python 缺少 `jsonschema`，尚未运行 |

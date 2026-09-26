@@ -95,7 +95,9 @@ void main() {
 
     expect(find.text('已有云任务 ID（可选）'), findsOneWidget);
     expect(
-      find.text('只查询并轮询该任务，不创建新任务、不扣额度；需匹配当前 analysis_id。'),
+      find.text(
+        '只查询并轮询该任务；APP 会按任务 ID 对应的 analysis_id 重做本地静态解析，不创建云任务、不扣额度。',
+      ),
       findsOneWidget,
     );
     await tester.enterText(

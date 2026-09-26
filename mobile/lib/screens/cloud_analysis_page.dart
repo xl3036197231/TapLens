@@ -14,6 +14,8 @@ import '../ai/offline_ai_report_demo.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../services/cloud_scan_client.dart';
+import '../services/local_safety_service.dart';
+import '../services/local_target_matcher.dart';
 import 'report_page.dart';
 
 class CloudAnalysisPage extends StatefulWidget {
@@ -43,6 +45,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
 
   QuotaSnapshot? _quota;
   DeepScanTask? _task;
+  Map<String, dynamic>? _localEvidence;
   String? _accessToken;
   String? _error;
   bool _loading = false;
@@ -50,6 +53,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   @override
   void initState() {
     super.initState();
+    _localEvidence = widget.localEvidence;
     _urlController = TextEditingController(text: widget.initialUrl);
     final configuredBaseUrl = const String.fromEnvironment(
       'TAPLENS_API_BASE_URL',
@@ -150,7 +154,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           api: api,
           accessToken: session.accessToken,
           taskId: existingTaskId,
-          expectedAnalysisId: analysisId,
+          url: url,
         );
       }
       if (!mounted) return;
@@ -186,7 +190,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     required TapLensApiClient api,
     required String accessToken,
     required String taskId,
-    required String expectedAnalysisId,
+    required String url,
   }) async {
     final task = await api.getDeepScan(
       accessToken: accessToken,
@@ -195,8 +199,34 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     if (task.taskId != taskId) {
       throw const FormatException('后端返回的任务 ID 与输入不一致。');
     }
-    if (task.analysisId != expectedAnalysisId) {
-      throw const FormatException('任务 analysis_id 与当前本地分析不一致。');
+    final currentLocalEvidence = _localEvidence;
+    if (currentLocalEvidence != null &&
+        currentLocalEvidence['analysis_id'] != task.analysisId) {
+      final originalTarget = currentLocalEvidence['target'];
+      if (originalTarget is! Map) {
+        throw const FormatException('当前本地证据缺少目标信息，不能安全恢复旧任务。');
+      }
+      final reanalysis = await LocalSafetyService().analyzeWithEvidence(
+        url,
+        analysisId: task.analysisId,
+      );
+      if (!reanalysis.result.isSuccess) {
+        throw const FormatException('按旧 analysis_id 重新解析本地目标失败。');
+      }
+      final recoveredLocalEvidence = reanalysis.nativeEvidence;
+      if (recoveredLocalEvidence == null) {
+        throw const FormatException('本地解析模块未提供完整证据，不能继续严格验收。');
+      }
+      if (recoveredLocalEvidence['analysis_id'] != task.analysisId ||
+          recoveredLocalEvidence['processing_status'] != 'succeeded' ||
+          !LocalTargetMatcher.matches(
+            Map<String, dynamic>.from(originalTarget),
+            recoveredLocalEvidence['target'],
+          )) {
+        throw const FormatException('本地 URL 与当前任务目标不一致，已取消报告生成。');
+      }
+      if (!mounted) throw const FormatException('恢复任务时页面已关闭。');
+      setState(() => _localEvidence = recoveredLocalEvidence);
     }
     return task;
   }
@@ -236,7 +266,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   }
 
   Future<void> _showAuditBundle(DeepScanTask task) async {
-    final localEvidence = widget.localEvidence;
+    final localEvidence = _localEvidence;
     final cloudEvidence = task.cloudEvidence;
     if (localEvidence == null || cloudEvidence == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -380,15 +410,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       url: _urlController.text.trim(),
       cloudEvidence: cloudEvidence,
       ruleReport: ruleReport,
-      localEvidence: widget.localEvidence,
+      localEvidence: _localEvidence,
     );
     final availableEvidenceIds = <String>{
       ..._evidenceIds(cloudEvidence),
-      ..._evidenceIds(widget.localEvidence),
+      ..._evidenceIds(_localEvidence),
     };
     final ruleJson = CloudAiReportInput.buildRuleReport(
       ruleReport,
-      localEvidence: widget.localEvidence,
+      localEvidence: _localEvidence,
     );
     final result = await AiReportService(DeepSeekAiClient()).analyzeOrFallback(
       apiKey: apiKey,
@@ -413,11 +443,11 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   }) async {
     final fallback = CloudAiReportInput.buildRuleReport(
       ruleReport,
-      localEvidence: widget.localEvidence,
+      localEvidence: _localEvidence,
     );
     final availableEvidenceIds = <String>{
       ..._evidenceIds(cloudEvidence),
-      ..._evidenceIds(widget.localEvidence),
+      ..._evidenceIds(_localEvidence),
     };
     final result = await OfflineAiReportDemo.run(
       ruleReport: fallback,
@@ -504,7 +534,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: '已有云任务 ID（可选）',
-                helperText: '只查询并轮询该任务，不创建新任务、不扣额度；需匹配当前 analysis_id。',
+                helperText:
+                    '只查询并轮询该任务；APP 会按任务 ID 对应的 analysis_id 重做本地静态解析，不创建云任务、不扣额度。',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -602,7 +633,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                             final ruleReport = AnalysisReport.fromJson(
                               CloudAiReportInput.buildRuleReport(
                                 cloudRuleReport,
-                                localEvidence: widget.localEvidence,
+                                localEvidence: _localEvidence,
                               ),
                             );
                             return ReportPage(
@@ -634,7 +665,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               if (kDebugMode &&
                   task.status == 'succeeded' &&
                   task.cloudEvidence != null &&
-                  widget.localEvidence != null)
+                  _localEvidence != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: OutlinedButton.icon(
