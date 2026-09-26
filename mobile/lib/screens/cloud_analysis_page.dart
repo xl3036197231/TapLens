@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../ai/ai_client.dart';
 import '../ai/ai_report_service.dart';
+import '../ai/audit_evidence_bundle.dart';
 import '../ai/cloud_ai_report_input.dart';
 import '../ai/deepseek_ai_client.dart';
 import '../ai/offline_ai_report_demo.dart';
@@ -34,6 +37,7 @@ class CloudAnalysisPage extends StatefulWidget {
 class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   late final TextEditingController _urlController;
   late final TextEditingController _baseUrlController;
+  final _taskIdController = TextEditingController();
   final _usernameController = TextEditingController(text: 'demo_user');
   final _passwordController = TextEditingController();
 
@@ -62,6 +66,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   void dispose() {
     _urlController.dispose();
     _baseUrlController.dispose();
+    _taskIdController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -82,12 +87,23 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
 
   Future<void> _runCloudScan() async {
     final url = _urlController.text.trim();
+    final existingTaskId = _taskIdController.text.trim();
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
     if (url.isEmpty || username.isEmpty || password.isEmpty) {
       setState(() => _error = '请填写链接、用户名和密码。');
       return;
     }
+    if (existingTaskId.isNotEmpty &&
+        !RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+        ).hasMatch(existingTaskId)) {
+      setState(() => _error = '已有任务 ID 格式不正确，请粘贴完整 UUID。');
+      return;
+    }
+    final localAnalysisId = widget.localEvidence?['analysis_id'];
+    final analysisId = widget.analysisId ??
+        (localAnalysisId is String ? localAnalysisId : demoReport.analysisId);
 
     setState(() {
       _loading = true;
@@ -99,34 +115,53 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       final api = TapLensApiClient(
         config: TapLensApiConfig(baseUri: _backendUri()),
       );
+      if (!await api.health()) {
+        throw const TapLensApiException(
+          statusCode: 503,
+          code: 'API_UNAVAILABLE',
+          message: '后端健康检查未通过，未创建或查询任务。',
+          retryable: true,
+        );
+      }
       final session = await api.login(username: username, password: password);
       if (!mounted) return;
       setState(() => _accessToken = session.accessToken);
 
-      final quota = await api.quota(session.accessToken);
-      if (quota.remaining <= 0) {
-        throw const TapLensApiException(
-          statusCode: 429,
-          code: 'QUOTA_EXHAUSTED',
-          message: '今日云端分析额度已用完。',
-          retryable: false,
+      late final DeepScanTask task;
+      if (existingTaskId.isEmpty) {
+        final quota = await api.quota(session.accessToken);
+        if (quota.remaining <= 0) {
+          throw const TapLensApiException(
+            statusCode: 429,
+            code: 'QUOTA_EXHAUSTED',
+            message: '今日云端分析额度已用完。',
+            retryable: false,
+          );
+        }
+        if (!mounted) return;
+        setState(() => _quota = quota);
+        task = await api.createDeepScan(
+          accessToken: session.accessToken,
+          analysisId: analysisId,
+          url: url,
+        );
+      } else {
+        task = await _recoverTask(
+          api: api,
+          accessToken: session.accessToken,
+          taskId: existingTaskId,
+          expectedAnalysisId: analysisId,
         );
       }
       if (!mounted) return;
-      setState(() => _quota = quota);
+      setState(() => _task = task);
 
-      final created = await api.createDeepScan(
-        accessToken: session.accessToken,
-        analysisId: widget.analysisId ?? demoReport.analysisId,
-        url: url,
-      );
-      if (!mounted) return;
-      setState(() => _task = created);
-
-      final finished = await api.waitForCompletion(
-        accessToken: session.accessToken,
-        taskId: created.taskId,
-      );
+      final finished = task.isFinished
+          ? task
+          : await api.waitForCompletion(
+              accessToken: session.accessToken,
+              taskId: task.taskId,
+            );
       if (!mounted) return;
       setState(() {
         _task = finished;
@@ -145,6 +180,25 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<DeepScanTask> _recoverTask({
+    required TapLensApiClient api,
+    required String accessToken,
+    required String taskId,
+    required String expectedAnalysisId,
+  }) async {
+    final task = await api.getDeepScan(
+      accessToken: accessToken,
+      taskId: taskId,
+    );
+    if (task.taskId != taskId) {
+      throw const FormatException('后端返回的任务 ID 与输入不一致。');
+    }
+    if (task.analysisId != expectedAnalysisId) {
+      throw const FormatException('任务 analysis_id 与当前本地分析不一致。');
+    }
+    return task;
   }
 
   Future<void> _continuePolling() async {
@@ -178,6 +232,77 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       _setRequestError(null);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _showAuditBundle(DeepScanTask task) async {
+    final localEvidence = widget.localEvidence;
+    final cloudEvidence = task.cloudEvidence;
+    if (localEvidence == null || cloudEvidence == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('缺少本地或云端证据，无法生成审计 JSON。')),
+      );
+      return;
+    }
+
+    try {
+      final cloudReport = AnalysisReport.fromCloudEvidence(
+        cloudEvidence,
+        fallbackTarget: _urlController.text.trim(),
+      );
+      final report = CloudAiReportInput.buildRuleReport(
+        cloudReport,
+        localEvidence: localEvidence,
+      );
+      final json = AuditEvidenceBundle.encode(
+        analysisId: task.analysisId,
+        taskId: task.taskId,
+        status: task.status,
+        localEvidence: localEvidence,
+        cloudEvidence: cloudEvidence,
+        report: report,
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('调试审计 JSON'),
+          content: const SingleChildScrollView(
+            child: Text(
+              '将复制本次任务的本地证据、云端证据和规则报告，供团队验收使用。\n\n'
+              '导出会遮盖链接参数值、凭据和本地私有截图路径。云端截图只保留元数据，不包含图片文件。此入口只在调试版显示。',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: json));
+                if (!mounted || !dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('调试审计 JSON 已复制到剪贴板。')),
+                );
+              },
+              icon: const Icon(Icons.copy_rounded),
+              label: const Text('复制 JSON'),
+            ),
+          ],
+        ),
+      );
+    } on ArgumentError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('证据 ID 不一致，无法导出：${error.message}')),
+      );
+    } on Exception {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('证据格式不完整，无法生成调试审计 JSON。')),
+      );
     }
   }
 
@@ -340,6 +465,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   Widget build(BuildContext context) {
     final quota = _quota;
     final task = _task;
+    final recoveringTask = _taskIdController.text.trim().isNotEmpty;
+    final actionLabel = _loading
+        ? (recoveringTask ? '查询中…' : '分析中…')
+        : (recoveringTask ? '查询已有任务' : '开始云端分析');
     return Scaffold(
       appBar: AppBar(title: const Text('云端深度分析')),
       body: SafeArea(
@@ -370,6 +499,17 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _taskIdController,
+              keyboardType: TextInputType.text,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: '已有云任务 ID（可选）',
+                helperText: '只查询并轮询该任务，不创建新任务、不扣额度；需匹配当前 analysis_id。',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _usernameController,
               decoration: const InputDecoration(
                 labelText: 'TapLens 用户名',
@@ -388,7 +528,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             const SizedBox(height: 16),
             Semantics(
               button: true,
-              label: '开始云端分析',
+              label: actionLabel,
               child: FilledButton.icon(
                 onPressed: _loading || (_task != null && !_task!.isFinished)
                     ? null
@@ -400,7 +540,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.cloud_outlined),
-                label: Text(_loading ? '分析中…' : '开始云端分析'),
+                label: Text(actionLabel),
               ),
             ),
             if (_error != null) ...[
@@ -489,6 +629,18 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                     },
                     icon: const Icon(Icons.description_outlined),
                     label: const Text('打开报告页面'),
+                  ),
+                ),
+              if (kDebugMode &&
+                  task.status == 'succeeded' &&
+                  task.cloudEvidence != null &&
+                  widget.localEvidence != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: _loading ? null : () => _showAuditBundle(task),
+                    icon: const Icon(Icons.data_object_rounded),
+                    label: const Text('复制调试审计 JSON'),
                   ),
                 ),
             ],

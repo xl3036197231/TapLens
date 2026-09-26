@@ -5,7 +5,7 @@ import json
 import unittest
 from pathlib import Path
 
-from validate_day4_evidence import audit
+from validate_day4_evidence import audit, audit_bundle
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,6 +53,43 @@ class DayFourAuditTest(unittest.TestCase):
         wrong_task = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
         with self.assertRaisesRegex(ValueError, "task_id mismatch"):
             audit(self.local, self.report, self.cloud, task_id=wrong_task)
+
+    def test_debug_bundle_uses_same_strict_audit(self) -> None:
+        local = copy.deepcopy(self.local)
+        cloud = copy.deepcopy(self.cloud)
+        report = copy.deepcopy(self.report)
+        local["analysis_id"] = cloud["analysis_id"]
+        local["target"]["display_value"] = cloud["initial_url"]
+        report["analysis_id"] = cloud["analysis_id"]
+        report["sources"]["local"] = True
+        report["evidence"].append({
+            "id": "L01", "source": "local",
+            "title": local["evidence"][0]["title"],
+            "detail": local["evidence"][0]["detail"],
+        })
+        result = audit_bundle({
+            "bundle_version": "1.0",
+            "analysis_id": cloud["analysis_id"],
+            "task_id": cloud["task_id"],
+            "status": cloud["status"],
+            "local_evidence": local,
+            "cloud_evidence": cloud,
+            "report": report,
+        })
+        self.assertEqual(result["analysis_id"], cloud["analysis_id"])
+        self.assertEqual(result["task_id"], cloud["task_id"])
+
+        wrong_status = {
+            "bundle_version": "1.0",
+            "analysis_id": cloud["analysis_id"],
+            "task_id": cloud["task_id"],
+            "status": "failed",
+            "local_evidence": local,
+            "cloud_evidence": cloud,
+            "report": report,
+        }
+        with self.assertRaisesRegex(ValueError, "bundle/cloud status mismatch"):
+            audit_bundle(wrong_status)
 
 
 if __name__ == "__main__":

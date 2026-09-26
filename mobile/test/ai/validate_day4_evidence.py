@@ -3,6 +3,7 @@
 Examples:
   python mobile/test/ai/validate_day4_evidence.py --local local.json --report report.json
   python mobile/test/ai/validate_day4_evidence.py --local local.json --cloud cloud.json --report report.json --task-id UUID
+  python mobile/test/ai/validate_day4_evidence.py --bundle day4-audit.json
 
 The script prints IDs and a verdict only; never paste credentials into input JSON.
 Historical B/C fixtures have different analysis IDs and must not be joined.
@@ -121,19 +122,44 @@ def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str 
     }
 
 
+def audit_bundle(bundle: dict) -> dict:
+    """Validate the debug bundle wrapper and its three schema documents."""
+    _require(bundle.get("bundle_version") == "1.0", "unsupported bundle_version")
+    local = bundle.get("local_evidence")
+    cloud = bundle.get("cloud_evidence")
+    report = bundle.get("report")
+    _require(isinstance(local, dict), "bundle local_evidence is missing")
+    _require(isinstance(cloud, dict), "bundle cloud_evidence is missing")
+    _require(isinstance(report, dict), "bundle report is missing")
+    _require(bundle.get("analysis_id") == local.get("analysis_id"), "bundle/local analysis_id mismatch")
+    _require(bundle.get("status") == cloud.get("status"), "bundle/cloud status mismatch")
+    result = audit(local, report, cloud, task_id=bundle.get("task_id"))
+    _require(bundle.get("analysis_id") == result["analysis_id"], "bundle analysis_id mismatch")
+    _require(bundle.get("task_id") == result["task_id"], "bundle task_id mismatch")
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--local", required=True, type=Path)
+    parser.add_argument("--bundle", type=Path, help="Debug bundle copied from the app")
+    parser.add_argument("--local", type=Path)
     parser.add_argument("--cloud", type=Path)
-    parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--report", type=Path)
     parser.add_argument("--task-id")
     args = parser.parse_args()
-    result = audit(
-        json.loads(args.local.read_text(encoding="utf-8")),
-        json.loads(args.report.read_text(encoding="utf-8")),
-        json.loads(args.cloud.read_text(encoding="utf-8")) if args.cloud else None,
-        task_id=args.task_id,
-    )
+    if args.bundle is not None:
+        if args.local or args.cloud or args.report or args.task_id:
+            parser.error("--bundle cannot be combined with --local/--cloud/--report/--task-id")
+        result = audit_bundle(json.loads(args.bundle.read_text(encoding="utf-8")))
+    else:
+        if args.local is None or args.report is None:
+            parser.error("provide --bundle or both --local and --report")
+        result = audit(
+            json.loads(args.local.read_text(encoding="utf-8")),
+            json.loads(args.report.read_text(encoding="utf-8")),
+            json.loads(args.cloud.read_text(encoding="utf-8")) if args.cloud else None,
+            task_id=args.task_id,
+        )
     print("DAY 4 EVIDENCE AUDIT PASSED:", json.dumps(result, ensure_ascii=False))
 
 

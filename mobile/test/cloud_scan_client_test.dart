@@ -72,4 +72,33 @@ void main() {
     expect(completed.status, 'succeeded');
     expect(calls, 2);
   });
+
+  test('可以只查询已存在的云任务，不发送创建请求', () async {
+    var postCount = 0;
+    final client = MockClient((request) async {
+      if (request.method == 'POST') postCount++;
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/v1/deep-scans/task-existing');
+      expect(request.headers['authorization'], 'Bearer token-1');
+      return http.Response(
+        '{"task_id":"task-existing","analysis_id":"analysis-existing","status":"succeeded","cloud_evidence":{"schema_version":"1.0"}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = TapLensApiClient(
+      config: TapLensApiConfig(baseUri: Uri.parse('http://test/api/v1')),
+      client: client,
+    );
+
+    final task = await api.getDeepScan(
+      accessToken: 'token-1',
+      taskId: 'task-existing',
+    );
+
+    expect(task.taskId, 'task-existing');
+    expect(task.analysisId, 'analysis-existing');
+    expect(task.status, 'succeeded');
+    expect(postCount, 0);
+  });
 }

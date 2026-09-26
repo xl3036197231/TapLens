@@ -82,4 +82,29 @@ void main() {
 
     expect(find.text('请填写链接、用户名和密码。'), findsOneWidget);
   });
+
+  testWidgets('填写已有任务 ID 后显示只查询任务的操作', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: CloudAnalysisPage(
+          initialUrl: 'https://example.test/go/campus',
+          analysisId: 'aa4e3f03-6141-4799-a229-04c879d3bb02',
+        ),
+      ),
+    );
+
+    expect(find.text('已有云任务 ID（可选）'), findsOneWidget);
+    expect(
+      find.text('只查询并轮询该任务，不创建新任务、不扣额度；需匹配当前 analysis_id。'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byType(TextField).at(2),
+      '5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0',
+    );
+    await tester.pump();
+
+    expect(find.text('查询已有任务'), findsOneWidget);
+    expect(find.text('开始云端分析'), findsNothing);
+  });
 }

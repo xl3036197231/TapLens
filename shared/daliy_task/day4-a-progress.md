@@ -67,3 +67,41 @@
 2. D 对同 `analysis_id` 的本地记录、两次云端任务和报告做最终证据审计；`C03/C04` 不用于证明网站运营者身份。
 3. 已完成的云任务来自手动输入 URL。若要证明“相机扫码 → 本地预检 → 新云任务 → 报告”的完整二维码主案例，需要用户决定是否再消耗一次云端额度；本轮未重复提交。
 4. 当前本次受控 URL 不含额外参数，C 返回 `L01` 是预期边界；C 的独立 Day 4 fixture 含 query 参数时会产生 `L01/L02`，不能把 fixture 的 L02 拼成本次现场结果。
+
+## 2026-09-27 继续验收准备
+
+### A 新增交付
+
+- 云端分析页现在支持输入**已有云任务 ID**。提交前先检查 API 健康接口并登录，再只查询/轮询该任务；该路径不查询额度、不调用创建任务接口，也不消耗新额度。返回的 `task_id` 和 `analysis_id` 必须与输入及当前本地分析一致。
+- 调试版的成功任务页增加“复制调试审计 JSON”入口。复制包包括同 ID 的本地证据、完整云证据快照和规则报告；遮盖 URL 查询值、本地参数值和凭据，并移除本地私有截图路径。云端截图只含元数据，不含 PNG 二进制。
+- `mobile/test/ai/validate_day4_evidence.py` 现在支持 `--bundle`，会继续按原有本地、云端和报告 Schema 严格校验，并检查包级任务 ID、分析 ID 与状态一致。
+
+恢复正式任务时，在 APP 输入当前 API 地址、虚构账号及密码，并填入：
+
+```text
+analysis_id: aa4e3f03-6141-4799-a229-04c879d3bb02
+task_id:     5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0
+```
+
+URL 保持当前同一受控目标。任务完成后复制调试审计 JSON，保存为 `day4-audit.json`，再运行：
+
+```powershell
+python mobile/test/ai/validate_day4_evidence.py --bundle day4-audit.json
+```
+
+### 本轮验证
+
+| 检查 | 结果 |
+|---|---|
+| `flutter analyze --no-pub` | 通过，无静态分析问题 |
+| `flutter test --no-pub` | 通过，50 项 |
+| Android Debug APK | `:app:assembleDebug --no-daemon -Pkotlin.incremental=false` 构建通过 |
+| Python 审计脚本语法 | `py_compile` 通过 |
+| Python JSON Schema/审计单测 | 本机 Python 缺少 `jsonschema`，尚未运行 |
+| API 35 模拟器 | 当前没有连接设备；本轮未做真实 APK 页面复核 |
+
+### 联合验收状态仍为 BLOCKED
+
+- 本机尝试请求旧 Codespaces 健康接口时 TLS 握手失败（Windows Schannel `SEC_E_NO_CREDENTIALS`），没有得到 HTTP 状态码；这不是 404，也没有创建新任务。
+- 本地仓库可检索到的是进度记录和截图，没有该正式任务的完整云端快照、完整规则报告 JSON，也没有同目标完整本地 JSON。因此目前仍不能把现有任务标记为 PASS。
+- 服务恢复后，先用新增入口只读恢复上面的正式任务；确认旧快照无法恢复前，不创建新任务。拿到 JSON 后先运行审计脚本，再由 D 检查页面截图、URL 映射和报告结论。
