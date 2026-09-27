@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "checked_at": "2026-09-27T08:58:05Z",
+  "checked_at": "2026-09-27T09:47:57Z",
   "mode": "read_only",
   "target": {
     "analysis_id": "aa4e3f03-6141-4799-a229-04c879d3bb02",
@@ -70,15 +70,42 @@
     "formal_snapshot_committed_to_repository": false
   },
   "old_codespace": {
-    "checked": false,
-    "reason": "GitHub CLI token lacks the codespace scope; listing Codespaces returned HTTP 403.",
-    "potential_recovery_source": true
+    "checked": true,
+    "scope_authorized": true,
+    "name": "opulent-fishstick-4rvvr647jpqf7prq",
+    "display_name": "opulent fishstick",
+    "repository": "xl3036197231/TapLens",
+    "last_used_at": "2026-09-24T14:12:28+08:00",
+    "state_before_check": "Shutdown",
+    "existing_codespace_started_with_user_authorization": true,
+    "stop_requested_after_check": true,
+    "stop_verified": true,
+    "state_after_check": "Shutdown",
+    "filesystem_checked": true,
+    "expected_runtime_database": "/tmp/taplens-codespace.db",
+    "expected_runtime_database_found": false,
+    "expected_artifact_directory": "/tmp/taplens-artifacts",
+    "expected_artifact_directory_found": false,
+    "persistent_databases": [
+      {
+        "path": "/workspaces/TapLens/backend/data/taplens.db",
+        "task_count": 0
+      },
+      {
+        "path": "/workspaces/TapLens/backend/data/codespace-day3.db",
+        "task_count": 0
+      }
+    ],
+    "business_database_wal_or_shm_found": false,
+    "target_id_matches_in_workspace_and_home": 0,
+    "potential_recovery_source": false
   },
   "conclusion": {
     "recoverable_from_current_ecs": false,
     "recoverable_from_ecs_backup": false,
+    "recoverable_from_old_codespace": false,
     "replacement_task_created": false,
-    "quota_consumed": false,
-    "status": "blocked_old_codespace_access"
+    "taplens_task_quota_consumed": false,
+    "status": "completed_unrecoverable_across_known_sources"
   }
 }

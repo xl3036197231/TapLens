@@ -2,9 +2,9 @@
 
 > 负责人：B
 > 分支：`feat/b-backend-bootstrap`
-> 检查时间：2026-09-27 16:58 CST
+> 检查时间：2026-09-27 17:48 CST
 > 任务基线：`main@1d71333`
-> 状态：⛔ **BLOCKED：正式 Day 4 任务不在 ECS 当前数据或 ECS 备份中**
+> 状态：✅ **COMPLETED：全部已知恢复来源核查完毕，正式 Day 4 任务不可恢复**
 
 ## 1. 本次核查边界
 
@@ -70,7 +70,24 @@ ECS 只有一份备份：
 
 旧任务产生于 GitHub Codespaces，ECS 数据始于 2026-09-25，说明迁移时部署了新 SQLite，没有携带 Day 4 Codespaces 任务数据。
 
-旧 Codespace 的持久磁盘是目前唯一仍可能存在正式记录的来源。尝试只读列出 Codespaces 时，GitHub API 返回 `403`：当前 `gh` 令牌缺少 `codespace` scope。B 未自行扩大 GitHub 账号权限。
+旧 Codespace 的持久磁盘是目前唯一仍可能存在正式记录的来源。用户授权 GitHub CLI 增加 `codespace` scope 后，B 于 2026-09-27 17:37 CST 完成只读清单核查：
+
+- Codespace：`opulent-fishstick-4rvvr647jpqf7prq`；
+- 显示名：`opulent fishstick`；
+- 仓库：`xl3036197231/TapLens`；
+- 最后使用时间：2026-09-24 14:12:28 CST；
+- 核查前状态：`Shutdown`。
+
+经用户明确授权，B 短暂启动现有 Codespace 并完成只读核查，随后立即停止并确认状态恢复为 `Shutdown`。结果如下：
+
+- `/tmp/taplens-codespace.db`：不存在；
+- `/tmp/taplens-artifacts`：不存在；
+- `/workspaces/TapLens/backend/data/taplens.db`：存在，`cloud_scan_tasks` 为 0 条；
+- `/workspaces/TapLens/backend/data/codespace-day3.db`：存在，`cloud_scan_tasks` 为 0 条；
+- 工作区和用户目录中没有其他业务 SQLite、SQLite WAL 或 SHM；
+- 在 `/workspaces/TapLens` 和 `/home/codespace` 内精确搜索正式 `task_id` 与 `analysis_id`：0 个匹配。
+
+旧运行库和截图位于 `/tmp`，已随 Codespace 重建或生命周期清理而丢失。至此 ECS 当前库、ECS 唯一备份、Git 仓库材料和旧 Codespace 四类已知来源均已核查完毕，无法恢复原始完整 JSON 或 PNG。
 
 ## 6. URL 映射结论
 
@@ -89,17 +106,17 @@ ECS 只有一份备份：
 
 ## 8. 后续路径
 
-1. 若获得 GitHub `codespace` scope，先只读查看旧 Codespace 是否仍存在，再检查其 `backend/data/taplens.db` 和截图目录。
-2. 若旧 Codespace 已删除或数据也过期，将正式 Day 4 任务标记为不可恢复。
-3. 是否在 ECS 上创建一次新的四方统一验收任务，由用户/全组另行决定；B 本次没有自行创建。
+1. 将正式 Day 4 任务标记为不可恢复，不再等待旧快照。
+2. A/C/D 后续若仍需完整 JSON、原始 PNG 和同目标 URL，只能由用户/全组决定是否在 ECS 新建一次统一验收任务。
+3. B 本次没有创建新任务，没有消耗 TapLens 任务额度，也没有新建 Codespace。
 
 ## 9. 统一交接
 
 ```text
-我完成了：ECS 健康、当前 SQLite、数据卷、备份归档和仓库材料的只读核查。
+我完成了：ECS 健康、当前 SQLite、数据卷、备份归档、仓库材料和旧 Codespace 持久磁盘的只读核查。
 你可以这样复现：查看 day5-b-evidence/ecs-readonly-audit.json，对照正式 task_id 和 analysis_id。
-实际结果：ECS 健康，但正式任务不在当前库或唯一 ECS 备份中，正式 PNG 也不存在。
-目前还缺：对旧 GitHub Codespace 持久磁盘的访问，或用户决定新建一次统一验收任务。
-状态：BLOCKED
+实际结果：ECS 健康，但正式任务不在当前库或唯一 ECS 备份中；旧 Codespace 的 /tmp 运行库和截图已不存在，持久工作区数据库为空，正式 ID 全局精确搜索无匹配。原始完整 JSON 和 PNG 不可恢复。
+目前还缺：若最终交付仍要求完整云快照，需由用户/全组决定是否新建一次统一验收任务。
+状态：COMPLETED（恢复结论：UNRECOVERABLE）
 影响成员：A、C、D
 ```
