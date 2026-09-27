@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_protocol: Literal["openai_chat_completions"] = "openai_chat_completions"
-    llm_timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
+    llm_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
 
     @model_validator(mode="after")
     def require_production_jwt_secret(self) -> "Settings":

@@ -47,6 +47,7 @@ def validate_and_finalize_report(
     if not isinstance(evidence, list):
         reject("报告缺少 evidence")
     report_items = {}
+    normalized_evidence = []
     for raw in evidence:
         if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
             reject("报告证据格式无效")
@@ -54,11 +55,12 @@ def validate_and_finalize_report(
         original = source_items.get(evidence_id)
         if original is None or evidence_id in report_items:
             reject("报告引用了不存在或重复的证据")
-        if any(raw.get(key) != original[key] for key in ("source", "title", "detail")):
-            reject("报告改写了证据标题、详情或来源")
-        report_items[evidence_id] = raw
+        normalized = {"id": evidence_id, **original}
+        report_items[evidence_id] = normalized
+        normalized_evidence.append(normalized)
     if set(report_items) != set(source_items):
         reject("报告没有完整保留输入证据")
+    report["evidence"] = normalized_evidence
 
     references = set()
     observed = report.get("observed_behavior")
@@ -106,12 +108,17 @@ def validate_schema(report: dict[str, object]) -> None:
         ).iter_errors(report)
     )
     if errors:
-        reject(f"模型报告不符合 Schema：{list(errors[0].path)}")
+        error = errors[0]
+        reject(
+            f"模型报告不符合 Schema：{list(error.path)}",
+            details={"validator": error.validator, "schema_message": error.message},
+        )
 
 
-def reject(message: str) -> None:
+def reject(message: str, *, details: dict[str, object] | None = None) -> None:
     raise AppError(
         code="AI_REPORT_REJECTED",
         message=message,
         status_code=502,
+        details=details,
     )

@@ -161,3 +161,35 @@ A 于 2026-09-27 使用当前 ECS 受控入口创建了一条新的统一验收�
 `shared/daliy_task/day5-b-evidence/day5-unified/`
 
 该目录包含完整脱敏云端 JSON、原始 PNG、服务器核查 JSON 和复现说明。B 状态为 **READY**，可交给 A/C/D 做最终 bundle 与展示验收。
+
+## 11. 学校模型后端接入与 ECS 实测
+
+2026-09-27，B 在现有 `feat/b-backend-bootstrap` 分支完成学校模型后端代理，并部署到 Aliyun-blanca：
+
+- 新增 `POST /api/v1/ai/analyze`，要求 TapLens JWT；
+- 服务端使用中国传媒大学 OpenAI 兼容接口 `/v1/chat/completions` 和模型 `cuc/deepseek`；
+- 学校 API Key 只位于 ECS `/opt/taplens/deploy/.env`，未进入 App、Git、响应或证据；
+- 客户端上传 `deepseek_key` 等额外字段会被拒绝；
+- 请求只包含脱敏后的本地与云端证据；
+- 后端向模型提供实际 JSON Schema，并校验完整报告；
+- 后端按证据 ID 回填原始证据标题、详情和来源，模型不能新增、遗漏或改写证据；
+- 规则确认的高风险不能被模型降低；
+- Token 使用量由学校接口返回并由后端覆盖写入。
+
+ECS 实测结果：
+
+- API、Worker、Nginx 全部 healthy；
+- SQLite `quick_check=ok`，Worker 数量为 1；
+- 公网 `/healthz` 返回 200；
+- 携带合法请求体但不带 JWT 调用 AI 接口返回 401 `AUTH_TOKEN_MISSING`；
+- 真实学校模型调用成功，`analysis_id=0bab7eba-ff50-42f8-a264-543596b2c9bf`；
+- 模型结论为 `high`，保留 `L01` 与 `C01–C04`；
+- `sources={local:true, cloud:true, ai:true}`；
+- 本次成功调用记录 3327 prompt、1995 completion、5322 total tokens；
+- 最近 API/Worker 日志未发现 `Authorization`、`API-KEY` 或 `TAPLENS_LLM_API_KEY` 标记。
+
+脱敏机读证据位于：
+
+`shared/daliy_task/day5-b-evidence/day5-school-model/server-verification.json`
+
+B 后端已具备默认学校模型链路。A 可开始接入默认模式：App 将脱敏证据提交到上述接口；用户自定义模式继续由手机端直连用户选择的模型，用户 Key 不上传后端。

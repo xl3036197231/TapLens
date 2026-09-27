@@ -72,7 +72,7 @@ TAPLENS_LLM_BASE_URL=https://openai.cuc.edu.cn/v1
 TAPLENS_LLM_API_KEY=replace-on-the-server-only
 TAPLENS_LLM_MODEL=cuc/deepseek
 TAPLENS_LLM_PROTOCOL=openai_chat_completions
-TAPLENS_LLM_TIMEOUT_SECONDS=20
+TAPLENS_LLM_TIMEOUT_SECONDS=60
 ```
 
 The API rejects client-supplied model keys. The server credential is never stored
