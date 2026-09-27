@@ -4,7 +4,7 @@
 > 分支：`feat/b-backend-bootstrap`
 > 检查时间：2026-09-27 17:48 CST
 > 任务基线：`main@1d71333`
-> 状态：✅ **COMPLETED：全部已知恢复来源核查完毕，正式 Day 4 任务不可恢复**
+> 状态：✅ **READY：旧 Day 4 任务不可恢复；Day 5 新统一任务的 B 侧正式云证据已交付**
 
 ## 1. 本次核查边界
 
@@ -120,3 +120,44 @@ ECS 只有一份备份：
 状态：COMPLETED（恢复结论：UNRECOVERABLE）
 影响成员：A、C、D
 ```
+
+## 10. Day 5 新统一任务交付
+
+A 于 2026-09-27 使用当前 ECS 受控入口创建了一条新的统一验收任务。B 没有创建第二条任务，也没有在本次导出中消耗额外 TapLens 任务额度。
+
+### 10.1 正式标识
+
+- `analysis_id=0bab7eba-ff50-42f8-a264-543596b2c9bf`；
+- `task_id=f1858539-4595-4297-acfe-5bf81a91bc54`；
+- 原始 URL：`http://39.107.253.138/controlled/go/campus`；
+- 最终 URL：`http://39.107.253.138/controlled/campus-login.html`；
+- 状态：`succeeded`；
+- 耗时：707 ms。
+
+### 10.2 ECS 与截图核查
+
+- ECS SQLite 中按 `task_id` 和 `analysis_id` 查询到唯一对应记录；
+- SQLite `PRAGMA quick_check=ok`；
+- API、Worker、Nginx 均 healthy，Worker 数量为 1；
+- 任务完成后 SQLite 中的 `target_url` 已按隐私设计清空，完整脱敏 URL 保留在 `evidence_json`；
+- PNG 已从持久卷固定到仓库，大小 436619 bytes，尺寸 `1280×956`；
+- PNG SHA-256：`8b111619bb7864bd285d48aad60819a1fa1c9bbe7cb9fce6640b557a8146e719`；
+- 截图目视确认是明确标注为 controlled/fictional 的校园登录测试页，字段为训练/脱敏值。
+
+### 10.3 证据与合同校验
+
+- `cloud-evidence.schema.json`：通过；
+- A 的完整 bundle：通过 `validate_day4_evidence.py --bundle`；
+- 本地与云端 `analysis_id` 一致；
+- bundle、云端和截图 `task_id/artifact_id` 一致；
+- B 从 SQLite 导出的云端 JSON 与 A bundle 内的 `cloud_evidence` 精确一致；
+- `C01=redirect`、`C02=form`、`C03=page`、`C04=screenshot`；
+- 云端请求只有 GET，没有 POST 或表单提交；
+- 完整 bundle 的引用为 `L01` 与 `C01–C04`；
+- 后端证据不含 AI 输出，DeepSeek Key 未进入 B 后端证据。
+
+### 10.4 交付位置
+
+`shared/daliy_task/day5-b-evidence/day5-unified/`
+
+该目录包含完整脱敏云端 JSON、原始 PNG、服务器核查 JSON 和复现说明。B 状态为 **READY**，可交给 A/C/D 做最终 bundle 与展示验收。
