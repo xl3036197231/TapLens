@@ -105,3 +105,13 @@ python mobile/test/ai/validate_day4_evidence.py --bundle day4-audit.json
 - 本机尝试请求旧 Codespaces 健康接口时 TLS 握手失败（Windows Schannel `SEC_E_NO_CREDENTIALS`），没有得到 HTTP 状态码；这不是 404，也没有创建新任务。
 - 本地仓库可检索到的是进度记录和截图，没有该正式任务的完整云端快照、完整规则报告 JSON，也没有同目标完整本地 JSON。因此目前仍不能把现有任务标记为 PASS。
 - 服务恢复后，先用新增入口只读恢复上面的正式任务；确认旧快照无法恢复前，不创建新任务。拿到 JSON 后先运行审计脚本，再由 D 检查页面截图、URL 映射和报告结论。
+
+## 2026-09-27 云端服务恢复复核
+
+- B 已将联调服务迁移到 ECS。当前 staging API 为 `http://39.107.253.138/api/v1`，受控入口为 `http://39.107.253.138/controlled/go/campus`。
+- 本次只读检查结果：`/healthz` 返回 `200`（database/artifacts 均为 `ok`）；`/api/v1/health` 返回 `200`；受控入口返回 `302` 并跳转到 `/controlled/campus-login.html`。
+- 用正式 `task_id=5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0` 查询时未附登录凭证，API 返回 `401 AUTH_TOKEN_MISSING`。这只能确认接口需要登录，尚未确认迁移后的任务能否被原账号读取。
+- 本轮没有注册账号、登录、创建云任务或消耗额度。旧 Codespaces 地址仍不可用；此刻唯一已验证的地址是 B 的 ECS staging。
+- ECS staging 目前是 HTTP。只允许使用虚构比赛账号和虚构密码，不要在此输入真实账号密码、Token 或 API Key。
+
+下一步仍是通过 APP 的“已有云任务 ID”入口，用拥有旧任务的虚构账号只读查询上面的 `task_id`，复制审计 JSON 后运行 `validate_day4_evidence.py --bundle`。如果登录后任务不存在或已经过期，先让 B 核查备份/迁移结果；未经确认仍不创建新任务。联合验收继续保持 **BLOCKED**，因为完整本地/云端/报告 JSON 尚未取得。

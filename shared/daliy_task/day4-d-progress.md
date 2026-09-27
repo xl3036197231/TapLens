@@ -101,3 +101,9 @@ python mobile/test/ai/validate_day4_evidence.py `
 | `C04 screenshot` | B 声明有效 PNG，1280×1005 | “云端页面截图：已生成受鉴权与过期时间保护的页面截图” | 条目与展示匹配；D 未独立读取 PNG 二进制 |
 
 APP 上的高风险提示由跳转与敏感登录表单支撑，且明确说“未执行提交动作”。因此上述**Cxx 展示阶段 PASS**。这个 PASS 不含完整 `cloud-evidence`/`analysis-report` Schema、截图文件独立校验、`Lxx` 同目标绑定、Token 字段或整条 Day 4 最终验收；它们仍按上一节的 BLOCKED 清单处理，不能被本阶段结论覆盖。
+
+## 2026-09-27 服务恢复状态复核
+
+B 已把 staging 迁移到 ECS。只读复核 `http://39.107.253.138/healthz` 返回 `200`，数据库和截图目录检查均为 `ok`；`/controlled/go/campus` 返回 `302`，指向受控登录页。用正式任务 ID 做无凭证 GET 得到 `401 AUTH_TOKEN_MISSING`，因此尚未确认 APP 登录后能否取回任务，也未取得新的完整 JSON。
+
+本轮未创建云任务，也未消耗额度。旧 Codespaces 端点失败不再是当前主要阻塞；接下来需要 A 使用原虚构账号从 APP 查询旧任务并导出 bundle，之后 D 才能完成 Schema、引用及结论复核。在完整三份 JSON 到手前，Day 4 整体验收仍为 **BLOCKED**；原有 C01–C04 阶段 PASS 的范围不变。
