@@ -7,13 +7,18 @@ import 'package:taplens_mobile/ai/ai_report_service.dart';
 import 'package:taplens_mobile/ai/mock_ai_client.dart';
 
 void main() {
-  final ruleReport = <String, dynamic>{'risk_level': 'high', 'title': 'Rule report'};
+  final ruleReport = <String, dynamic>{
+    'risk_level': 'high',
+    'title': 'Rule report'
+  };
 
   test('uses API usage instead of model-provided token values', () async {
-    final fixture = File('../shared/fixtures/ai/mock-success-report.json').readAsStringSync();
+    final fixture = File('../shared/fixtures/ai/mock-success-report.json')
+        .readAsStringSync();
     final service = AiReportService(MockAiClient(
       responseJson: fixture,
-      usage: const AiUsage(promptTokens: 12, completionTokens: 8, totalTokens: 20),
+      usage:
+          const AiUsage(promptTokens: 12, completionTokens: 8, totalTokens: 20),
     ));
     final result = await service.analyzeOrFallback(
       apiKey: 'TEST_ONLY',
@@ -33,8 +38,39 @@ void main() {
     });
   });
 
+  test('keeps the actual school model name in a guarded AI report', () async {
+    final rawReport = File('../shared/fixtures/ai/mock-success-report.json')
+        .readAsStringSync();
+    final decoded = jsonDecode(rawReport) as Map<String, dynamic>;
+    final result = await const AiReportService().analyzeRequestOrFallback(
+      request: () async => AiClientResponse(
+        rawReportJson: rawReport,
+        usage: const AiUsage(
+          promptTokens: 44,
+          completionTokens: 21,
+          totalTokens: 65,
+        ),
+        modelName: 'school-model-v1',
+      ),
+      availableEvidenceIds: {'C01', 'C02'},
+      ruleReport: decoded,
+      hardRiskLevel: 'high',
+      modelName: 'deepseek-flash',
+    );
+    expect(result.usedFallback, isFalse, reason: result.error?.message);
+    expect(result.report['sources']['ai'], isTrue);
+    expect(result.report['token_usage'], {
+      'request_count': 1,
+      'prompt_tokens': 44,
+      'completion_tokens': 21,
+      'total_tokens': 65,
+      'model': 'school-model-v1',
+    });
+  });
+
   test('invalid JSON falls back to the original rule report', () async {
-    final service = AiReportService(const MockAiClient(responseJson: '{invalid'));
+    final service =
+        AiReportService(const MockAiClient(responseJson: '{invalid'));
     final result = await service.analyzeOrFallback(
       apiKey: 'TEST_ONLY',
       sanitizedPayload: const {},
@@ -47,10 +83,12 @@ void main() {
   });
 
   test('unknown evidence falls back without lowering rule risk', () async {
-    final fixture = jsonDecode(File('../shared/fixtures/ai/mock-success-report.json').readAsStringSync())
-        as Map<String, dynamic>;
+    final fixture = jsonDecode(
+        File('../shared/fixtures/ai/mock-success-report.json')
+            .readAsStringSync()) as Map<String, dynamic>;
     (fixture['evidence'] as List).first['id'] = 'C99';
-    final service = AiReportService(MockAiClient(responseJson: jsonEncode(fixture)));
+    final service =
+        AiReportService(MockAiClient(responseJson: jsonEncode(fixture)));
     final result = await service.analyzeOrFallback(
       apiKey: 'TEST_ONLY',
       sanitizedPayload: const {},

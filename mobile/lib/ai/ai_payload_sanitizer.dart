@@ -52,19 +52,19 @@ class AiPayloadSanitizer {
       'cloud_evidence': _evidenceSummary(cloud, 'C'),
       'hard_risk_findings': hardRisks is List
           ? hardRisks
-                .map((item) {
-                  if (item is Map<String, dynamic>) {
-                    return {
-                      'code': _safeText(item['code']),
-                      'risk_level': _safeText(item['risk_level']),
-                      'message': _safeText(item['message']),
-                      'evidence_ids': _safeIds(item['evidence_ids']),
-                    };
-                  }
-                  return _safeText(item);
-                })
-                .where((item) => item != null)
-                .toList()
+              .map((item) {
+                if (item is Map<String, dynamic>) {
+                  return {
+                    'code': _safeText(item['code']),
+                    'risk_level': _safeText(item['risk_level']),
+                    'message': _safeText(item['message']),
+                    'evidence_ids': _safeIds(item['evidence_ids']),
+                  };
+                }
+                return _safeText(item);
+              })
+              .where((item) => item != null)
+              .toList()
           : <String>[],
     };
   }
@@ -180,6 +180,16 @@ class AiPayloadSanitizer {
       '[REDACTED_KEY]',
     );
     value = value.replaceAll(
+      RegExp(
+        r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{8,}\b',
+      ),
+      '[REDACTED_JWT]',
+    );
+    value = value.replaceAll(
+      RegExp(r'\bBearer\s+[A-Za-z0-9._~-]+', caseSensitive: false),
+      'Bearer [REDACTED]',
+    );
+    value = value.replaceAll(
       RegExp(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'),
       '[REDACTED_EMAIL]',
     );
@@ -187,7 +197,7 @@ class AiPayloadSanitizer {
     value = value.replaceAll(RegExp(r'\b[0-9]{17}[0-9Xx]\b'), '[REDACTED_ID]');
     value = value.replaceAllMapped(
       RegExp(
-        r'(password|passwd|token|student_id|secret)=[^\s&#;]+',
+        r'(password|passwd|token|student_id|secret|api[_-]?key|deepseek[_-]?key|school[_-]?key|jwt|authorization)\s*[:=]\s*[^\s&#;,}]+',
         caseSensitive: false,
       ),
       (match) => '${match.group(1)}=[REDACTED]',

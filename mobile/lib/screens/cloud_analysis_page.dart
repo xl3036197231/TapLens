@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,7 @@ import '../ai/audit_evidence_bundle.dart';
 import '../ai/cloud_ai_report_input.dart';
 import '../ai/deepseek_ai_client.dart';
 import '../ai/offline_ai_report_demo.dart';
+import '../ai/school_ai_client.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../services/cloud_scan_client.dart';
@@ -37,6 +39,13 @@ class CloudAnalysisPage extends StatefulWidget {
 }
 
 class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
+  static const _acceptanceReplayEnabled =
+      bool.fromEnvironment('TAPLENS_ACCEPTANCE_REPLAY');
+  static const _acceptanceAnalysisId =
+      String.fromEnvironment('TAPLENS_ACCEPTANCE_ANALYSIS_ID');
+  static const _acceptanceTaskId =
+      String.fromEnvironment('TAPLENS_ACCEPTANCE_TASK_ID');
+
   late final TextEditingController _urlController;
   late final TextEditingController _baseUrlController;
   final _taskIdController = TextEditingController();
@@ -231,6 +240,91 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     return task;
   }
 
+  bool get _canReplayArchivedAcceptance =>
+      kDebugMode &&
+      _acceptanceReplayEnabled &&
+      widget.analysisId == _acceptanceAnalysisId &&
+      _taskIdController.text.trim() == _acceptanceTaskId &&
+      _accessToken != null &&
+      _error?.contains('这条分析任务已过期') == true;
+
+  Future<void> _openArchivedAcceptanceReport() async {
+    try {
+      final decoded = jsonDecode(
+        await rootBundle.loadString(
+          'assets/acceptance/day5-unified-test1.json',
+        ),
+      );
+      if (decoded is! Map) throw const FormatException('证据快照不是 JSON 对象。');
+      final bundle = Map<String, dynamic>.from(decoded);
+      final localRaw = bundle['local_evidence'];
+      final cloudRaw = bundle['cloud_evidence'];
+      if (localRaw is! Map || cloudRaw is! Map) {
+        throw const FormatException('证据快照缺少本地或云端证据。');
+      }
+      final localEvidence = Map<String, dynamic>.from(localRaw);
+      final cloudEvidence = Map<String, dynamic>.from(cloudRaw);
+      if (bundle['analysis_id'] != _acceptanceAnalysisId ||
+          bundle['task_id'] != _acceptanceTaskId ||
+          bundle['status'] != 'succeeded' ||
+          localEvidence['analysis_id'] != _acceptanceAnalysisId ||
+          cloudEvidence['analysis_id'] != _acceptanceAnalysisId ||
+          cloudEvidence['task_id'] != _acceptanceTaskId ||
+          cloudEvidence['status'] != 'succeeded') {
+        throw const FormatException('已归档证据的任务 ID 或状态不一致。');
+      }
+      final token = _accessToken;
+      if (token == null || token.isEmpty) {
+        throw const FormatException('登录状态已失效，请重新登录。');
+      }
+
+      final cloudReport = AnalysisReport.fromCloudEvidence(
+        cloudEvidence,
+        fallbackTarget: _urlController.text.trim(),
+      );
+      final ruleReport = AnalysisReport.fromJson(
+        CloudAiReportInput.buildRuleReport(
+          cloudReport,
+          localEvidence: localEvidence,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _localEvidence = localEvidence);
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ReportPage(
+            report: ruleReport,
+            aiRunner: (apiKey, modelName) => _runAiAnalysis(
+              apiKey: apiKey,
+              modelName: modelName,
+              cloudEvidence: cloudEvidence,
+              ruleReport: ruleReport,
+            ),
+            schoolAiRunner: () => _runSchoolAiAnalysis(
+              cloudEvidence: cloudEvidence,
+              ruleReport: ruleReport,
+            ),
+            mockSuccessRunner: () => _runOfflineMock(
+              simulateFailure: false,
+              cloudEvidence: cloudEvidence,
+              ruleReport: ruleReport,
+            ),
+            mockFailureRunner: () => _runOfflineMock(
+              simulateFailure: true,
+              cloudEvidence: cloudEvidence,
+              ruleReport: ruleReport,
+            ),
+          ),
+        ),
+      );
+    } on Exception catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法载入已归档验收证据：$error')),
+      );
+    }
+  }
+
   Future<void> _continuePolling() async {
     final task = _task;
     final token = _accessToken;
@@ -403,6 +497,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
 
   Future<AiReportExecution> _runAiAnalysis({
     required String apiKey,
+    required String modelName,
     required Map<String, dynamic> cloudEvidence,
     required AnalysisReport ruleReport,
   }) async {
@@ -420,12 +515,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       ruleReport,
       localEvidence: _localEvidence,
     );
-    final result = await AiReportService(DeepSeekAiClient()).analyzeOrFallback(
+    final result = await AiReportService(
+      DeepSeekAiClient(modelName: modelName),
+    ).analyzeOrFallback(
       apiKey: apiKey,
       sanitizedPayload: payload,
       availableEvidenceIds: availableEvidenceIds,
       ruleReport: ruleJson,
       hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
+      modelName: modelName,
     );
     final report = AnalysisReport.fromJson(result.report);
     final errorCode = result.error?.code;
@@ -433,6 +531,56 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       report: report,
       usedFallback: result.usedFallback,
       message: errorCode == null ? null : _aiErrorMessage(errorCode),
+      reportJson: result.report,
+    );
+  }
+
+  Future<AiReportExecution> _runSchoolAiAnalysis({
+    required Map<String, dynamic> cloudEvidence,
+    required AnalysisReport ruleReport,
+  }) async {
+    final payload = CloudAiReportInput.buildPayload(
+      url: _urlController.text.trim(),
+      cloudEvidence: cloudEvidence,
+      ruleReport: ruleReport,
+      localEvidence: _localEvidence,
+    );
+    final availableEvidenceIds = <String>{
+      ..._evidenceIds(cloudEvidence),
+      ..._evidenceIds(_localEvidence),
+    };
+    final ruleJson = CloudAiReportInput.buildRuleReport(
+      ruleReport,
+      localEvidence: _localEvidence,
+    );
+    final token = _accessToken;
+    final schoolClient = SchoolAiClient();
+    final result = await const AiReportService().analyzeRequestOrFallback(
+      request: () {
+        if (token == null || token.isEmpty) {
+          throw const AiClientException(
+            AiClientErrorCode.authRequired,
+            'A TapLens login token is required',
+          );
+        }
+        return schoolClient.analyze(
+          accessToken: token,
+          payload: payload,
+        );
+      },
+      availableEvidenceIds: availableEvidenceIds,
+      ruleReport: ruleJson,
+      hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
+      modelName: 'deepseek-flash',
+    );
+    schoolClient.close();
+    return AiReportExecution(
+      report: AnalysisReport.fromJson(result.report),
+      usedFallback: result.usedFallback,
+      message: result.error == null
+          ? null
+          : _schoolAiErrorMessage(result.error!.code),
+      reportJson: result.report,
     );
   }
 
@@ -487,9 +635,32 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消 AI 请求',
       AiClientErrorCode.invalidEvidenceId => 'AI 引用了不存在的证据',
       AiClientErrorCode.hardRiskDowngraded => 'AI 试图降低规则确认的高风险',
+      AiClientErrorCode.authRequired => 'TapLens 登录状态已失效',
+      AiClientErrorCode.serviceUnavailable => 'AI 服务暂时不可用',
+      AiClientErrorCode.guardRejected => '后端报告守卫拒绝了模型结果',
+      AiClientErrorCode.invalidRequest => '学校模型请求未通过后端接口校验',
     };
     return '$reason，已保留规则报告。';
   }
+
+  String _schoolAiErrorMessage(AiClientErrorCode code) => switch (code) {
+        AiClientErrorCode.authRequired => '登录状态已失效或未登录，请返回并重新登录。规则报告仍可查看。',
+        AiClientErrorCode.timeout => '学校模型响应超时，未自动重试。规则报告仍可查看。',
+        AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，请稍后再试。规则报告仍可查看。',
+        AiClientErrorCode.guardRejected => '模型报告被后端守卫拒绝，已保留原规则报告。',
+        AiClientErrorCode.invalidRequest =>
+          '学校模型请求未通过后端接口校验，请联系管理员核对接口字段和格式。规则报告仍可查看。',
+        AiClientErrorCode.network => '网络不可用，无法连接学校模型。规则报告仍可查看。',
+        AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
+        AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
+        AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
+        AiClientErrorCode.invalidJson ||
+        AiClientErrorCode.reportSchemaInvalid =>
+          '学校模型返回的报告格式未通过检查，已保留规则报告。',
+        AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
+        AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
+        AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -585,6 +756,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                 ),
               ),
             ],
+            if (_canReplayArchivedAcceptance)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: OutlinedButton.icon(
+                  onPressed: _loading ? null : _openArchivedAcceptanceReport,
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  label: const Text('从本机已归档证据打开报告'),
+                ),
+              ),
             if (quota != null) ...[
               const SizedBox(height: 16),
               Card(
@@ -638,8 +818,13 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                             );
                             return ReportPage(
                               report: ruleReport,
-                              aiRunner: (apiKey) => _runAiAnalysis(
+                              aiRunner: (apiKey, modelName) => _runAiAnalysis(
                                 apiKey: apiKey,
+                                modelName: modelName,
+                                cloudEvidence: cloudEvidence,
+                                ruleReport: ruleReport,
+                              ),
+                              schoolAiRunner: () => _runSchoolAiAnalysis(
                                 cloudEvidence: cloudEvidence,
                                 ruleReport: ruleReport,
                               ),

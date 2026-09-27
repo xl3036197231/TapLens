@@ -205,16 +205,15 @@ void main() {
 
     final wrongAnalysis = Map<String, dynamic>.from(verified)
       ..['analysis_id'] = '55555555-5555-4555-8555-555555555555';
-    final rejected =
-        await AiReportService(
-          MockAiClient(responseJson: jsonEncode(wrongAnalysis)),
-        ).analyzeOrFallback(
-          apiKey: 'TEST_ONLY',
-          sanitizedPayload: const {},
-          availableEvidenceIds: cloudIds,
-          ruleReport: ruleJson,
-          hardRiskLevel: 'high',
-        );
+    final rejected = await AiReportService(
+      MockAiClient(responseJson: jsonEncode(wrongAnalysis)),
+    ).analyzeOrFallback(
+      apiKey: 'TEST_ONLY',
+      sanitizedPayload: const {},
+      availableEvidenceIds: cloudIds,
+      ruleReport: ruleJson,
+      hardRiskLevel: 'high',
+    );
     expect(rejected.usedFallback, isTrue);
     expect(rejected.error?.code, AiClientErrorCode.reportSchemaInvalid);
   });
@@ -259,10 +258,10 @@ void main() {
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          calls.add(call.method);
-          if (call.method == 'readKey') return 'TEST_ONLY';
-          return null;
-        });
+      calls.add(call.method);
+      if (call.method == 'readKey') return 'TEST_ONLY';
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
@@ -275,20 +274,19 @@ void main() {
       MaterialApp(
         home: ReportPage(
           report: AnalysisReport.fromJson(verified),
-          aiRunner: (key) async {
-            final result =
-                await AiReportService(
-                  MockAiClient(
-                    responseJson: jsonEncode(verified),
-                    usage: _usage,
-                  ),
-                ).analyzeOrFallback(
-                  apiKey: key,
-                  sanitizedPayload: const {},
-                  availableEvidenceIds: cloudIds,
-                  ruleReport: verified,
-                  hardRiskLevel: 'high',
-                );
+          aiRunner: (key, _) async {
+            final result = await AiReportService(
+              MockAiClient(
+                responseJson: jsonEncode(verified),
+                usage: _usage,
+              ),
+            ).analyzeOrFallback(
+              apiKey: key,
+              sanitizedPayload: const {},
+              availableEvidenceIds: cloudIds,
+              ruleReport: verified,
+              hardRiskLevel: 'high',
+            );
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
@@ -306,8 +304,79 @@ void main() {
     await tester.tap(find.text('确认并分析'));
     await tester.pumpAndSettle();
     expect(find.text('AI 报告已通过证据和风险守卫。'), findsOneWidget);
-    expect(find.textContaining('30 tokens'), findsOneWidget);
+    expect(find.textContaining('Token 用量：30'), findsOneWidget);
     expect(calls, containsAllInOrder(['readKey', 'saveKey']));
+  });
+
+  testWidgets(
+      'school model is selected by default and runs once without key access', (
+    tester,
+  ) async {
+    const keyChannel = MethodChannel('com.taplens.app/secure_storage');
+    final keyStoreCalls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(keyChannel, (call) async {
+      keyStoreCalls.add(call.method);
+      return null;
+    });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(keyChannel, null),
+    );
+
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var schoolCalls = 0;
+    final verifiedAi = <String, dynamic>{
+      ...verified,
+      'sources': {...verified['sources'] as Map<String, dynamic>, 'ai': true},
+      'token_usage': {
+        ...(verified['token_usage'] as Map<String, dynamic>),
+        'request_count': 1,
+        'model': 'deepseek-flash',
+      },
+    };
+    final report = AnalysisReport.fromJson(verifiedAi);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportPage(
+          report: AnalysisReport.fromJson(
+            CloudAiReportInput.buildRuleReport(
+              ruleReport,
+              localEvidence: localEvidence,
+            ),
+          ),
+          aiRunner: (key, model) async => AiReportExecution(
+            report: report,
+            usedFallback: false,
+          ),
+          schoolAiRunner: () async {
+            schoolCalls++;
+            return AiReportExecution(
+              report: report,
+              usedFallback: false,
+              reportJson: verifiedAi,
+            );
+          },
+        ),
+      ),
+    );
+
+    final button = find.text('AI 深度研判（一次调用）');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('使用学校模型'), findsOneWidget);
+    await tester.tap(find.text('确认并分析'));
+    await tester.pumpAndSettle();
+
+    expect(schoolCalls, 1);
+    expect(keyStoreCalls, isEmpty);
+    expect(find.text('学校模型已调用一次'), findsOneWidget);
+    expect(find.textContaining('sources.ai=true'), findsOneWidget);
+    expect(find.textContaining('模型：deepseek-flash'), findsOneWidget);
+    expect(find.text('复制最终报告 JSON'), findsOneWidget);
   });
 
   testWidgets('report page keeps the high-risk rule report after bad AI JSON', (
@@ -316,9 +385,9 @@ void main() {
     const keyChannel = MethodChannel('com.taplens.app/secure_storage');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          if (call.method == 'readKey') return 'TEST_ONLY';
-          return null;
-        });
+      if (call.method == 'readKey') return 'TEST_ONLY';
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
@@ -332,17 +401,16 @@ void main() {
       MaterialApp(
         home: ReportPage(
           report: AnalysisReport.fromJson(fallback),
-          aiRunner: (key) async {
-            final result =
-                await AiReportService(
-                  const MockAiClient(responseJson: '{invalid'),
-                ).analyzeOrFallback(
-                  apiKey: key,
-                  sanitizedPayload: const {},
-                  availableEvidenceIds: cloudIds,
-                  ruleReport: fallback,
-                  hardRiskLevel: 'high',
-                );
+          aiRunner: (key, _) async {
+            final result = await AiReportService(
+              const MockAiClient(responseJson: '{invalid'),
+            ).analyzeOrFallback(
+              apiKey: key,
+              sanitizedPayload: const {},
+              availableEvidenceIds: cloudIds,
+              ruleReport: fallback,
+              hardRiskLevel: 'high',
+            );
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
@@ -370,9 +438,9 @@ void main() {
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          calls.add(call.method);
-          return null;
-        });
+      calls.add(call.method);
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
