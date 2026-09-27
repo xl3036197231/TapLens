@@ -1,0 +1,12 @@
+.git
+.github
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/build
+**/.dart_tool
+**/*.db
+**/.env
+mobile/android
+mobile/ios
+shared/daliy_task

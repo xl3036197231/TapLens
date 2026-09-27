@@ -23,7 +23,18 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - 对每个HTTP请求重新执行目标授权，阻止业务写请求、下载、弹窗和外部协议；
 - 只采集脱敏URL、请求域名、跳转、表单字段、标题、文本摘要和截图。
 
-已提供独立worker，可从SQLite队列取出任务、运行受限Playwright采集并组装正式云证据。多worker生产级队列、运行中进程崩溃恢复和生产部署尚未实现。
+已提供独立worker，可从SQLite队列取出任务、运行受限Playwright采集并组装正式云证据。单 Worker 重启时会把中断的 `running` 任务重新排队；多 Worker 生产级队列尚未实现，也不属于当前单机部署范围。
+
+## ECS 单机部署
+
+仓库根目录现提供 `backend/Dockerfile`、`compose.yaml` 和 `deploy/nginx/default.conf`。
+单机部署运行 Nginx、一个 FastAPI 容器和一个 Playwright Worker，共享持久化 SQLite
+数据卷。API 与 Worker 不直接暴露公网，Nginx 提供反向代理和完整就绪检查。
+
+无域名阶段使用 `TAPLENS_ENVIRONMENT=staging` 和临时 HTTP 公网地址；该模式仍要求
+至少 32 字符的随机 JWT 密钥，并禁止 `TAPLENS_TEST_ALLOWED_ORIGINS`。域名备案和证书
+完成后切换到 `production` 与固定 HTTPS 地址。部署、验收、备份和清理步骤见
+`deploy/README.md`。
 
 ## 本地运行
 

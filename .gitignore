@@ -1,0 +1,8 @@
+deploy/.env
+deploy/.deployed-revision
+backups/
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store

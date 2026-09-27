@@ -1,0 +1,6 @@
+argon2-cffi>=25.1,<26.0
+fastapi>=0.115,<1.0
+PyJWT>=2.10,<3.0
+pydantic-settings>=2.7,<3.0
+uvicorn[standard]>=0.34,<1.0
+playwright>=1.50,<2.0

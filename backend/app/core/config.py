@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    environment: Literal["development", "test", "production"] = "development"
+    environment: Literal["development", "test", "staging", "production"] = "development"
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -35,11 +35,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def require_production_jwt_secret(self) -> "Settings":
         secret = self.jwt_secret.get_secret_value()
-        if self.environment == "production" and (
+        if self.environment in {"staging", "production"} and (
             secret in {"development-only-change-me", "replace-me-before-auth-is-enabled"}
             or len(secret) < 32
         ):
-            raise ValueError("production requires a random JWT secret of at least 32 characters")
+            raise ValueError(
+                "staging and production require a random JWT secret of at least 32 characters"
+            )
         try:
             ZoneInfo(self.quota_timezone)
         except ZoneInfoNotFoundError as exc:
@@ -60,8 +62,8 @@ class Settings(BaseSettings):
             for origin in self.test_allowed_origins.split(",")
             if origin.strip()
         )
-        if self.environment == "production" and normalized_test_origins:
-            raise ValueError("production forbids test_allowed_origins")
+        if self.environment in {"staging", "production"} and normalized_test_origins:
+            raise ValueError("staging and production forbid test_allowed_origins")
         self.public_base_url = self.public_base_url.rstrip("/")
         self.test_allowed_origins = ",".join(dict.fromkeys(normalized_test_origins))
         return self
