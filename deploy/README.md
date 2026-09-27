@@ -61,6 +61,23 @@ After a domain has completed real-name verification and ICP filing:
 Production refuses an HTTP public base URL and both staging and production refuse
 `TAPLENS_TEST_ALLOWED_ORIGINS`.
 
+## School model
+
+The default AI mode uses the CUC OpenAI-compatible Chat Completions endpoint.
+Keep the real credential only in the untracked `deploy/.env` with mode `0600`:
+
+```ini
+TAPLENS_LLM_ENABLED=true
+TAPLENS_LLM_BASE_URL=https://openai.cuc.edu.cn/v1
+TAPLENS_LLM_API_KEY=replace-on-the-server-only
+TAPLENS_LLM_MODEL=cuc/deepseek
+TAPLENS_LLM_PROTOCOL=openai_chat_completions
+TAPLENS_LLM_TIMEOUT_SECONDS=20
+```
+
+The API rejects client-supplied model keys. The server credential is never stored
+in SQLite, returned to the client, or included in backups.
+
 ## Operations
 
 Run all commands from the repository root on the ECS host. The scripts validate
