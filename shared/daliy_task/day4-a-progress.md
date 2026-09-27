@@ -115,3 +115,10 @@ python mobile/test/ai/validate_day4_evidence.py --bundle day4-audit.json
 - ECS staging 目前是 HTTP。只允许使用虚构比赛账号和虚构密码，不要在此输入真实账号密码、Token 或 API Key。
 
 下一步仍是通过 APP 的“已有云任务 ID”入口，用拥有旧任务的虚构账号只读查询上面的 `task_id`，复制审计 JSON 后运行 `validate_day4_evidence.py --bundle`。如果登录后任务不存在或已经过期，先让 B 核查备份/迁移结果；未经确认仍不创建新任务。联合验收继续保持 **BLOCKED**，因为完整本地/云端/报告 JSON 尚未取得。
+
+## 2026-09-27 模拟器恢复查询已准备
+
+- API 35 模拟器已启动，Debug APK 已安装并打开。输入统一旧受控 URL 后，本地页面显示 `L01`；这一步没有打开网页或创建云任务。
+- APP 当前页已填入 ECS staging API、正式 `task_id` 和已有的虚构用户名 `taplens_smoke_user`；密码保持空白，按钮显示“查询已有任务”，尚未点击。
+- 本地新解析产生的临时 `analysis_id=f6715b07-38b8-445c-b0cc-28646e6d260a` 不是正式任务 ID。查询旧任务成功后，APP 会按任务返回的 `analysis_id=aa4e3f03-6141-4799-a229-04c879d3bb02` 重新做同目标静态解析，再只读轮询；不能把临时 ID 当成正式证据。
+- 因 staging 使用 HTTP，请只在模拟器中输入虚构比赛账号密码。下一步由 A 在当前页面输入该账号的虚构密码并点“查询已有任务”；不要点成创建新任务，也不要分享密码。查询结果若为任务不存在/过期，转 B 查迁移备份，不重跑云任务。
