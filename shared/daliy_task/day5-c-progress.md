@@ -4,85 +4,108 @@
 >
 > 分支：`feat/c-day2-device-validation`
 >
-> 基线：本地 `main`、`origin/main` 和当前 C 分支均已包含 `1d71333`
+> 基线：本地 `main`、`origin/main` 和当前 C 分支均包含 `1d71333`
 >
-> 状态：`BLOCKED`（等待 A/B 提供正式云快照中的原始请求 URL）
+> 状态：`READY`
 
-## 本日结论
+## 正式统一任务
 
-C 侧解析模块、Schema、Flutter 通道相关回归和最新 Debug APK 均已准备好，但**没有生成 Day 5 正式本地证据 JSON**。
-
-原因是仓库当前只有正式任务的：
-
-- `analysis_id=aa4e3f03-6141-4799-a229-04c879d3bb02`
-- `task_id=5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0`
-
-尚未找到 A 的 `day5-a-evidence/day5-audit.json` 或 B 提供的完整正式云快照，因此无法确认旧任务记录里的**原始请求 URL**。Day 5 要求以旧任务记录为准，C 不能用 ECS 当前入口、Codespaces 地址或旧 `.test` fixture 猜测替代。
-
-## 已完成
-
-1. 拉取最新 `main`，并把最新 `main` 合入当前 C 分支；没有创建新分支。
-2. 检索正式 `analysis_id`、`task_id`、ECS 受控入口及旧 `.test` 证据：
-   - Day 4 C 的旧记录使用 `https://scholarship.example.test/apply?source=poster`；
-   - Day 4 D 已明确该地址与 A 页面/云端目标不一致，旧 `L01/L02` 不可复用；
-   - ECS 当前 `http://39.107.253.138/controlled/go/campus` 只是当前 staging 入口，不能证明它就是旧任务原始请求 URL。
-3. 完成 TapLens app 模块 Kotlin/JUnit 回归，两个测试套件共 12/12 通过。
-4. 完成 C 相关 Flutter 回归，本地安全、证据转换和目标匹配共 7/7 通过。
-5. 完成本地证据 Schema 校验，8 份 example/fixture 文档全部通过。
-6. 在最新基线上成功构建 Debug APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`。
-7. 没有创建新云任务、没有调用创建任务接口、没有消耗新额度，也没有为凑齐交付物伪造或拼接旧 JSON。
-
-## 实际检查结果
-
-| 检查 | 结果 |
+| 字段 | 实际值 |
 |---|---|
-| `gradlew :app:testDebugUnitTest --no-daemon` | `BUILD SUCCESSFUL`；`DeepLinkAnalyzerTest` 6/6、`LocalEvidenceBuilderTest` 6/6，合计 12/12 |
-| `flutter test --no-pub test/local_safety_service_test.dart test/local_evidence_test.dart test/local_target_matcher_test.dart` | 7/7 通过 |
-| `python mobile/test/local/validate_local_evidence.py` | `LOCAL EVIDENCE CHECK PASSED: 8 documents` |
-| `flutter build apk --debug --no-pub` | 成功，生成最新 Debug APK |
-| `adb devices -l` | 本次检查时没有在线设备；因正式 URL 尚未取得，没有把模块 fixture 伪装成 APP 现场证据 |
+| `analysis_id` | `0bab7eba-ff50-42f8-a264-543596b2c9bf` |
+| `task_id` | `f1858539-4595-4297-acfe-5bf81a91bc54` |
+| 原始 URL | `http://39.107.253.138/controlled/go/campus` |
+| 云端最终 URL | `http://39.107.253.138/controlled/campus-login.html` |
+| 云端状态 | `succeeded` |
 
-首次执行全工程 `testDebugUnitTest` 时，Gradle 因 Flutter 插件缓存位于 C 盘、项目位于 D 盘而报跨盘路径错误；将 `PUB_CACHE` 切换到 D 盘后错误消失。全工程任务随后被 `image_picker_android` 的上游插件测试长时间占用，因此按 C 的验收范围改为精确执行 `:app:testDebugUnitTest`，TapLens app 的 12 项测试全部通过。日志中的 AGP/Kotlin 弃用和 SDK XML 版本信息均为工具链警告，不是 C 用例失败。
+A 的 `origin/feat/a-mobile-function` 已提交 APP 导出的 `test1.json`，B 的
+`origin/feat/b-backend-bootstrap` 已提交该任务的完整 `cloud-evidence.json`。C
+只读核对两份材料后确认 `analysis_id`、`task_id`、原始 URL、最终 URL 和
+`C01–C04` 一致。本次正式任务已经更新为上表 ID，不再使用 Day 5 计划最初列出的
+旧 ID。
 
-## 尚缺的正式交付物
+## C 已完成
 
-以下文件当前**没有创建**，避免把错误目标写成正式证据：
+1. 检查远端：截至本次执行，`origin/main` 仍为 `1d71333`，无新 main 提交；
+   A/B/D 的 Day 5 材料仍各自在对应分支，因此没有把其他成员整分支合入 C。
+2. 新增可复跑的 Android 集成测试
+   `mobile/integration_test/day5_c_local_evidence_test.dart`。
+3. 在 Android 15 模拟器 `emulator-5554` 上，由最新 Debug APK 调用原生
+   MethodChannel `analyzeLocalEvidence`，输入正式 `analysis_id` 和云快照中的原始
+   URL。
+4. 保存完整脱敏返回到
+   `shared/daliy_task/day5-c-evidence/local-evidence.json`。
+5. 扩展 C 的 Schema 校验器，使正式 Day 5 本地证据和原有 example/fixture 一起
+   校验。
+6. 没有创建云任务、没有调用 AI、没有访问目标网页、没有启动外部应用，也没有
+   消耗任务额度。
 
-- Day 5 正式本地证据 JSON；
-- 与正式 URL 对应的 APP/MethodChannel 现场日志；
-- 本次实际 `Lxx` 清单。
+## 正式本地证据结果
 
-需要 A 或 B 先提供以下任一材料：
+| 检查项 | 实际结果 |
+|---|---|
+| `processing_status` | `succeeded` |
+| `target.display_value` | `http://39.107.253.138/controlled/go/campus` |
+| `target.parameters` | 空对象；原始 URL 无查询参数 |
+| 本地证据编号 | 仅 `L01` |
+| `launched_external_app` | `false` |
+| `network_accessed` | `false` |
+| `preflight.attempted` | `false` |
+| `preflight.status` | `not_started` |
+| 风险边界 | `LOCAL_STATIC_ONLY / insufficient_evidence` |
 
-1. `shared/daliy_task/day5-a-evidence/day5-audit.json`，其中包含旧任务返回的原始请求 URL；或
-2. B 导出的完整脱敏正式云快照，明确同时包含上述 `analysis_id`、`task_id` 和原始请求 URL。
+无查询参数时只产生 `L01` 是正确结果；没有借用旧 fixture 的 `L02`。静态解析仅
+说明输入 URL 的结构，不能证明页面安全、运营者身份或最终网页内容。
 
-只提供当前 ECS 入口、重定向后的最终地址、截图标题或旧 `.test` 地址均不足以解除阻塞。
+## 验证命令与结果
 
-## 收到 URL 后的 C 操作
+```powershell
+cd mobile
+flutter test integration_test/day5_c_local_evidence_test.dart `
+  -d emulator-5554 --no-pub -r expanded
+```
 
-1. 先核对材料中的 `analysis_id` 和 `task_id` 与主线完全一致。
-2. 在最新 APK 上使用同一 `analysis_id`，对快照里的原始请求 URL 调用 `analyzeLocalEvidence`。
-3. 导出完整脱敏 JSON，确认：
-   - `launched_external_app=false`；
-   - `network_accessed=false`；
-   - `preflight.status=not_started`；
-   - 仅输出本次真实产生的 `Lxx`；无查询参数时只有 `L01` 属于正常结果；
-   - 敏感参数只保留参数名和脱敏状态，不保留参数值。
-4. 对正式 JSON 再跑 Schema 校验，并将 JSON 交给 A、D 做 bundle 级一致性审核。
+结果：构建并安装最新 Debug APK 成功；原生 MethodChannel 返回完整 JSON；测试
+`1/1` 通过，输出 `All tests passed!`。
 
-静态解析边界：未打开外部应用、未访问目标网站；静态证据本身不能证明目标安全。
+```powershell
+python mobile/test/local/validate_local_evidence.py
+```
+
+结果：`LOCAL EVIDENCE CHECK PASSED: 9 documents`；Schema、证据引用及静态执行
+边界全部通过。
+
+```powershell
+python mobile/test/ai/validate_day4_evidence.py `
+  --bundle <A 分支导出的 day5-a-evidence/test1.json>
+```
+
+结果：bundle 审计通过，识别同一 `analysis_id`、`task_id`、`L01` 与
+`C01–C04`。C 现场 JSON 与 A bundle 的 `local_evidence` 除独立执行产生的
+`processed_at` 外逐字段一致。
+
+此前已经完成的回归仍有效：TapLens app Kotlin/JUnit 12/12、C 相关 Flutter
+单元测试 7/7、Debug APK 构建均通过。本次新增集成测试专门补齐正式 URL 的设备
+现场调用，不把模块 fixture 冒充现场证据。
+
+## 交付物
+
+- `shared/daliy_task/day5-c-evidence/local-evidence.json`
+- `shared/daliy_task/day5-c-evidence/README.md`
+- `mobile/integration_test/day5_c_local_evidence_test.dart`
 
 ## 统一交接
 
-我完成了：最新 `main` 同步、C 解析与契约回归、12 项 Kotlin/JUnit、7 项 Flutter 测试、8 份 Schema 文档校验，以及最新 Debug APK 构建。
+我完成了：使用 A/B 正式云快照的原始 URL，在最新 APK 和 Android 15 模拟器上
+生成同 `analysis_id` 的完整本地证据，并保留可复跑集成测试。
 
-你可以这样复现：按上表命令执行；正式 URL 到达后，再按“收到 URL 后的 C 操作”生成现场 JSON。
+你可以这样复现：执行上面的 Flutter 集成测试和 Python Schema 校验。
 
-实际结果：所有 C 侧可独立完成的回归均通过；未创建新任务、未消耗额度、未使用错误 URL 生成正式证据。
+实际结果：只产生 `L01`；未启动外部应用、未联网、未开始动态预检；与 A bundle
+中的本地目标及 B cloud evidence 的 `initial_url` 一致。
 
-目前还缺：A/B 正式云快照中的原始请求 URL，以及基于该 URL 的最新 APK 现场 JSON。
+目前还缺：D 将 A bundle、B cloud evidence 与本 C JSON 做最终 bundle 审计。
 
-状态：BLOCKED
+状态：READY
 
 影响成员：A、D

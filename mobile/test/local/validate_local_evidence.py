@@ -12,6 +12,7 @@ from referencing import Registry, Resource
 ROOT = Path(__file__).resolve().parents[3]
 CONTRACTS = ROOT / "shared" / "contracts"
 LOCAL_FIXTURES = ROOT / "shared" / "fixtures" / "local"
+DAY5_C_EVIDENCE = ROOT / "shared" / "daliy_task" / "day5-c-evidence"
 
 
 def load_json(path: Path) -> dict:
@@ -34,6 +35,7 @@ def main() -> None:
 
     documents = [CONTRACTS / "local-evidence.example.json"]
     documents.extend(sorted(LOCAL_FIXTURES.glob("*.json")))
+    documents.extend(sorted(DAY5_C_EVIDENCE.glob("local-evidence.json")))
     failures: list[str] = []
 
     for path in documents:
