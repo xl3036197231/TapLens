@@ -12,8 +12,10 @@ Historical B/C fixtures have different analysis IDs and must not be joined.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
@@ -39,7 +41,87 @@ def _require(condition: bool, message: str) -> None:
 
 def _validate_schema(name: str, value: dict) -> None:
     errors = list(_schema_validator(name).iter_errors(value))
-    _require(not errors, f"{name} failed Schema validation at {list(errors[0].path) if errors else []}")
+    if errors:
+        first = errors[0]
+        missing = []
+        if first.validator == "required" and isinstance(first.instance, dict):
+            missing = [key for key in first.validator_value if key not in first.instance]
+        suffix = f"; missing required fields: {', '.join(missing)}" if missing else ""
+        raise ValueError(f"{name} failed Schema validation at {list(first.path)}{suffix}")
+
+
+def _http_key(value: str) -> tuple:
+    """Compare redacted URLs without guessing any public/internal mapping."""
+    try:
+        uri = urlsplit(value)
+        _require(uri.scheme.lower() in {"http", "https"} and bool(uri.hostname),
+                 "target is not an HTTP URL")
+        _require(uri.username is None and uri.password is None, "URL contains credentials")
+        return (uri.scheme.lower(), uri.hostname.lower(),
+                uri.port if uri.port is not None else (443 if uri.scheme.lower() == "https" else 80),
+                uri.path or "/", uri.query, uri.fragment)
+    except ValueError:
+        # Never include the input URL or credentials in a failure message.
+        raise ValueError("target URL structure is invalid") from None
+
+
+def _audit_targets(local: dict, report: dict, cloud: dict) -> None:
+    target = local["target"]
+    _require(target["input_type"] == "url", "cloud case requires local target.input_type=url")
+    initial = _http_key(cloud["initial_url"])
+    final = _http_key(cloud["final_url"])
+    _require(_http_key(target["display_value"]) == initial,
+             "local target.display_value / cloud initial_url mismatch; mapping must be reviewed")
+    _require((target["scheme"].lower(), (target["host"] or "").lower(), target["path"]) ==
+             (initial[0], initial[1], initial[3]), "local target scheme/host/path mismatch")
+    # Historical D reports show the input; the current APP shows the final URL.
+    _require(report["target"]["type"] == "url" and
+             _http_key(report["target"]["display"]) in {initial, final},
+             "report target.display is neither cloud initial_url nor final_url")
+    previous = initial
+    for redirect in cloud["redirects"]:
+        _require(_http_key(redirect["from_url"]) == previous,
+                 "C01 redirect chain is discontinuous")
+        _require(redirect["status_code"] in {301, 302, 303, 307, 308},
+                 "C01 redirect status_code is not an HTTP redirect")
+        previous = _http_key(redirect["to_url"])
+    _require(previous == final, "C01 redirect chain does not reach final_url")
+    for destination in report["observed_behavior"]["destinations"]:
+        _require(_http_key(destination) == final,
+                 "report observed_behavior.destinations differs from final_url")
+
+
+def audit_screenshot(cloud: dict, path: Path, record: dict) -> dict:
+    """Verify a supplied PNG against B's task-bound SHA-256 attestation.
+
+    Does not download anything or prove pixel content / publisher identity.
+    Pillow is needed only for this optional binary check.
+    """
+    from PIL import Image
+
+    _require(isinstance(record, dict) and set(record) ==
+             {"analysis_id", "task_id", "artifact_id", "sha256", "width", "height"},
+             "screenshot record must contain only IDs, sha256, width and height")
+    shot = cloud["screenshot"]
+    for key in ("analysis_id", "task_id"):
+        _require(record[key] == cloud[key], f"screenshot record {key} mismatch")
+    _require(record["artifact_id"] == shot["artifact_id"], "screenshot record artifact_id mismatch")
+    data = path.read_bytes()
+    _require(data.startswith(b"\x89PNG\r\n\x1a\n"), "C04 file has no PNG signature")
+    digest = hashlib.sha256(data).hexdigest()
+    _require(record["sha256"] == digest, "C04 PNG sha256 differs from B record")
+    try:
+        with Image.open(path) as image:
+            _require(image.format == "PNG", "C04 file is not PNG")
+            size = image.size
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+    except (OSError, SyntaxError, ValueError):
+        raise ValueError("C04 PNG binary validation failed") from None
+    _require(list(size) == [record["width"], record["height"]], "C04 PNG dimensions mismatch")
+    return {"artifact_id": shot["artifact_id"], "sha256": digest,
+            "width": size[0], "height": size[1]}
 
 
 def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str | None = None) -> dict:
@@ -55,6 +137,15 @@ def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str 
     _require(local["observations"]["launched_external_app"] is False, "local analysis launched an app")
     _require(local["observations"]["network_accessed"] is False, "local analysis accessed network")
     _require(local["preflight"]["status"] == "not_started", "local preflight unexpectedly ran")
+    _require(local["preflight"]["attempted"] is False, "local preflight was attempted")
+    local_ids = {item["id"] for item in local["evidence"]}
+    for hint in local["risk_hints"]:
+        _require(set(hint["evidence_ids"]) <= local_ids, "local risk_hints references missing Lxx")
+    usage = report["token_usage"]
+    _require(usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"],
+             "token_usage.total_tokens arithmetic mismatch")
+    _require(report["sources"]["ai"] is (usage["request_count"] == 1),
+             "sources.ai / token_usage.request_count mismatch")
 
     if cloud is not None:
         _require(cloud["analysis_id"] == analysis_id, "cloud/local analysis_id mismatch")
@@ -74,6 +165,13 @@ def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str 
             "C02 has no sensitive form-field observation",
         )
         _require(cloud["screenshot"] is not None, "C04 has no screenshot artifact")
+        _require(cloud["page"] is not None, "C03 has no page observation")
+        _audit_targets(local, report, cloud)
+        shot = cloud["screenshot"]
+        _require(shot["artifact_id"] == cloud["task_id"], "C04 artifact_id / task_id mismatch")
+        _require(urlsplit(shot["download_url"]).path ==
+                 f"/api/v1/deep-scans/{cloud['task_id']}/screenshot",
+                 "C04 download_url does not belong to this task")
         _require(
             not any(request["method"] == "POST" for request in cloud["requests"]),
             "cloud evidence contains a POST request",
@@ -89,6 +187,7 @@ def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str 
 
     report_items = {item["id"]: item for item in report["evidence"]}
     _require(len(report_items) == len(report["evidence"]), "duplicate report evidence ID")
+    _require(local_ids <= report_items.keys(), "report omits local evidence")
     for eid, item in report_items.items():
         _require(eid in source_items, f"report references unavailable evidence ID {eid}")
         source, original = source_items[eid]
@@ -122,9 +221,15 @@ def audit(local: dict, report: dict, cloud: dict | None = None, *, task_id: str 
     }
 
 
-def audit_bundle(bundle: dict) -> dict:
+def audit_bundle(bundle: dict, *, analysis_id: str | None = None,
+                 task_id: str | None = None, rule_only: bool = False) -> dict:
     """Validate the debug bundle wrapper and its three schema documents."""
+    _require(isinstance(bundle, dict), "bundle root must be an object")
     _require(bundle.get("bundle_version") == "1.0", "unsupported bundle_version")
+    if analysis_id is not None:
+        _require(bundle.get("analysis_id") == analysis_id, "bundle differs from expected analysis_id")
+    if task_id is not None:
+        _require(bundle.get("task_id") == task_id, "bundle differs from expected task_id")
     local = bundle.get("local_evidence")
     cloud = bundle.get("cloud_evidence")
     report = bundle.get("report")
@@ -134,8 +239,13 @@ def audit_bundle(bundle: dict) -> dict:
     _require(bundle.get("analysis_id") == local.get("analysis_id"), "bundle/local analysis_id mismatch")
     _require(bundle.get("status") == cloud.get("status"), "bundle/cloud status mismatch")
     result = audit(local, report, cloud, task_id=bundle.get("task_id"))
+    _require(local["preflight"]["screenshot_path"] is None,
+             "bundle contains a private screenshot_path")
     _require(bundle.get("analysis_id") == result["analysis_id"], "bundle analysis_id mismatch")
     _require(bundle.get("task_id") == result["task_id"], "bundle task_id mismatch")
+    if rule_only:
+        _require(report["sources"]["ai"] is False and report["token_usage"]["request_count"] == 0,
+                 "rule-only audit cannot claim real AI or Token usage")
     return result
 
 
@@ -146,22 +256,49 @@ def main() -> None:
     parser.add_argument("--cloud", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--task-id")
+    parser.add_argument("--analysis-id", help="Pin the formal analysis instead of trusting the bundle")
+    parser.add_argument("--rule-only", action="store_true", help="Require no real AI/Token claim")
+    parser.add_argument("--screenshot", type=Path, help="B's PNG; never fetched by this tool")
+    parser.add_argument("--screenshot-record", type=Path, help="B's IDs/SHA-256/dimensions record")
     args = parser.parse_args()
     if args.bundle is not None:
-        if args.local or args.cloud or args.report or args.task_id:
-            parser.error("--bundle cannot be combined with --local/--cloud/--report/--task-id")
-        result = audit_bundle(json.loads(args.bundle.read_text(encoding="utf-8")))
+        if args.local or args.cloud or args.report:
+            parser.error("--bundle cannot be combined with --local/--cloud/--report")
+        bundle = json.loads(args.bundle.read_text(encoding="utf-8-sig"))
+        result = audit_bundle(bundle, analysis_id=args.analysis_id,
+                              task_id=args.task_id, rule_only=args.rule_only)
+        cloud = bundle["cloud_evidence"]
     else:
         if args.local is None or args.report is None:
             parser.error("provide --bundle or both --local and --report")
+        if args.analysis_id or args.rule_only:
+            parser.error("--analysis-id and --rule-only require --bundle")
+        cloud = json.loads(args.cloud.read_text(encoding="utf-8-sig")) if args.cloud else None
         result = audit(
             json.loads(args.local.read_text(encoding="utf-8")),
             json.loads(args.report.read_text(encoding="utf-8")),
-            json.loads(args.cloud.read_text(encoding="utf-8")) if args.cloud else None,
+            cloud,
             task_id=args.task_id,
         )
+    if bool(args.screenshot) != bool(args.screenshot_record):
+        parser.error("provide both --screenshot and --screenshot-record")
+    if args.screenshot is not None:
+        if cloud is None:
+            parser.error("a screenshot requires cloud evidence")
+        result["png_verification"] = audit_screenshot(
+            cloud, args.screenshot,
+            json.loads(args.screenshot_record.read_text(encoding="utf-8-sig")),
+        )
+    else:
+        result["png_verification"] = "NOT_CHECKED"
+    result["scope"] = "JSON evidence audit only; APP pixels and wording require manual review"
     print("DAY 4 EVIDENCE AUDIT PASSED:", json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ValueError as exc:
+        raise SystemExit("EVIDENCE AUDIT FAILED: " + str(exc)) from None
+    except OSError:
+        raise SystemExit("EVIDENCE AUDIT BLOCKED: an input file is unavailable") from None
