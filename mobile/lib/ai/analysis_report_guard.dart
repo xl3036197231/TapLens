@@ -7,10 +7,10 @@ class ReportGuardResult {
   const ReportGuardResult._({this.report, this.error});
 
   const ReportGuardResult.valid(Map<String, dynamic> report)
-    : this._(report: report);
+      : this._(report: report);
 
   const ReportGuardResult.invalid(AiClientException error)
-    : this._(error: error);
+      : this._(error: error);
 
   bool get isValid => report != null;
 }
@@ -40,6 +40,7 @@ class AnalysisReportGuard {
     required Set<String> availableEvidenceIds,
     String? hardRiskLevel,
     String? expectedAnalysisId,
+    String? expectedModel,
   }) {
     late final Map<String, dynamic> report;
     try {
@@ -124,10 +125,21 @@ class AnalysisReportGuard {
         'Zero requests require zero usage and null model',
       );
     }
-    if (requestCount == 1 && tokenUsage['model'] != 'deepseek-flash') {
+    if (requestCount == 1 &&
+        (!_isText(tokenUsage['model'], 200) ||
+            (expectedModel != null && tokenUsage['model'] != expectedModel))) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
         'Unexpected AI model',
+      );
+    }
+    if (sources['ai'] != (requestCount == 1) ||
+        tokenUsage['total_tokens'] !=
+            (tokenUsage['prompt_tokens'] as int) +
+                (tokenUsage['completion_tokens'] as int)) {
+      return _invalid(
+        AiClientErrorCode.reportSchemaInvalid,
+        'AI source or Token arithmetic does not match usage',
       );
     }
 
@@ -173,7 +185,8 @@ class AnalysisReportGuard {
 
     final referencedIds = <String>[];
     final behavior = report['observed_behavior'];
-    if (behavior is! Map<String, dynamic> || behavior['evidence_ids'] is! List) {
+    if (behavior is! Map<String, dynamic> ||
+        behavior['evidence_ids'] is! List) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
         'Invalid observed_behavior',

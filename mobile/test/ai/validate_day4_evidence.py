@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -79,19 +80,25 @@ def _audit_targets(local: dict, report: dict, cloud: dict) -> None:
              _http_key(report["target"]["display"]) in {initial, final},
              "report target.display is neither cloud initial_url nor final_url")
     previous = initial
+    known_destinations = {initial, final}
     for redirect in cloud["redirects"]:
         _require(_http_key(redirect["from_url"]) == previous,
                  "C01 redirect chain is discontinuous")
         _require(redirect["status_code"] in {301, 302, 303, 307, 308},
                  "C01 redirect status_code is not an HTTP redirect")
         previous = _http_key(redirect["to_url"])
+        known_destinations.add(previous)
     _require(previous == final, "C01 redirect chain does not reach final_url")
     for destination in report["observed_behavior"]["destinations"]:
-        _require(_http_key(destination) == final,
-                 "report observed_behavior.destinations differs from final_url")
+        _require(_http_key(destination) in known_destinations,
+                 "report observed_behavior.destinations is outside the observed URL chain")
 
 
 def audit_screenshot(cloud: dict, path: Path, record: dict) -> dict:
+    return audit_png_bytes(cloud, path.read_bytes(), record)
+
+
+def audit_png_bytes(cloud: dict, data: bytes, record: dict) -> dict:
     """Verify a supplied PNG against B's task-bound SHA-256 attestation.
 
     Does not download anything or prove pixel content / publisher identity.
@@ -106,16 +113,15 @@ def audit_screenshot(cloud: dict, path: Path, record: dict) -> dict:
     for key in ("analysis_id", "task_id"):
         _require(record[key] == cloud[key], f"screenshot record {key} mismatch")
     _require(record["artifact_id"] == shot["artifact_id"], "screenshot record artifact_id mismatch")
-    data = path.read_bytes()
     _require(data.startswith(b"\x89PNG\r\n\x1a\n"), "C04 file has no PNG signature")
     digest = hashlib.sha256(data).hexdigest()
     _require(record["sha256"] == digest, "C04 PNG sha256 differs from B record")
     try:
-        with Image.open(path) as image:
+        with Image.open(io.BytesIO(data)) as image:
             _require(image.format == "PNG", "C04 file is not PNG")
             size = image.size
             image.verify()
-        with Image.open(path) as image:
+        with Image.open(io.BytesIO(data)) as image:
             image.load()
     except (OSError, SyntaxError, ValueError):
         raise ValueError("C04 PNG binary validation failed") from None

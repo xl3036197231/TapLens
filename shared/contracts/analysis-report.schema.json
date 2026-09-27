@@ -278,7 +278,8 @@
         },
         "model": {
           "type": ["string", "null"],
-          "enum": ["deepseek-flash", null]
+          "minLength": 1,
+          "maxLength": 200
         }
       }
     }
@@ -360,7 +361,7 @@
         "properties": {
           "token_usage": {
             "properties": {
-              "model": {"const": "deepseek-flash"}
+              "model": {"type": "string", "minLength": 1, "maxLength": 200}
             }
           }
         }

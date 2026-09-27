@@ -5,6 +5,52 @@ import 'package:taplens_mobile/ai/ai_client.dart';
 import 'package:taplens_mobile/ai/analysis_report_guard.dart';
 
 void main() {
+  test('accepts school model usage and preserves optional provider pin', () {
+    final report = _report();
+    (report['sources'] as Map<String, dynamic>)['ai'] = true;
+    report['token_usage'] = {
+      'request_count': 1,
+      'prompt_tokens': 3,
+      'completion_tokens': 2,
+      'total_tokens': 5,
+      'model': 'cuc/deepseek',
+    };
+    expect(
+        AnalysisReportGuard.validate(jsonEncode(report),
+                availableEvidenceIds: {'C01'}, expectedModel: 'cuc/deepseek')
+            .isValid,
+        isTrue);
+    expect(
+        AnalysisReportGuard.validate(jsonEncode(report),
+                availableEvidenceIds: {'C01'}, expectedModel: 'deepseek-flash')
+            .isValid,
+        isFalse);
+    (report['token_usage'] as Map<String, dynamic>)['model'] = '';
+    expect(
+        AnalysisReportGuard.validate(jsonEncode(report),
+            availableEvidenceIds: {'C01'}).isValid,
+        isFalse);
+  });
+
+  test('rejects fabricated source flag and inconsistent token sum', () {
+    final report = _report();
+    (report['sources'] as Map<String, dynamic>)['ai'] = true;
+    expect(
+        AnalysisReportGuard.validate(jsonEncode(report),
+            availableEvidenceIds: {'C01'}).isValid,
+        isFalse);
+    report['token_usage'] = {
+      'request_count': 1,
+      'prompt_tokens': 3,
+      'completion_tokens': 2,
+      'total_tokens': 4,
+      'model': 'cuc/deepseek',
+    };
+    expect(
+        AnalysisReportGuard.validate(jsonEncode(report),
+            availableEvidenceIds: {'C01'}).isValid,
+        isFalse);
+  });
   test('accepts a report with an available cloud evidence id', () {
     final result = AnalysisReportGuard.validate(
       jsonEncode(_report()),
@@ -45,13 +91,15 @@ void main() {
   test('rejects extra report fields and malformed nested values', () {
     final report = _report()..['uncontracted'] = true;
     expect(
-      AnalysisReportGuard.validate(jsonEncode(report), availableEvidenceIds: {'C01'}).error?.code,
+      AnalysisReportGuard.validate(jsonEncode(report),
+          availableEvidenceIds: {'C01'}).error?.code,
       AiClientErrorCode.reportSchemaInvalid,
     );
     report.remove('uncontracted');
     (report['target'] as Map<String, dynamic>)['redacted'] = false;
     expect(
-      AnalysisReportGuard.validate(jsonEncode(report), availableEvidenceIds: {'C01'}).error?.code,
+      AnalysisReportGuard.validate(jsonEncode(report),
+          availableEvidenceIds: {'C01'}).error?.code,
       AiClientErrorCode.reportSchemaInvalid,
     );
   });
@@ -69,7 +117,11 @@ Map<String, dynamic> _report({
     'risk_level': risk,
     'consistency': 'contradictory',
     'title': 'Test report',
-    'target': {'type': 'url', 'display': 'https://example.test', 'redacted': true},
+    'target': {
+      'type': 'url',
+      'display': 'https://example.test',
+      'redacted': true
+    },
     'summary': 'Test report summary',
     'claim': {
       'summary': 'Test claim',
