@@ -54,5 +54,9 @@ D:\Android\Sdk\platform-tools\adb.exe -s emulator-5554 install -r build/app/outp
 ## 边界
 
 没有向真实接口发送账号、密码、JWT、Cookie 或 API Key；没有执行真实任务查询，
-因为 B 尚未在本次 C 回归前确认正式任务仍可读；没有创建云扫描，也没有调用学校
-模型。截图不包含秘密或个人信息。
+没有创建云扫描，也没有调用学校模型。截图不包含秘密或个人信息。
+
+B 的 `a851c0c` 服务器证据已确认正式任务为 `expired`，所有者只读 GET 返回
+`410 CLOUD_TASK_EXPIRED`，且任务 URL 与证据已按 TTL 清空。因此不再尝试真实
+查询，也不创建替代任务。该当前过期状态不改写 Day 5 的历史成功快照；Day 5 的
+正式 `L01` 仍保持原样。
