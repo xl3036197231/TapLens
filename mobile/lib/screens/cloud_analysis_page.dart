@@ -39,12 +39,15 @@ class CloudAnalysisPage extends StatefulWidget {
 }
 
 class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
-  static const _acceptanceReplayEnabled =
-      bool.fromEnvironment('TAPLENS_ACCEPTANCE_REPLAY');
-  static const _acceptanceAnalysisId =
-      String.fromEnvironment('TAPLENS_ACCEPTANCE_ANALYSIS_ID');
-  static const _acceptanceTaskId =
-      String.fromEnvironment('TAPLENS_ACCEPTANCE_TASK_ID');
+  static const _acceptanceReplayEnabled = bool.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_REPLAY',
+  );
+  static const _acceptanceAnalysisId = String.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_ANALYSIS_ID',
+  );
+  static const _acceptanceTaskId = String.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_TASK_ID',
+  );
 
   late final TextEditingController _urlController;
   late final TextEditingController _baseUrlController;
@@ -319,9 +322,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       );
     } on Exception catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法载入已归档验收证据：$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('无法载入已归档验收证据：$error')));
     }
   }
 
@@ -363,9 +365,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final localEvidence = _localEvidence;
     final cloudEvidence = task.cloudEvidence;
     if (localEvidence == null || cloudEvidence == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('缺少本地或云端证据，无法生成审计 JSON。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('缺少本地或云端证据，无法生成审计 JSON。')));
       return;
     }
 
@@ -424,9 +426,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       );
     } on Exception {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('证据格式不完整，无法生成调试审计 JSON。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('证据格式不完整，无法生成调试审计 JSON。')));
     }
   }
 
@@ -515,9 +517,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       ruleReport,
       localEvidence: _localEvidence,
     );
-    final result = await AiReportService(
-      DeepSeekAiClient(modelName: modelName),
-    ).analyzeOrFallback(
+    final result = await AiReportService(DeepSeekAiClient(modelName: modelName))
+        .analyzeOrFallback(
       apiKey: apiKey,
       sanitizedPayload: payload,
       availableEvidenceIds: availableEvidenceIds,
@@ -563,10 +564,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             'A TapLens login token is required',
           );
         }
-        return schoolClient.analyze(
-          accessToken: token,
-          payload: payload,
-        );
+        return schoolClient.analyze(accessToken: token, payload: payload);
       },
       availableEvidenceIds: availableEvidenceIds,
       ruleReport: ruleJson,
@@ -577,9 +575,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     return AiReportExecution(
       report: AnalysisReport.fromJson(result.report),
       usedFallback: result.usedFallback,
-      message: result.error == null
-          ? null
-          : _schoolAiErrorMessage(result.error!.code),
+      message:
+          result.error == null ? null : _schoolAiErrorMessage(result.error!),
       reportJson: result.report,
     );
   }
@@ -643,24 +640,38 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     return '$reason，已保留规则报告。';
   }
 
-  String _schoolAiErrorMessage(AiClientErrorCode code) => switch (code) {
-        AiClientErrorCode.authRequired => '登录状态已失效或未登录，请返回并重新登录。规则报告仍可查看。',
-        AiClientErrorCode.timeout => '学校模型响应超时，未自动重试。规则报告仍可查看。',
-        AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，请稍后再试。规则报告仍可查看。',
-        AiClientErrorCode.guardRejected => '模型报告被后端守卫拒绝，已保留原规则报告。',
-        AiClientErrorCode.invalidRequest =>
-          '学校模型请求未通过后端接口校验，请联系管理员核对接口字段和格式。规则报告仍可查看。',
-        AiClientErrorCode.network => '网络不可用，无法连接学校模型。规则报告仍可查看。',
-        AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
-        AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
-        AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
-        AiClientErrorCode.invalidJson ||
-        AiClientErrorCode.reportSchemaInvalid =>
-          '学校模型返回的报告格式未通过检查，已保留规则报告。',
-        AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
-        AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
-        AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
-      };
+  String _schoolAiErrorMessage(AiClientException error) {
+    final base = switch (error.code) {
+      AiClientErrorCode.authRequired => 'TapLens 登录状态已失效或未登录，请重新登录。',
+      AiClientErrorCode.timeout => '学校模型请求超时。请求可能仍在服务器处理中，先核对服务端记录再重试。',
+      AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，请稍后再试。',
+      AiClientErrorCode.guardRejected =>
+        '后端报告守卫拒绝了模型结果；模型可能已经运行。重试前请先核对服务端调用记录。',
+      AiClientErrorCode.invalidRequest => _schoolAiValidationMessage(error),
+      AiClientErrorCode.network => '设备网络不可用，无法连接学校模型服务。',
+      AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
+      AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
+      AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
+      AiClientErrorCode.invalidJson ||
+      AiClientErrorCode.reportSchemaInvalid =>
+        '学校模型返回的报告格式未通过检查，已保留规则报告。',
+      AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
+      AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
+      AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
+    };
+    return '$base 规则报告仍可查看';
+  }
+
+  String _schoolAiValidationMessage(AiClientException error) {
+    final issues = error.validationIssues;
+    if (issues.isEmpty) {
+      return '学校模型请求未通过接口字段校验，请检查请求结构。';
+    }
+    final details =
+        issues.take(3).map((issue) => '${issue.path}（${issue.type}）').join('、');
+    final more = issues.length > 3 ? '，另有 ${issues.length - 3} 项' : '';
+    return '学校模型请求未通过字段校验：$details$more。请修正后再试。';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -747,12 +758,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 16),
-              Card(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.error_outline),
-                  title: const Text('云端分析未完成'),
-                  subtitle: Text(_error!),
+              Semantics(
+                liveRegion: true,
+                child: Card(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.error_outline),
+                    title: const Text('云端分析未完成'),
+                    subtitle: Text(_error!),
+                  ),
                 ),
               ),
             ],

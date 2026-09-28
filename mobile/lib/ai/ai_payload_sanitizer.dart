@@ -153,9 +153,18 @@ class AiPayloadSanitizer {
 
   static String? _safeTarget(Object? raw) {
     if (raw is! String || raw.trim().isEmpty) return null;
-    final uri = Uri.tryParse(raw.trim());
+    final value = raw.trim();
+    final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme) return '[UNPARSEABLE_TARGET]';
-    return uri.replace(query: '', fragment: '', userInfo: '').toString();
+    final delimiters =
+        [value.indexOf('?'), value.indexOf('#')].where((index) => index >= 0);
+    final firstDelimiter = delimiters.isEmpty
+        ? value.length
+        : delimiters.reduce((left, right) => left < right ? left : right);
+    final withoutQueryOrFragment = value.substring(0, firstDelimiter);
+    final safeUri = Uri.tryParse(withoutQueryOrFragment);
+    if (safeUri == null || !safeUri.hasScheme) return '[UNPARSEABLE_TARGET]';
+    return safeUri.replace(userInfo: '').toString();
   }
 
   static List<String> _safeIds(Object? raw) {
