@@ -62,7 +62,7 @@ void main() {
       final firstTarget = ((sent['analysis_input'] as Map)['targets'] as List)
           .cast<Map<String, dynamic>>()
           .first['value'] as String;
-      expect(firstTarget, 'http://example.test/path');
+      expect(firstTarget, 'http://39.107.253.138/controlled/go/campus');
       expect(firstTarget, isNot(contains('?')));
       expect(firstTarget, isNot(contains('#')));
       final encoded = jsonEncode(sent);
@@ -202,6 +202,35 @@ void main() {
       expect(result.providerInvoked, isFalse);
     },
   );
+
+  test('preflight removes an empty trailing query from the controlled URL',
+      () async {
+    final payload = _payload();
+    ((payload['analysis_input'] as Map<String, dynamic>)['targets'] as List)
+        .first['value'] = 'http://39.107.253.138/controlled/go/campus?';
+    http.Request? captured;
+    final client = SchoolAiClient(
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"error":{"code":"AUTH_TOKEN_MISSING","retryable":false}}',
+          401,
+        );
+      }),
+    );
+
+    final result = await client.preflight(payload);
+
+    expect(result.requestPassedValidation, isTrue);
+    expect(result.providerInvoked, isFalse);
+    final sent = jsonDecode(captured!.body) as Map<String, dynamic>;
+    final target = (((sent['analysis_input'] as Map)['targets'] as List).first
+        as Map)['value'] as String;
+    expect(target, 'http://39.107.253.138/controlled/go/campus');
+    expect(target, isNot(contains('?')));
+    expect(target, isNot(contains('#')));
+    expect(target, isNot(contains('@')));
+  });
 
   test(
     '422 client errors retain only safe status and validation metadata',
