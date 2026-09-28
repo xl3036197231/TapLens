@@ -11,6 +11,10 @@ enum AiClientErrorCode {
   reportSchemaInvalid,
   invalidEvidenceId,
   hardRiskDowngraded,
+  authRequired,
+  serviceUnavailable,
+  guardRejected,
+  invalidRequest,
 }
 
 class AiClientException implements Exception {
@@ -56,10 +60,12 @@ class AiUsage {
 class AiClientResponse {
   final String rawReportJson;
   final AiUsage usage;
+  final String? modelName;
 
   const AiClientResponse({
     required this.rawReportJson,
     required this.usage,
+    this.modelName,
   });
 }
 

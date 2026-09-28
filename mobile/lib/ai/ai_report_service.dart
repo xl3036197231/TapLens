@@ -16,9 +16,9 @@ class AiReportResult {
 }
 
 class AiReportService {
-  final AiClient client;
+  final AiClient? client;
 
-  const AiReportService(this.client);
+  const AiReportService([this.client]);
 
   Future<AiReportResult> analyzeOrFallback({
     required String apiKey,
@@ -26,12 +26,38 @@ class AiReportService {
     required Set<String> availableEvidenceIds,
     required Map<String, dynamic> ruleReport,
     String? hardRiskLevel,
+    String modelName = 'deepseek-flash',
+  }) async {
+    return analyzeRequestOrFallback(
+      request: () {
+        final activeClient = client;
+        if (activeClient == null) {
+          throw const AiClientException(
+            AiClientErrorCode.network,
+            'No AI client is configured',
+          );
+        }
+        return activeClient.analyze(
+          apiKey: apiKey,
+          sanitizedPayload: sanitizedPayload,
+        );
+      },
+      availableEvidenceIds: availableEvidenceIds,
+      ruleReport: ruleReport,
+      hardRiskLevel: hardRiskLevel,
+      modelName: modelName,
+    );
+  }
+
+  Future<AiReportResult> analyzeRequestOrFallback({
+    required Future<AiClientResponse> Function() request,
+    required Set<String> availableEvidenceIds,
+    required Map<String, dynamic> ruleReport,
+    required String modelName,
+    String? hardRiskLevel,
   }) async {
     try {
-      final response = await client.analyze(
-        apiKey: apiKey,
-        sanitizedPayload: sanitizedPayload,
-      );
+      final response = await request();
       final modelReport = decodeJsonObject(response.rawReportJson);
       modelReport['sources'] = {
         ...?((modelReport['sources'] is Map<String, dynamic>)
@@ -44,7 +70,7 @@ class AiReportService {
         'prompt_tokens': response.usage.promptTokens,
         'completion_tokens': response.usage.completionTokens,
         'total_tokens': response.usage.totalTokens,
-        'model': 'deepseek-flash',
+        'model': response.modelName ?? modelName,
       };
       final guarded = AnalysisReportGuard.validate(
         jsonEncode(modelReport),

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,20 +11,27 @@ class AiReportExecution {
   final AnalysisReport report;
   final bool usedFallback;
   final String? message;
+  final Map<String, dynamic>? reportJson;
 
   const AiReportExecution({
     required this.report,
     required this.usedFallback,
     this.message,
+    this.reportJson,
   });
 }
 
-typedef AiReportRunner = Future<AiReportExecution> Function(String apiKey);
+typedef AiReportRunner = Future<AiReportExecution> Function(
+    String apiKey, String modelName);
+typedef SchoolAiReportRunner = Future<AiReportExecution> Function();
 typedef AiReportDemoRunner = Future<AiReportExecution> Function();
+
+enum _AiModelMode { school, custom }
 
 class ReportPage extends StatefulWidget {
   final AnalysisReport report;
   final AiReportRunner? aiRunner;
+  final SchoolAiReportRunner? schoolAiRunner;
   final AiReportDemoRunner? mockSuccessRunner;
   final AiReportDemoRunner? mockFailureRunner;
 
@@ -29,6 +39,7 @@ class ReportPage extends StatefulWidget {
     super.key,
     required this.report,
     this.aiRunner,
+    this.schoolAiRunner,
     this.mockSuccessRunner,
     this.mockFailureRunner,
   });
@@ -39,15 +50,42 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage> {
   late AnalysisReport _report;
+  late _AiModelMode _modelMode;
+  Map<String, dynamic>? _reportJson;
+  String _customModelName = 'deepseek-flash';
+  bool _schoolCallAttempted = false;
   bool _aiLoading = false;
 
   @override
   void initState() {
     super.initState();
     _report = widget.report;
+    _modelMode = widget.schoolAiRunner != null
+        ? _AiModelMode.school
+        : _AiModelMode.custom;
   }
 
   Future<void> _runAi() async {
+    if (_aiLoading) return;
+    if (_modelMode == _AiModelMode.school) {
+      final runner = widget.schoolAiRunner;
+      if (runner == null) return;
+      if (_schoolCallAttempted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('学校模型本页已调用过一次。')),
+        );
+        return;
+      }
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => const _SchoolAiConfirmDialog(),
+      );
+      if (confirmed != true || !mounted) return;
+      setState(() => _schoolCallAttempted = true);
+      await _executeAi(runner);
+      return;
+    }
+
     final runner = widget.aiRunner;
     if (runner == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -66,12 +104,25 @@ class _ReportPageState extends State<ReportPage> {
     if (!mounted) return;
     final key = await showDialog<String>(
       context: context,
-      builder: (context) => _AiKeyDialog(storedKey: storedKey),
+      builder: (context) => _AiKeyDialog(
+        storedKey: storedKey,
+        initialModelName: _customModelName,
+      ),
     );
 
     if (key == null || key.trim().isEmpty || !mounted) return;
+    final separator = key.indexOf('\n');
+    if (separator <= 0 || separator == key.length - 1) return;
+    final apiKey = key.substring(0, separator).trim();
+    final modelName = key.substring(separator + 1).trim();
+    if (apiKey.isEmpty || !_isValidModelName(modelName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请填写有效的模型名称和 API Key。')),
+      );
+      return;
+    }
     try {
-      await const SecureAiKeyStore().save(key);
+      await const SecureAiKeyStore().save(apiKey);
     } on Exception {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,12 +132,18 @@ class _ReportPageState extends State<ReportPage> {
       return;
     }
 
+    setState(() => _customModelName = modelName);
+    await _executeAi(() => runner(apiKey, modelName));
+  }
+
+  Future<void> _executeAi(Future<AiReportExecution> Function() run) async {
     setState(() => _aiLoading = true);
     try {
-      final result = await runner(key);
+      final result = await run();
       if (!mounted) return;
       setState(() {
         _report = result.report;
+        _reportJson = result.reportJson;
         _aiLoading = false;
       });
       final message = result.message ??
@@ -110,6 +167,7 @@ class _ReportPageState extends State<ReportPage> {
       if (!mounted) return;
       setState(() {
         _report = result.report;
+        _reportJson = result.reportJson;
         _aiLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -212,18 +270,76 @@ class _ReportPageState extends State<ReportPage> {
                   ],
                 ),
               ),
-              if (report.aiSource && tokenCount != null)
+              _SectionCard(
+                title: '报告来源',
+                icon: Icons.source_outlined,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (report.localSource) const Chip(label: Text('本地证据')),
+                    if (report.cloudSource) const Chip(label: Text('云端证据')),
+                    Chip(
+                      label: Text(
+                        report.aiSource
+                            ? 'AI 深度研判：已调用（sources.ai=true）'
+                            : 'AI 深度研判：未调用（sources.ai=false）',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (report.aiSource &&
+                  (report.modelName != null || tokenCount != null))
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
-                    'AI 本次使用约 $tokenCount tokens',
+                    [
+                      if (report.modelName != null) '模型：${report.modelName}',
+                      if (tokenCount != null) 'Token 用量：$tokenCount',
+                    ].join(' · '),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
               const SizedBox(height: 16),
-              if (widget.aiRunner != null)
+              if (widget.aiRunner != null || widget.schoolAiRunner != null) ...[
+                if (widget.aiRunner != null && widget.schoolAiRunner != null)
+                  SegmentedButton<_AiModelMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _AiModelMode.school,
+                        label: Text('学校模型'),
+                        icon: Icon(Icons.school_outlined),
+                      ),
+                      ButtonSegment(
+                        value: _AiModelMode.custom,
+                        label: Text('自定义模型'),
+                        icon: Icon(Icons.key_outlined),
+                      ),
+                    ],
+                    selected: {_modelMode},
+                    onSelectionChanged: _aiLoading
+                        ? null
+                        : (selection) => setState(
+                              () => _modelMode = selection.first,
+                            ),
+                  ),
+                if (widget.aiRunner != null && widget.schoolAiRunner != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _modelMode == _AiModelMode.school
+                          ? '默认使用学校模型。JSON 正文只含脱敏分析输入和证据；登录 JWT 只放在 Authorization 请求头。当前服务使用 HTTP，令牌传输未加密，请仅在受控测试网络调用。'
+                          : '自定义模式由手机直接连接 DeepSeek；API Key 只保存在本机安全存储，不发送给 TapLens 后端。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 FilledButton.icon(
-                  onPressed: _aiLoading ? null : _runAi,
+                  onPressed: _aiLoading ||
+                          (_modelMode == _AiModelMode.school &&
+                              _schoolCallAttempted)
+                      ? null
+                      : _runAi,
                   icon: _aiLoading
                       ? const SizedBox(
                           width: 18,
@@ -231,8 +347,38 @@ class _ReportPageState extends State<ReportPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.psychology_alt_rounded),
-                  label: Text(_aiLoading ? 'AI 分析中…' : 'AI 深度研判（一次调用）'),
+                  label: Text(
+                    _aiLoading
+                        ? 'AI 分析中…'
+                        : (_modelMode == _AiModelMode.school &&
+                                _schoolCallAttempted
+                            ? '学校模型已调用一次'
+                            : 'AI 深度研判（一次调用）'),
+                  ),
                 ),
+                if (kDebugMode && _reportJson != null) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final reportJson = _reportJson;
+                      if (reportJson == null) return;
+                      await Clipboard.setData(
+                        ClipboardData(
+                          text: const JsonEncoder.withIndent('  ')
+                              .convert(reportJson),
+                        ),
+                      );
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('最终报告 JSON 已复制。')),
+                      );
+                    },
+                    icon: const Icon(Icons.data_object_outlined),
+                    label: const Text('复制最终报告 JSON'),
+                  ),
+                ],
+              ],
               if (widget.mockSuccessRunner != null ||
                   widget.mockFailureRunner != null) ...[
                 const SizedBox(height: 16),
@@ -252,8 +398,8 @@ class _ReportPageState extends State<ReportPage> {
                           onPressed: _aiLoading
                               ? null
                               : () => _runOfflineDemo(
-                                  widget.mockSuccessRunner,
-                                ),
+                                    widget.mockSuccessRunner,
+                                  ),
                           icon: const Icon(Icons.check_circle_outline),
                           label: const Text('Mock 成功演示'),
                         ),
@@ -264,8 +410,8 @@ class _ReportPageState extends State<ReportPage> {
                           onPressed: _aiLoading
                               ? null
                               : () => _runOfflineDemo(
-                                  widget.mockFailureRunner,
-                                ),
+                                    widget.mockFailureRunner,
+                                  ),
                           icon: const Icon(Icons.replay_outlined),
                           label: const Text('Mock 失败回退演示'),
                         ),
@@ -293,8 +439,9 @@ class _ReportPageState extends State<ReportPage> {
 
 class _AiKeyDialog extends StatefulWidget {
   final String? storedKey;
+  final String initialModelName;
 
-  const _AiKeyDialog({required this.storedKey});
+  const _AiKeyDialog({required this.storedKey, required this.initialModelName});
 
   @override
   State<_AiKeyDialog> createState() => _AiKeyDialogState();
@@ -302,16 +449,19 @@ class _AiKeyDialog extends StatefulWidget {
 
 class _AiKeyDialogState extends State<_AiKeyDialog> {
   late final TextEditingController _controller;
+  late final TextEditingController _modelController;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.storedKey ?? '');
+    _modelController = TextEditingController(text: widget.initialModelName);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _modelController.dispose();
     super.dispose();
   }
 
@@ -324,15 +474,24 @@ class _AiKeyDialogState extends State<_AiKeyDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '将向 DeepSeek 发起一次请求，可能消耗你的账户额度。只发送已经脱敏的 URL 和证据摘要，不发送原图、JWT、历史报告或本 Key。',
+                '自定义模式由手机直接向 DeepSeek 发送一次请求，可能消耗你的账户额度并产生费用。API Key 只保存在本机安全存储；TapLens 后端不会收到该 Key。',
               ),
               const SizedBox(height: 16),
+              TextField(
+                controller: _modelController,
+                decoration: const InputDecoration(
+                  labelText: 'DeepSeek 模型名称',
+                  hintText: '例如 deepseek-flash',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _controller,
                 obscureText: true,
                 autofocus: widget.storedKey == null,
                 decoration: const InputDecoration(
-                  labelText: 'DeepSeek API Key',
+                  labelText: '自定义 API Key',
                   hintText: '只保存在本机安全存储',
                   border: OutlineInputBorder(),
                 ),
@@ -348,13 +507,42 @@ class _AiKeyDialogState extends State<_AiKeyDialog> {
           FilledButton(
             onPressed: () {
               final value = _controller.text.trim();
-              if (value.isNotEmpty) Navigator.of(context).pop(value);
+              final modelName = _modelController.text.trim();
+              if (value.isNotEmpty && _isValidModelName(modelName)) {
+                Navigator.of(context).pop('$value\n$modelName');
+              }
             },
             child: const Text('确认并分析'),
           ),
         ],
       );
 }
+
+class _SchoolAiConfirmDialog extends StatelessWidget {
+  const _SchoolAiConfirmDialog();
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('使用学校模型'),
+        content: const Text(
+          '将使用当前 TapLens 登录状态调用一次学校模型。JSON 正文只包含脱敏分析数据、Lxx/Cxx 证据和硬风险规则，不包含密码、API Key 或 JWT；登录 JWT 只放在 Authorization 请求头。当前服务使用 HTTP，令牌传输未加密，请只在受控测试网络调用。模型报告会经过本机结构、风险和证据编号检查。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('确认并分析'),
+          ),
+        ],
+      );
+}
+
+bool _isValidModelName(String value) =>
+    value.length <= 128 &&
+    RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$').hasMatch(value);
 
 class _SectionCard extends StatelessWidget {
   final String title;

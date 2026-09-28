@@ -24,3 +24,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fixtures/analysis-report-high-risk.json
+    - assets/acceptance/day5-unified-test1.json

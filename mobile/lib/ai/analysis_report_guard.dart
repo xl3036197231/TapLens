@@ -7,10 +7,10 @@ class ReportGuardResult {
   const ReportGuardResult._({this.report, this.error});
 
   const ReportGuardResult.valid(Map<String, dynamic> report)
-    : this._(report: report);
+      : this._(report: report);
 
   const ReportGuardResult.invalid(AiClientException error)
-    : this._(error: error);
+      : this._(error: error);
 
   bool get isValid => report != null;
 }
@@ -124,10 +124,10 @@ class AnalysisReportGuard {
         'Zero requests require zero usage and null model',
       );
     }
-    if (requestCount == 1 && tokenUsage['model'] != 'deepseek-flash') {
+    if (requestCount == 1 && !_isModelName(tokenUsage['model'])) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
-        'Unexpected AI model',
+        'A model name is required for an AI report',
       );
     }
 
@@ -173,7 +173,8 @@ class AnalysisReportGuard {
 
     final referencedIds = <String>[];
     final behavior = report['observed_behavior'];
-    if (behavior is! Map<String, dynamic> || behavior['evidence_ids'] is! List) {
+    if (behavior is! Map<String, dynamic> ||
+        behavior['evidence_ids'] is! List) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
         'Invalid observed_behavior',
@@ -389,6 +390,9 @@ class AnalysisReportGuard {
         ].any((key) => usage[key] is! int || (usage[key] as int) < 0)) {
       return false;
     }
+    if (usage['model'] != null && !_isModelName(usage['model'])) {
+      return false;
+    }
     return true;
   }
 
@@ -401,6 +405,10 @@ class AnalysisReportGuard {
       (maxLength == null || value.length <= maxLength);
   static bool _isOptionalText(Object? value, int maxLength) =>
       value == null || (value is String && value.length <= maxLength);
+  static bool _isModelName(Object? value) =>
+      value is String &&
+      value.length <= 128 &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$').hasMatch(value);
   static bool _isTextList(Object? value, int maxItems, int maxLength) =>
       value is List &&
       value.length <= maxItems &&

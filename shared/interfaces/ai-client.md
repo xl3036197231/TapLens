@@ -1,12 +1,34 @@
 # TapLens AI 客户端边界（D 维护）
 
-状态：`DAY3-MOCK-VERIFIED`。客户端、Keystore、用户确认和报告页接入已完成；Flutter 全量测试与 Android 模拟器 Mock 测试通过。真实 DeepSeek Key 请求尚未验收。
+状态：A 手机端支持学校模型与自定义模型两种模式。学校模式默认选中，由 TapLens 后端使用学校配置的模型；自定义模式由手机直连 DeepSeek，Key 保存在 Android Keystore。正式请求验收记录见 Day 5 A 进度文件。
 
 Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` 白名单和同分析 ID 校验，并在 Android 模拟器通过四条 Mock 报告集成测试。执行与现场联合验收状态见 `shared/daliy_task/day3-d-progress.md`。
 
 ## 所在位置
 
-DeepSeek 调用代码位于手机端 `mobile/lib/ai/`，不经过 `backend/`。D 提供请求、Mock、响应校验和错误映射；A 负责把 AI 模块接入页面流程和 Android Keystore。
+AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫与自定义 DeepSeek 客户端；A 把两种模式接入报告页，并实现学校模型客户端。
+
+## 学校模型模式
+
+学校模式是报告页默认选项，手机向 `POST http://39.107.253.138/api/v1/ai/analyze` 发送一次 JSON 请求，并在 `Authorization: Bearer <TapLens JWT>` 请求头中提供当前登录凭据。JWT 不得放入 JSON 正文；密码、学校 Key、DeepSeek Key、Cookie 和其他认证材料也不得进入正文。
+
+正文只允许这五个顶层字段：
+
+- `report_context`
+- `analysis_input`
+- `local_evidence`
+- `cloud_evidence`
+- `hard_risk_findings`
+
+手机在发出请求前使用 `AiPayloadSanitizer` 生成白名单对象，遮盖 URL 查询值、常见凭据、JWT、邮箱、手机号和身份证号。请求不包含原始图片、完整预检对象或历史报告。学校 Key 只由后端持有。
+
+当前部署地址为 HTTP，Authorization 头中的 JWT 在传输链路上没有 TLS 加密；只允许在受控测试网络验收，不能在不可信网络使用。
+
+成功响应应提供符合 `analysis-report.schema.json` 的报告、实际模型名称和接口用量。手机客户端仍会覆盖 `sources.ai=true` 与 `token_usage`，再校验 Schema、analysis_id、证据编号和硬风险。客户端识别报告直返及 `{report, model, usage}` 响应包络。
+
+学校模式错误提示：`401/403` 映射为登录状态失效；`408/504` 映射为学校模型超时；`5xx/429/404` 映射为模型服务不可用；`422` 或 `REPORT_*` 映射为后端报告守卫拒绝；连接异常提示网络不可用。请求不会自动重试。
+
+自定义模式保留手机直连 DeepSeek 的路径。用户填写模型名称与自己的 API Key，Key 仍由 Android Keystore 保存，绝不传给 TapLens 后端。
 
 ## 请求边界
 
