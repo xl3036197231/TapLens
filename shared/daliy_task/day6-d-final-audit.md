@@ -9,7 +9,7 @@
 - 原始 URL：`http://39.107.253.138/controlled/go/campus`；归档最终 URL：`http://39.107.253.138/controlled/campus-login.html`
 - A：`a545297558a54e0d0c8f7e3ccde01368d2b20e6f` 的 `shared/daliy_task/day5-a-evidence/`，包括 `test1.json`、学校调用结果、回退报告、只读尝试和截图。
 - B：`a851c0c5830324ae07f6047f40e1000508444173` 的 `shared/daliy_task/day6-b-evidence/server-verification.json`；Day 5 正式云快照与 PNG 由下述 Day 5 审计脚本钉定。
-- C：`36bcf9b3547c45d25d05413ac9e8e66259d929a8` 的正式 `shared/daliy_task/day5-c-evidence/local-evidence.json`、Debug 网络配置及设备测试；C 最新进度位于 `7fd22a2` 的 `shared/daliy_task/day6-c-progress.md`。
+- C：`36bcf9b3547c45d25d05413ac9e8e66259d929a8` 的正式 `shared/daliy_task/day5-c-evidence/local-evidence.json`、Debug 网络配置及设备测试；统一交接文件位于 `7fd22a2` 的 `shared/daliy_task/day6-c-to-d-handoff.md`。2026-09-28 再次 fetch 时 C 分支 HEAD 为 `7d3e62d`；与 `36bcf9b` 比较，本次所审的正式本地 JSON、设备测试、Debug 配置和截图无差异。后续 C 分支还合入了 B/D 分支并添加 `dist/README.md`，不改变固定证据；该 README 的 APK 哈希未由 D 对 APK 二进制独立核验，仓库只跟踪 README。
 
 这些是不同时间的材料：A/B/C 的规则成功归档、A 的 APP 422/健康检查失败、B 当前 410、C 的设备及替身测试。不得混成一次成功的实时 AI/任务查询。
 
@@ -20,7 +20,7 @@
 | Day 5 固定规则整包、Schema、同一 ID/URL、C04 PNG | **PASS（历史归档）** | `audit_day5_handoff.py` 复验 A/B/C；A/B 云证据一致、A/C 本地除执行时间外一致，只有 L01、C01–C04；C04 为 1280×956 PNG，SHA-256 `8b111619bb7864bd285d48aad60819a1fa1c9bbe7cb9fce6640b557a8146e719`。不表示当前在线任务仍能读取。 |
 | 报告证据引用与高风险依据 | **PASS（规则 JSON）** | L01 为 URL 静态解析；C01 为一次 302，C02 为学号/密码敏感字段，C03 为页面摘要，C04 为截图。规则报告高风险由 C01/C02 支持，`sources.ai=false`、请求/Token 用量为零。字段存在不等于填入或提交；页面标题/截图不确认运营者身份。 |
 | A 的 422 后规则回退 | **PASS（回退契约）** | A 回退报告与归档证据通过报告 Schema/引用审计；无接受的 AI 报告。A 记录 APP 正式学校调用 1 次、HTTP 422，无新云扫描；B Day 6 未调用 Provider。不能把回退写成真实 AI。 |
-| A 旧版 422 提示归因 | **FAIL（文案归因）** | APP 曾显示“模型报告被后端守卫拒绝”，但 A 没有保存后端错误码/详情，无法证明真正拒绝源自守卫；422 也可能是请求字段校验。A 负责在后续可复现条件下按错误码分类；不能倒推此次请求携带了 `deepseek_key` 或断言真实原因。 |
+| A 旧版 422 提示归因 | **FAIL（文案归因）** | APP 曾显示“模型报告被后端守卫拒绝”，但 A 没有保存后端错误码/详情，无法证明拒绝源自守卫。B 将 422 归于 Provider 前的请求校验；其独立无 JWT 测试给出 `body.deepseek_key` 示例，**不能反推** A 的正式请求含该字段，具体错误字段仍未知。A 负责按实际错误码分类，不把历史提示当作真实原因。 |
 | B 当前任务状态 | **PASS（现状核查）** | B 数据库行已 `expired`、原 URL/证据按 TTL 清空；所有者只读 GET 实测 410 `CLOUD_TASK_EXPIRED`。这项 PASS 只表示过期结论可信，不是任务查询验收成功。 |
 | A APP 真实“查询已有任务” | **BLOCKED / 已终止重试** | A 截图显示正式 ID 已填、按钮为“查询已有任务”，但 APP 在健康检查失败处停止，`login_request_sent=false`、`task_get_sent=false`。C 后续在恢复网卡后设备健康 GET 通过，MockClient 替身仅 GET 无 POST；两者都不能补成 A 的真实任务 GET。B 已确认 410，A 不应再为验收重查或新建任务。负责人 A；交付口径改为离线历史归档与过期说明。 |
 | C 最新 APK、正式本地 L01 与网络边界 | **PASS（C 交付/源码复核）** | C 记录 Android 15 普通 Debug APK 构建安装，正式 MethodChannel 调用仍只得 L01、未访问目标网络/未启动外部 APP、动态预检未开始；模拟器 eth0 恢复后无认证健康 GET 成功。D 查阅源码及交付记录，未在 D 设备上独立重跑。C 的 `latest-apk-local-preflight.png` 显示旧 `.test` 输入的预检 UI，**不能**当正式 ECS URL 的现场截图；正式值以集成测试及本地 JSON 为准。 |
