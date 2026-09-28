@@ -42,6 +42,14 @@
 - Android Debug APK：构建成功并安装到 `TapLens_API35` 模拟器。
 - 未创建第二个云扫描任务。失败的学校模型请求没有重试。
 
+## 2026-09-28 追加核查
+
+- 在 TapLens_API35 模拟器重新运行同一目标的本地预检，屏幕显示正式 `analysis_id`、`L01`、`launched_external_app=false`、`network_accessed=false` 和 `preflight.status=not_started`。截图：[`day5-a-preflight-risk.png`](day5-a-preflight-risk.png)。
+- 将正式 `task_id` 填入 APP 后，按钮切换为“查询已有任务”。点击后 APP 在健康检查阶段提示无法连接后端；因此没有登录、读取任务或创建新任务。截图：[`day5-a-readonly-query-blocked.png`](day5-a-readonly-query-blocked.png)。
+- 同一时段主机对 `/healthz` 和 `/api/v1/health` 的 GET 均返回 200；模拟器到服务器 80 端口的 TCP 连接被拒绝。结构化记录：[`day5-a-readonly-query-attempt.json`](day5-a-readonly-query-attempt.json)。这说明 APP 只读查询仍未完成，不能将健康检查截图写成任务查询成功证明。
+- 本轮没有创建云扫描任务，没有登录后端，没有发起任务 GET，也没有调用学校模型。
+- 学校模型完整报告仍缺失。此前唯一一次 A 请求为 HTTP 422；B 分支目前只有成功调用摘要，没有完整 Provider 响应。再次调用需要额外模型额度授权。
+
 ## 待 B 协助排查
 
 请核对学校模型接口为什么返回 HTTP 422：是请求字段/格式校验失败，还是模型输出经后端报告守卫拒绝。A 已修正客户端：只有响应体包含报告守卫错误码时才显示“后端守卫拒绝”；普通 422 会显示“请求未通过后端接口校验”。当前这次响应没有留存错误正文、模型名或 Token 用量。再次验收需要团队明确批准额外的一次模型请求；A 本轮没有重试。
