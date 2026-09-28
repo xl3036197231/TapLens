@@ -6,7 +6,7 @@ Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` �
 
 ## 所在位置
 
-AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫与自定义 DeepSeek 客户端；A 把两种模式接入报告页，并实现学校模型客户端。
+AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/响应校验、错误映射与自定义 DeepSeek 客户端；A 把两种模式接入报告页，并实现学校模型客户端。默认学校模式调用后端 `POST /api/v1/ai/analyze`，由后端使用学校凭证访问中传模型；BYOK 自定义模式仍由手机端负责，后端和客户端分别执行输入与结果守卫。
 
 ## 学校模型模式
 
@@ -44,7 +44,7 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫与自定�
 
 不得发送：原始海报、原始 OCR 全文、用户报告历史、完整敏感查询参数、JWT 或 DeepSeek Key。
 
-模型固定为 `deepseek-flash`，请求设置 `thinking.type=disabled` 和 `response_format.type=json_object`。一次分析最多一次模型请求；模型输出必须是 `analysis-report.schema.json` 对应的 JSON。D 的客户端只复制白名单字段并遮盖常见密钥、手机号、邮箱和 URL 查询参数；A 在调用前仍必须完成输入脱敏，特别是任意自由文本中的私人信息。
+自定义模式当前默认使用 `deepseek-flash`，并设置 `thinking.type=disabled` 和 `response_format.type=json_object`；默认学校模式使用后端配置的 `cuc/deepseek`，不假设学校网关支持上述 DeepSeek 扩展参数。一次分析最多一次模型请求；两种模式的输出都必须符合 `analysis-report.schema.json`。客户端只复制白名单字段并遮盖常见密钥、手机号、邮箱和 URL 查询参数；后端默认模式还会再次验证白名单结构。
 
 ## 响应处理
 
@@ -74,7 +74,7 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫与自定�
 ## Day 2 本地实现
 
 - `mobile/lib/ai/ai_client.dart`：稳定的请求、响应、用量和错误类型；
-- `mobile/lib/ai/deepseek_ai_client.dart`：手机直连 DeepSeek，不经过后端；
+- `mobile/lib/ai/deepseek_ai_client.dart`：自定义模式下手机直连用户指定模型；
 - `mobile/lib/ai/ai_payload_sanitizer.dart`：请求白名单与二次脱敏，拒绝未标记的输入；
 - `mobile/lib/ai/mock_ai_client.dart`：离线演示和失败回退测试；
 - `mobile/lib/ai/analysis_report_guard.dart`：JSON、证据编号、风险状态和 Token 约束；
@@ -86,5 +86,5 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫与自定�
 
 - Key 只由 A 的手机安全存储模块保存和读取；
 - D 的 AI 客户端不得打印 Key、Authorization 头或完整请求；
-- Key 不进入触镜后端、Git、截图、崩溃报告或测试 fixture；
+- 用户自定义 Key 不进入触镜后端、Git、截图、崩溃报告或测试 fixture；学校 Key 只存在 ECS 私有环境；
 - 测试只能使用占位字符串，例如 `sk-test-redacted`，且不得提交到真实配置文件。

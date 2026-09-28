@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements-deploy.txt \
 
 COPY backend/app ./app
 COPY backend/scripts ./scripts
+COPY shared/contracts /srv/taplens/shared/contracts
 
 RUN mkdir -p /var/lib/taplens/artifacts
 

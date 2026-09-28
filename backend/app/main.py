@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.quota import router as quota_router
 from app.api.deep_scans import router as deep_scans_router
+from app.api.ai import router as ai_router
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.storage.database import Database
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(quota_router, prefix="/api/v1")
     application.include_router(deep_scans_router, prefix="/api/v1")
+    application.include_router(ai_router, prefix="/api/v1")
     return application
 
 

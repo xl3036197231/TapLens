@@ -49,6 +49,8 @@ def install_error_handlers(app: FastAPI) -> None:
             code = "AUTH_REQUEST_INVALID"
         elif path.startswith("/api/v1/deep-scans"):
             code = "CLOUD_REQUEST_INVALID"
+        elif path.startswith("/api/v1/ai/"):
+            code = "AI_REQUEST_INVALID"
         else:
             code = "APP_INPUT_INVALID"
 

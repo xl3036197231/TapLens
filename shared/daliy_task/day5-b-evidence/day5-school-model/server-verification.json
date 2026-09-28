@@ -1,0 +1,70 @@
+{
+  "checked_at": "2026-09-27T19:53:36+08:00",
+  "environment": "aliyun-ecs-production",
+  "public_base_url": "http://39.107.253.138",
+  "implementation_base_revision": "7b180cc",
+  "provider": {
+    "protocol": "openai-chat-completions",
+    "base_url": "https://openai.cuc.edu.cn/v1",
+    "model": "cuc/deepseek",
+    "timeout_seconds": 60,
+    "api_key_location": "server-environment-only",
+    "api_key_recorded": false
+  },
+  "deployment": {
+    "api": "healthy",
+    "worker": "healthy",
+    "nginx": "healthy",
+    "worker_count": 1,
+    "sqlite_quick_check": "ok",
+    "public_health_status": 200,
+    "public_health_body": {
+      "status": "ready",
+      "service": "taplens-backend",
+      "checks": {
+        "database": "ok",
+        "artifacts": "ok"
+      }
+    }
+  },
+  "api_security": {
+    "route": "POST /api/v1/ai/analyze",
+    "valid_body_without_token_status": 401,
+    "valid_body_without_token_code": "AUTH_TOKEN_MISSING",
+    "client_api_key_allowed": false,
+    "secret_markers_found_in_recent_api_worker_logs": false
+  },
+  "real_model_verification": {
+    "ok": true,
+    "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+    "risk_level": "high",
+    "sources": {
+      "local": true,
+      "cloud": true,
+      "ai": true
+    },
+    "token_usage": {
+      "request_count": 1,
+      "prompt_tokens": 3327,
+      "completion_tokens": 1995,
+      "total_tokens": 5322,
+      "model": "cuc/deepseek"
+    },
+    "evidence_ids": ["L01", "C01", "C02", "C03", "C04"],
+    "summary": "该目标为一条用户确认的明文 HTTP 链接，云端观察到跳转、敏感表单字段、页面摘要和受保护截图；云端规则命中高风险，建议不要提交账号口令或验证码。"
+  },
+  "integration_recovery": [
+    {
+      "result": "AI_PROVIDER_TIMEOUT",
+      "resolution": "模型超时由 20 秒调整为 60 秒"
+    },
+    {
+      "result": "AI_REPORT_REJECTED",
+      "resolution": "后端根据允许的证据 ID 回填原始证据文本，防止模型改写证据"
+    },
+    {
+      "result": "AI_REPORT_REJECTED",
+      "resolution": "将真实输出 Schema 与公共定义传给模型，并修正 schema_version 为 1.0"
+    }
+  ]
+}

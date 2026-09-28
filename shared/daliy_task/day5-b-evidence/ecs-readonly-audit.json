@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "checked_at": "2026-09-27T09:47:57Z",
+  "mode": "read_only",
+  "target": {
+    "analysis_id": "aa4e3f03-6141-4799-a229-04c879d3bb02",
+    "task_id": "5a9e6cac-2fa4-4924-acd4-ef0180d4d1d0"
+  },
+  "ecs": {
+    "public_origin": "http://39.107.253.138",
+    "healthz": {
+      "http_status": 200,
+      "status": "ready",
+      "database": "ok",
+      "artifacts": "ok"
+    },
+    "api_health": {
+      "http_status": 200,
+      "status": "ok"
+    },
+    "controlled_entry": {
+      "http_status": 302,
+      "location": "/controlled/campus-login.html"
+    },
+    "services": {
+      "api": "healthy",
+      "worker": "healthy",
+      "nginx": "healthy",
+      "worker_count": 1
+    }
+  },
+  "current_database": {
+    "sqlite_quick_check": "ok",
+    "target_task_found": false,
+    "target_analysis_task_count": 0,
+    "total_task_count": 3,
+    "status_counts": {
+      "expired": 3
+    },
+    "evidence_rows_present": 0,
+    "artifact_png_count": 0,
+    "task_ids": [
+      "94e33de8-43e5-4399-98da-21f4dc8db7bf",
+      "b5ec2b21-1041-47ce-9e81-f1912357c5f5",
+      "337ee79d-a0bc-4b24-9a70-77b7ee7750ab"
+    ]
+  },
+  "ecs_backup": {
+    "archive": "taplens-backup-20260925T063222Z.tar.gz",
+    "sha256_verified": true,
+    "sqlite_quick_check": "ok",
+    "target_task_found": false,
+    "target_analysis_task_count": 0,
+    "target_png_found": false,
+    "total_task_count": 3,
+    "task_status_counts": {
+      "failed": 1,
+      "succeeded": 2
+    },
+    "artifact_task_ids": [
+      "b5ec2b21-1041-47ce-9e81-f1912357c5f5",
+      "337ee79d-a0bc-4b24-9a70-77b7ee7750ab"
+    ]
+  },
+  "inventory": {
+    "docker_volumes": [
+      "taplens_taplens-data"
+    ],
+    "other_ecs_database_or_backup_candidates_found": false,
+    "formal_snapshot_committed_to_repository": false
+  },
+  "old_codespace": {
+    "checked": true,
+    "scope_authorized": true,
+    "name": "opulent-fishstick-4rvvr647jpqf7prq",
+    "display_name": "opulent fishstick",
+    "repository": "xl3036197231/TapLens",
+    "last_used_at": "2026-09-24T14:12:28+08:00",
+    "state_before_check": "Shutdown",
+    "existing_codespace_started_with_user_authorization": true,
+    "stop_requested_after_check": true,
+    "stop_verified": true,
+    "state_after_check": "Shutdown",
+    "filesystem_checked": true,
+    "expected_runtime_database": "/tmp/taplens-codespace.db",
+    "expected_runtime_database_found": false,
+    "expected_artifact_directory": "/tmp/taplens-artifacts",
+    "expected_artifact_directory_found": false,
+    "persistent_databases": [
+      {
+        "path": "/workspaces/TapLens/backend/data/taplens.db",
+        "task_count": 0
+      },
+      {
+        "path": "/workspaces/TapLens/backend/data/codespace-day3.db",
+        "task_count": 0
+      }
+    ],
+    "business_database_wal_or_shm_found": false,
+    "target_id_matches_in_workspace_and_home": 0,
+    "potential_recovery_source": false
+  },
+  "conclusion": {
+    "recoverable_from_current_ecs": false,
+    "recoverable_from_ecs_backup": false,
+    "recoverable_from_old_codespace": false,
+    "replacement_task_created": false,
+    "taplens_task_quota_consumed": false,
+    "status": "completed_unrecoverable_across_known_sources"
+  }
+}
