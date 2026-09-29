@@ -292,6 +292,8 @@ void main() {
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
+              error: result.error,
+              httpStatus: result.httpStatus,
             );
           },
         ),
@@ -386,14 +388,26 @@ void main() {
     tester,
   ) async {
     const keyChannel = MethodChannel('com.taplens.app/secure_storage');
+    String? copiedDiagnostic;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
       if (call.method == 'readKey') return 'TEST_ONLY';
       return null;
     });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedDiagnostic = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
     addTearDown(
-      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(keyChannel, null),
+      () {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(keyChannel, null);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null);
+      },
     );
 
     tester.view.physicalSize = const Size(800, 1400);
@@ -418,6 +432,8 @@ void main() {
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
+              error: result.error,
+              httpStatus: result.httpStatus,
             );
           },
         ),
@@ -433,6 +449,21 @@ void main() {
     expect(find.text('AI 未返回可用结论，已保留规则报告。'), findsOneWidget);
     expect(find.text('高风险'), findsOneWidget);
     expect(find.textContaining('敏感'), findsWidgets);
+    expect(find.text('AI 客户端诊断'), findsOneWidget);
+    expect(find.textContaining('local_report_json_parse'), findsOneWidget);
+    expect(find.textContaining('invalidJson'), findsOneWidget);
+    expect(find.textContaining('页面状态更新：completed'), findsOneWidget);
+    final copyButton = find.text('复制脱敏诊断 JSON');
+    expect(copyButton, findsOneWidget);
+    await tester.ensureVisible(copyButton);
+    await tester.tap(copyButton);
+    await tester.pumpAndSettle();
+    expect(copiedDiagnostic, isNotNull);
+    final copiedJson = jsonDecode(copiedDiagnostic!) as Map<String, dynamic>;
+    expect(copiedJson['failure_stage'], 'local_report_json_parse');
+    expect(copiedJson['error_code'], 'invalidJson');
+    expect(copiedJson['page_state_update'], 'completed');
+    expect(copiedDiagnostic, isNot(contains('PRIVATE_')));
   });
 
   testWidgets('学校模型回退显示服务端用量待核实，而不是宣称未调用', (

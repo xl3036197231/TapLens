@@ -225,7 +225,17 @@ class SchoolAiClient {
         );
       }
 
-      final root = _decodeObject(response.body);
+      late final Map<String, dynamic> root;
+      try {
+        root = _decodeObject(response.body);
+      } on FormatException {
+        throw AiClientException(
+          AiClientErrorCode.invalidJson,
+          'The school model response was not a JSON object',
+          httpStatus: response.statusCode,
+          failureStage: AiFailureStage.responseJsonParsing,
+        );
+      }
       final responseError = _map(root['error']);
       if (responseError != null) {
         final code = (responseError['code'] ?? '').toString();
@@ -268,9 +278,11 @@ class SchoolAiClient {
       final responseData = _map(root['data']) ?? root;
       final report = _reportObject(responseData);
       if (report == null) {
-        throw const AiClientException(
+        throw AiClientException(
           AiClientErrorCode.invalidJson,
           'The school model response did not contain a report object',
+          httpStatus: response.statusCode,
+          failureStage: AiFailureStage.reportExtraction,
         );
       }
 
@@ -286,6 +298,7 @@ class SchoolAiClient {
         rawReportJson: jsonEncode(report),
         usage: _usage(usage),
         modelName: modelName,
+        httpStatus: response.statusCode,
       );
     } on TimeoutException {
       throw const AiClientException(

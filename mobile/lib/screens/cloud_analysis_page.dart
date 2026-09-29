@@ -572,6 +572,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       usedFallback: result.usedFallback,
       message: errorCode == null ? null : _aiErrorMessage(errorCode),
       reportJson: result.report,
+      error: result.error,
+      httpStatus: result.httpStatus,
     );
   }
 
@@ -599,34 +601,57 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final schoolClient = SchoolAiClient(
       endpoint: SchoolAiClient.endpointForApiBase(_backendUri()),
     );
-    final result = await const AiReportService().analyzeRequestOrFallback(
-      request: () {
-        if (token == null || token.isEmpty) {
-          throw const AiClientException(
-            AiClientErrorCode.authRequired,
-            'A TapLens login token is required',
-          );
-        }
-        return schoolClient.analyze(accessToken: token, payload: payload);
-      },
-      availableEvidenceIds: availableEvidenceIds,
-      ruleReport: ruleJson,
-      hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
-      modelName: 'cuc/deepseek',
-    );
-    schoolClient.close();
+    late final AiReportResult result;
+    try {
+      result = await const AiReportService().analyzeRequestOrFallback(
+        request: () {
+          if (token == null || token.isEmpty) {
+            throw const AiClientException(
+              AiClientErrorCode.authRequired,
+              'A TapLens login token is required',
+            );
+          }
+          return schoolClient.analyze(accessToken: token, payload: payload);
+        },
+        availableEvidenceIds: availableEvidenceIds,
+        ruleReport: ruleJson,
+        hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
+        modelName: 'cuc/deepseek',
+      );
+    } finally {
+      schoolClient.close();
+    }
     if (result.error?.code == AiClientErrorCode.authRequired) {
       _accessToken = null;
       final controller = _sessionController;
       if (controller != null) await controller.expireSession();
     }
-    return AiReportExecution(
-      report: AnalysisReport.fromJson(result.report),
-      usedFallback: result.usedFallback,
-      message:
-          result.error == null ? null : _schoolAiErrorMessage(result.error!),
-      reportJson: result.report,
-    );
+    try {
+      return AiReportExecution(
+        report: AnalysisReport.fromJson(result.report),
+        usedFallback: result.usedFallback,
+        message:
+            result.error == null ? null : _schoolAiErrorMessage(result.error!),
+        reportJson: result.report,
+        error: result.error,
+        httpStatus: result.httpStatus,
+      );
+    } on Object {
+      final error = AiClientException(
+        AiClientErrorCode.reportMappingFailed,
+        'The guarded AI report could not be mapped into the app report model',
+        httpStatus: result.httpStatus,
+        failureStage: AiFailureStage.reportModelMapping,
+      );
+      return AiReportExecution(
+        report: ruleReport,
+        usedFallback: true,
+        message: _schoolAiErrorMessage(error),
+        reportJson: ruleJson,
+        error: error,
+        httpStatus: result.httpStatus,
+      );
+    }
   }
 
   Future<AiReportExecution> _runOfflineMock({
@@ -654,6 +679,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       message: simulateFailure
           ? '离线 Mock 已模拟 AI 格式错误，TapLens 保留规则报告；未联网、未读取 Key、未消耗 Token。'
           : '离线 Mock 报告通过结构和证据检查；这不是模型结论，未联网、未读取 Key、未消耗 Token。',
+      error: result.error,
+      httpStatus: result.httpStatus,
     );
   }
 
@@ -684,6 +711,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.serviceUnavailable => 'AI 服务暂时不可用',
       AiClientErrorCode.guardRejected => '后端报告守卫拒绝了模型结果',
       AiClientErrorCode.invalidRequest => '学校模型请求未通过后端接口校验',
+      AiClientErrorCode.processingFailed => 'AI 响应处理失败',
+      AiClientErrorCode.reportMappingFailed => 'AI 报告转换失败',
+      AiClientErrorCode.pageStateUpdateFailed => 'AI 报告页面更新失败',
     };
     return '$reason，已保留规则报告。';
   }
@@ -703,6 +733,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.invalidJson ||
       AiClientErrorCode.reportSchemaInvalid =>
         '学校模型返回的报告格式未通过检查，已保留规则报告。',
+      AiClientErrorCode.processingFailed => '学校模型已返回响应，但客户端处理失败；请复制客户端诊断信息。',
+      AiClientErrorCode.reportMappingFailed => '报告通过响应处理后无法转换为页面数据；请复制客户端诊断信息。',
+      AiClientErrorCode.pageStateUpdateFailed =>
+        '学校模型报告已收到，但页面状态未能更新；请复制客户端诊断信息。',
       AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
       AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
       AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',

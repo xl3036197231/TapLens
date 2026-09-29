@@ -28,15 +28,19 @@
 - APP 最终显示规则报告回退，`sources.ai=false`，没有取得 AI 报告。
 - 机器记录、操作说明和给 B 的只读核查请求见 `shared/daliy_task/day6-a-ai-evidence/`。
 
-尚未收到 B 对本次调用是否到达 Provider、是否产生 Token 用量及错误原因的只读结论。当前结果必须记为“服务端结果待核实”；客户端回退 JSON 中的零 Token 不是 Provider 零消耗证明。本轮不重放请求。
+B 已完成只读核查：后端 HTTP 200，`cuc/deepseek` 调用成功，耗时 16881 ms，prompt 3331、completion 1872、total 5203 Token，后端报告守卫通过。
+
+因此可以确认故障在 HTTP 200 返回后的手机端处理流程，但旧版 APP 没有保存阶段、`AiClientErrorCode` 或完整响应，无法追溯具体失败点。不能把现在的 Mock 结果当作历史故障原因，也不能据此伪造 AI 报告。本轮没有重放模型请求。
+
+新版客户端对 HTTP 200 后的失败会输出脱敏 JSON，区分响应 JSON 解析、报告提取、本地 JSON 解析、本地报告守卫、报告映射和页面状态更新；报告页可查看并复制诊断。如果页面自身无法更新，诊断只写入 Android logcat。交接记录见 `shared/daliy_task/day7-a-evidence/day7-a-ai-response-diagnostic.md`。
 
 ## 模拟器验证
 
 - 设备：Android 15 / API 35，AVD `TapLens_API35`，设备代号 `sdk_gphone64_x86_64`。
 - 包名：`com.taplens.app`。
 - 最终 APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`。
-- APK SHA-256：`BBF93897940A54F171D4466FA3F6DDC9CBD82DA900F57D2A72390CA7E2CABAED`。
-- 模拟器内 APK 与构建 APK 的 SHA-256 一致。
+- 最新 APK SHA-256：`5FD1F3604266ED66B1DBEF81071E9FD9645A6A29EAEB693743A1B8F00F23C60B`。
+- APK 构建成功。最后一处诊断过滤改动后未能重新安装到模拟器：启动 AVD 时，Windows 拒绝访问 `C:\Users\zhixing\.android\emu-last-feature-flags.protobuf.lock`，ADB 未发现设备。此前安装验证对应的 APK 哈希是 `24518C4DCC6A9B6F679677FF50D1AADEECF59D5645623D437C3F92023EF2DC85`，不包含最后的诊断过滤改动。
 - 首页、账号页、退出确认框、相册二维码预览和相机页面截图见 `shared/daliy_task/day7-a-evidence/`。
 - 相册导入：使用 `shared/datasets/qr/png/qr10-plain-text.png`，结果为普通训练文本；APP 显示只读预览，不联网、不打开目标、不执行载荷。
 - 相机入口：扫码页面能够打开，但该 AVD 的虚拟摄像头画面为黑屏，本轮无法用相机读出二维码。没有把相册结果冒充成相机结果。需在能提供真实视频帧的设备或模拟器配置上补测。
@@ -45,7 +49,9 @@
 ## 检查结果
 
 - `flutter analyze`：通过，无问题。
-- `cd mobile; flutter test`：75 项通过。
+- `cd mobile; flutter test`：79 项通过。
+- AI 客户端诊断回归只使用 `MockClient` 和现有脱敏 fixture；没有请求真实模型。
+- 最新 APK 已构建；Android 模拟器安装验证因 `.android` 锁文件访问权限受限未完成。
 - `cd mobile; flutter build apk --debug --no-pub --android-project-arg=kotlin.incremental=false`：通过。
 - JSON/Markdown 交付材料的凭据特征扫描：无匹配。截图没有包含明文密码、JWT 或 API Key。
 
@@ -53,7 +59,7 @@
 
 | 项目 | 状态 | 负责人/依赖 | 影响 |
 |---|---|---|---|
-| B 对候选学校模型请求进行只读核查，并给出错误码、Provider 状态和实际 Token 用量 | BLOCKED / 待 B | B | A 修正准确错误提示；D 判定 AI 验收 |
+| 恢复 12:04 的完整真实 AI 报告并完成端到端验收 | BLOCKED / 完整响应未保存；本轮禁止重试 | A、B、D | 不能把 Mock 或规则回退冒充真实 AI 报告 |
 | 在能提供有效相机视频帧的 Android 环境中扫过安全样例 | BLOCKED / 当前 AVD 黑屏 | A；C 可补充真机验证 | Day 7 相机扫码验收 |
 | 实际账号注册/登录联网验证 | 本轮未请求网络；已由假 HTTP 和组件测试覆盖 | A，需在受控 HTTPS 或明确授权测试环境执行 | 注册服务端联调 |
 
