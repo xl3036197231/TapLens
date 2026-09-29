@@ -34,7 +34,8 @@
 | 12:04 调用归因 | **PASS（后端审计）** | B 记录 `cuc/deepseek` HTTP 200、模型推理与后端报告守卫通过、Nginx 200；Provider 用量 3331 输入 + 1872 输出 = **5203 Token**。这是服务端实际调用，不是手机上已接受的报告。B 当前未有服务端幂等防重复计费；责任 B 提兼容方案与测试，不擅改 API。 |
 | 手机完整 AI 报告 | **BLOCKED** | APP 最终为规则回退 `sources.ai=false`；真实响应全文/最终 APP 接收报告未归档，故无法逐字段验证模型是否新增、遗漏或改写证据，亦无法核验 AI 报告 Schema、Token 显示和设备展示。失败发生在手机响应处理、守卫还是状态转换，现有证据无法定位。责任 A 提供**已有**完整脱敏响应/设备诊断（若实际保存）；B 核对对应服务端摘要；D 再审。不得用 Mock、摘要或新调用补成历史 PASS。 |
 | A 手机端登录/二维码 | **PARTIAL** | A 报告 79 项 Flutter 测试与模拟器相册 QR10 预览成功；相机打开但黑帧，无真实相机扫码通过记录；最新诊断版 APK 未重新安装到模拟器。责任 A：在同一 APK/设备记录相机或说明环境限制，留安全预览截图。 |
-| C Android 15 实体手机 | **BLOCKED** | C 已验证 APK 构建、Manifest/Debug HTTP 白名单、77 项 Flutter/12 项原生测试，但 `adb devices -l` 无实体手机。工作站 `/healthz` 200 不等于手机到后端可达。责任 C：连接实体 Android 15，记录型号/包哈希、扫码/相册和只读健康页；须先获 B 健康窗口。 |
+| C 静态、构建和离线边界 | **PASS（C 已提交记录）** | C 提交 `05d08ae`：Flutter **77/77**、Android 原生 **12/12**；Debug APK SHA-256 `78FAEA7999AAEC848E7C9D924FD87157B399925964F8532A70865465EFA336DF`。合并 Manifest/Debug 网络配置默认禁止明文 HTTP，仅放行 ECS `39.107.253.138`；正式 L01 未联网、未启动外部应用、未开始动态预检。这是对 C 固定交付的复核，D 未独立重构 APK 或真机复测。 |
+| C Android 15 实体手机 | **BLOCKED** | `adb devices -l` 无实体手机。实体手机相机扫码、相册导入、固定 URL/Deep Link 等 payload 解析、手机浏览器 `/healthz` 与 APP 网络路径**均未现场验证**，不能用静态测试、模拟器或工作站健康检查代替。责任 C：连接实体 Android 15，记录型号、同版 APK 哈希、扫码/相册与只读联网结果；B 先确认健康窗口。 |
 | 传输与秘密 | **PARTIAL（范围明确）** | 候选材料中未发现明文密码值、JWT 或模型 Key；D 未审 ECS 全盘。当前公开演示为 **HTTP**，不可宣称 HTTPS 保护，不用真实账号/密码。责任 B/全组：上线前配置 HTTPS；A 仅用虚构数据演示。 |
 
 ## 可复现命令及本次实际结果
@@ -62,6 +63,6 @@ python -m unittest discover -s mobile/test/ai -p 'test_*.py'
 
 实际结果：**规则 JSON PASS；C04 PNG BLOCKED；学校 AI 手机终验 BLOCKED；实体 Android 15 BLOCKED。**
 
-目前还缺：候选 PNG + B 哈希、真实完整 AI 响应/同 APK 页面、A 相机现场与 C 实体手机记录；旧响应若确未保存，不得伪造。
+目前还缺：候选 PNG + B 哈希、真实完整 AI 响应/同 APK 页面、A 相机现场与 C 实体手机扫码/相册/固定 payload/浏览器及 APP 联网记录；旧响应若确未保存，不得伪造。
 
 状态：**D 审计 READY；四方终验 PARTIAL/BLOCKED。** 影响 A、B、C、D。
