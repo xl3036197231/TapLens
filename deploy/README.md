@@ -94,6 +94,13 @@ port 443; it is not published on the host or Internet. EasyConnect home and
 official session configuration live in named Docker volumes and are excluded
 from Git and backend backups.
 
+CUC's public package metadata currently selects Linux `7.6.7.3`, while the
+generic update catalog bundled in that package advertises `7.6.7.7` and can
+incorrectly block reauthentication. The entrypoint disables only the generic
+Sangfor update host and removes that conflicting catalog. It also clears stale
+Xvfb lock files so a container restart reliably restores the noVNC login page.
+The CUC gateway and its own package metadata remain reachable.
+
 ## Operations
 
 Run all commands from the repository root on the ECS host. The scripts validate

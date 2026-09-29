@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "audited_at": "2026-09-29T16:09:02+08:00",
+  "branch": "feat/b-backend-bootstrap",
+  "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+  "task_id": "e454f7ea-5b9c-4626-83d3-d17d43496f40",
+  "replayed_request": false,
+  "created_cloud_task": false,
+  "calls": [
+    {
+      "client_confirmed_at": "2026-09-29T10:01:13.966+08:00",
+      "nginx_observed_at": "2026-09-29T02:01:14.565061062Z",
+      "request_path": "/api/v1/ai/analyze",
+      "request_arrived": true,
+      "http_status": 502,
+      "backend_error_code": "无法确认",
+      "provider_http_entered": true,
+      "provider_model_inference_entered": false,
+      "provider_status": 302,
+      "attempt_id": "9c98dbc6-2dc0-43cc-9b50-a074be712b2f",
+      "elapsed_ms": 65,
+      "provider_usage": "无法确认",
+      "backend_report_guard": "not_entered",
+      "evidence": {
+        "nginx_access_log_currently_reproducible": true,
+        "provider_observation_source": "contemporaneous_b_observation",
+        "raw_api_log_currently_reproducible": false,
+        "limitation": "旧 API 容器已重建，Provider 原始日志和响应正文未保留"
+      }
+    },
+    {
+      "client_confirmed_at": "2026-09-29T12:04:09+08:00",
+      "provider_started_at": "2026-09-29T04:04:34.931300233Z",
+      "provider_finished_at": "2026-09-29T04:04:51.812026809Z",
+      "nginx_finished_at": "2026-09-29T04:04:51.816079037Z",
+      "request_path": "/api/v1/ai/analyze",
+      "request_arrived": true,
+      "http_status": 200,
+      "backend_error_code": null,
+      "provider_http_entered": true,
+      "provider_model_inference_entered": true,
+      "provider": "cuc/deepseek",
+      "provider_status": 200,
+      "attempt_id": "7df86f2d-8f90-497b-8f76-174d3300a957",
+      "elapsed_ms": 16881,
+      "provider_usage": {
+        "request_count": 1,
+        "prompt_tokens": 3331,
+        "completion_tokens": 1872,
+        "total_tokens": 5203,
+        "model": "cuc/deepseek"
+      },
+      "backend_report_guard": "passed",
+      "client_result": "rule_report_fallback_sources_ai_false",
+      "client_fallback_reason": "无法确认",
+      "evidence": {
+        "nginx_access_log_currently_reproducible": true,
+        "api_structured_log_currently_reproducible": true
+      }
+    }
+  ],
+  "duplicate_charge_protection": {
+    "server_side_idempotency": false,
+    "analysis_id_unique_constraint": false,
+    "in_progress_lock": false,
+    "successful_result_cache": false,
+    "client_button_lock_only": true,
+    "status": "gap_documented_contract_unchanged"
+  },
+  "read_only_window": {
+    "checked_at": "2026-09-29T16:09:02+08:00",
+    "health_url": "http://39.107.253.138/healthz",
+    "api_base_url": "http://39.107.253.138/api/v1",
+    "http_status": 200,
+    "database": "ok",
+    "artifacts": "ok",
+    "vpn_tun0_ipv4_present": true,
+    "provider_entry_probe_http_status": 404,
+    "provider_entry_redirected_to_wengine_login": false
+  },
+  "overall": {
+    "backend_provider_call_at_1204": "PASS",
+    "backend_report_guard_at_1204": "PASS",
+    "mobile_end_to_end_ai_report": "BLOCKED"
+  }
+}
