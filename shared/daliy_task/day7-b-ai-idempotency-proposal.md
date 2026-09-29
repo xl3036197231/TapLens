@@ -20,7 +20,7 @@
 
 ```text
 analysis_unique_key = (user_id, analysis_id)
-input_match_key = HMAC-SHA256(versioned_server_secret, canonical_sanitized_payload_v2)
+input_match_key = HMAC-SHA256(versioned_server_secret, canonical_sanitized_payload_v3)
 ```
 
 不把 JWT、学校 Key、Cookie、用户密码或完整 HTTP 头写入数据库。
@@ -65,13 +65,15 @@ input_match_key = HMAC-SHA256(versioned_server_secret, canonical_sanitized_paylo
 12. 成功写入方法内部强制运行 `validate_and_finalize_report()`、`AiAnalyzeResponse` 校验、
     用量算术检查和敏感缓存扫描，不接受调用方传入的任意报告字典。
 
-## 规范化输入 v2
+## 规范化输入 v3
 
-原型采用固定字段白名单，包括 `analysis_id`、规范化 UTC `created_at`、脱敏分析输入、L/C
-证据摘要和硬风险。目标、证据、风险和证据编号集合按规范 JSON 排序；相同时间点的 `Z` 与
-时区偏移写法归一化为同一值。A 必须为同一 `analysis_id` 持久复用首次 `created_at`；修改时间
-视为输入冲突。摘要使用带版本的服务端 HMAC，密钥不能写入仓库或日志；轮换期间至少保留覆盖
-最长调用时间和 24 小时缓存期的上一版本。缓存过期后的旧 ID 直接由永久墓碑拒绝，无需旧密钥。
+原型采用固定字段白名单，包括 `analysis_id`、`created_at` 原始文本、脱敏分析输入、L/C
+证据摘要和硬风险。目标、证据、风险和证据编号集合按规范 JSON 排序。由于报告守卫要求 Provider
+原样返回 `created_at` 文本，v3 将该文本直接绑定进摘要：即使 `Z` 与时区偏移表示同一
+时间点，文本不同也返回输入冲突，不会返回时间格式错配的旧缓存。A 必须为同一
+`analysis_id` 持久复用首次 `created_at` 的完整字符串。摘要使用带版本的服务端 HMAC，
+密钥不能写入仓库或日志；轮换期间至少保留覆盖最长调用时间和 24 小时缓存期的上一版本。
+若历史密钥缺失，原型保守返回输入冲突，即使未 dispatch 的租约已过期也绝不新建 Provider 尝试。
 
 ## 需 A/D 对齐的最小合同变化
 
@@ -102,11 +104,13 @@ Authorization: Bearer <TapLens JWT>
 - 前 30 天保留防重放审计字段；30 天后清除 Token 数、模型和其他可删字段，但保留最小永久墓碑。
 - 永久墓碑保留 `user_id + analysis_id + HMAC digest + state + dispatch/usage 状态`，在服务端尚无
   不可伪造分析生命周期前绝不删除，因此第 31 天及以后旧 ID 仍不能重新预留。
-- 守卫报告仍可能含目标或页面内容，写入前需要最小化和脱敏；数据库文件和备份均使用受控权限与加密存储。
+- 守卫报告仍可能含目标或页面内容，写入前需要最小化和脱敏；数据库文件和备份使用受控权限。
+  仓库尚未实现或演练备份加密，不得宣称“已加密存储”。
 - 部署备份副本无条件清除全部 `response_json` 和 `cache_expires_at`，manifest 明确记录不包含 AI
   响应缓存；恢复脚本对旧备份再次执行相同清除。因此备份不会延长 24 小时缓存可恢复时间。
-- 原型提供每小时清理 Worker；待正式路由获批时再接入应用生命周期。日志禁止记录响应、digest
-  或输入正文，产品隐私说明应告知服务端最多暂存 24 小时的已守卫报告。
+- 原型提供每小时清理 Worker；待正式路由获批时再接入应用生命周期。当前 24 小时是
+  逻辑可用 TTL，未接入时不得宣称已实现 24 小时物理删除上限；按每小时扫描时，正常运行下最长
+  清除延迟约为 1 小时。日志禁止记录响应、digest 或输入正文。
 
 ## Mock/单元测试清单
 
@@ -121,8 +125,9 @@ Authorization: Bearer <TapLens JWT>
 7. 租约过期与进程重启后行为可预期；
 8. 数据库和错误响应不包含 JWT、Key、Cookie 或密码。
 
-当前隔离原型共 20 项测试：18 项覆盖 SQLite 幂等、`created_at` 绑定、第 31 天永久墓碑、
-守卫缓存边界、敏感值拒绝、用量算术、续租、迟到成功、HMAC 轮换和自动清理；2 项覆盖备份与
+当前隔离原型共 24 项测试：22 项覆盖 SQLite 幂等、`created_at` 文本绑定、第 31 天永久墓碑、
+守卫缓存边界、敏感值拒绝、用量算术、续租、迟到成功/失败及并发终态竞争、HMAC 轮换与缺失密钥保守失败、自动清理；
+2 项覆盖备份与
 恢复脚本的 AI 响应缓存剥离。完整后端回归结果另见进度记录。
 
 ## 推进条件

@@ -193,7 +193,10 @@ class AiCallRepository:
                 record.input_digest, candidate_digest
             ):
                 return Reservation(ReservationKind.INPUT_CONFLICT, record)
-            if candidate_digest is None and record.response is not None:
+            # A missing historical key must fail closed. In particular, an
+            # expired undispatched lease must never become a fresh Provider
+            # attempt when its original digest can no longer be verified.
+            if candidate_digest is None:
                 return Reservation(ReservationKind.INPUT_CONFLICT, record)
 
             if record.state is AiCallState.SUCCEEDED and (
@@ -325,27 +328,37 @@ class AiCallRepository:
     ) -> AiCallRecord:
         if payload.report_context.analysis_id != analysis_id:
             raise ValueError("payload analysis_id does not match completion")
-        if (
-            result.prompt_tokens < 0
-            or result.completion_tokens < 0
-            or result.total_tokens < 0
-            or result.prompt_tokens + result.completion_tokens != result.total_tokens
-            or not result.model.strip()
-        ):
-            raise ValueError("Provider usage is inconsistent")
-        report = validate_and_finalize_report(payload, result)
-        response = AiAnalyzeResponse(
-            analysis_id=analysis_id,
-            report=report,
-            usage=AiUsage(
-                prompt_tokens=result.prompt_tokens,
-                completion_tokens=result.completion_tokens,
-                total_tokens=result.total_tokens,
-                model=result.model,
-            ),
+        usage = (
+            result.prompt_tokens,
+            result.completion_tokens,
+            result.total_tokens,
+            result.model,
         )
-        response_data = response.model_dump(mode="json")
-        assert_cache_safe(response_data)
+        try:
+            _validate_provider_usage(usage)
+            report = validate_and_finalize_report(payload, result)
+            response = AiAnalyzeResponse(
+                analysis_id=analysis_id,
+                report=report,
+                usage=AiUsage(
+                    prompt_tokens=result.prompt_tokens,
+                    completion_tokens=result.completion_tokens,
+                    total_tokens=result.total_tokens,
+                    model=result.model,
+                ),
+            )
+            response_data = response.model_dump(mode="json")
+            assert_cache_safe(response_data)
+        except Exception as error:
+            self.complete_failure(
+                user_id=user_id,
+                analysis_id=analysis_id,
+                attempt_id=attempt_id,
+                error_code=_guard_failure_code(error),
+                usage=usage if _provider_usage_is_valid(usage) else None,
+                now=now,
+            )
+            raise
         timestamp = _utc(now)
         report_created_at = _utc(payload.report_context.created_at)
         with self.database.connect() as connection:
@@ -402,16 +415,19 @@ class AiCallRepository:
         now: datetime | None = None,
     ) -> AiCallRecord:
         timestamp = _utc(now)
-        if usage is not None and (
-            min(usage[0], usage[1], usage[2]) < 0 or usage[0] + usage[1] != usage[2]
-        ):
-            raise ValueError("Provider usage is inconsistent")
+        if usage is not None:
+            _validate_provider_usage(usage)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             record = row_to_record(self._select(connection, user_id, analysis_id))
-            if record.attempt_id != attempt_id or record.state is not AiCallState.IN_PROGRESS:
+            if record.attempt_id != attempt_id or record.state not in {
+                AiCallState.IN_PROGRESS,
+                AiCallState.OUTCOME_UNKNOWN,
+            }:
                 raise ValueError("AI call cannot be failed")
             dispatched = record.provider_dispatch_started_at is not None
+            if record.state is AiCallState.OUTCOME_UNKNOWN and not dispatched:
+                raise ValueError("AI call cannot be failed")
             state = (
                 AiCallState.OUTCOME_UNKNOWN
                 if outcome_unknown
@@ -526,14 +542,19 @@ class AiCallCleanupWorker:
 
 
 def canonical_sanitized_payload(payload: dict[str, object]) -> dict[str, object]:
-    """Return the fixed v2 whitelist with bound time and order-independent lists."""
+    """Return the fixed v3 whitelist with exact time text and order-independent lists.
+
+    The report guard requires the Provider report to preserve ``created_at`` text.
+    Binding that exact text prevents an equivalent offset representation from
+    receiving a cached report containing a different representation.
+    """
     context = _mapping(payload.get("report_context"))
     analysis_input = _mapping(payload.get("analysis_input"))
     return {
-        "normalization_version": 2,
+        "normalization_version": 3,
         "report_context": {
             "analysis_id": context.get("analysis_id"),
-            "created_at": normalize_report_created_at(context.get("created_at")),
+            "created_at": _report_created_at_text(context.get("created_at")),
         },
         "analysis_input": {
             "claims_text": analysis_input.get("claims_text"),
@@ -553,9 +574,35 @@ def payload_binding(payload: dict[str, object]) -> tuple[UUID, datetime]:
 
 
 def normalize_report_created_at(value: object) -> str:
-    if not isinstance(value, str):
+    return _iso(_utc(datetime.fromisoformat(_report_created_at_text(value).replace("Z", "+00:00"))))
+
+
+def _report_created_at_text(value: object) -> str:
+    if not isinstance(value, str) or not value:
         raise ValueError("report_context.created_at is required")
-    return _iso(_utc(datetime.fromisoformat(value.replace("Z", "+00:00"))))
+    return value
+
+
+def _provider_usage_is_valid(usage: tuple[int, int, int, str]) -> bool:
+    prompt, completion, total, model = usage
+    return (
+        min(prompt, completion, total) >= 0
+        and prompt + completion == total
+        and bool(model.strip())
+    )
+
+
+def _validate_provider_usage(usage: tuple[int, int, int, str]) -> None:
+    if not _provider_usage_is_valid(usage):
+        raise ValueError("Provider usage is inconsistent")
+
+
+def _guard_failure_code(error: Exception) -> str:
+    if isinstance(error, UnsafeCacheResponseError):
+        return "AI_CACHE_RESPONSE_UNSAFE"
+    if isinstance(error, ValueError) and str(error) == "Provider usage is inconsistent":
+        return "AI_PROVIDER_USAGE_INVALID"
+    return "AI_REPORT_REJECTED"
 
 
 def assert_cache_safe(value: object, *, path: tuple[str, ...] = ()) -> None:

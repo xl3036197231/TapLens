@@ -105,6 +105,24 @@ def test_same_analysis_with_changed_created_at_is_conflict(tmp_path) -> None:
     assert conflict.record.response["report"]["created_at"] == body["report_context"]["created_at"]
 
 
+def test_same_instant_with_different_created_at_text_is_conflict(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path)
+    acquired = dispatch(repository, user_id, analysis_id, body)
+    complete(repository, user_id, analysis_id, acquired.record.attempt_id, body)
+    changed = deepcopy(body)
+    changed["report_context"]["created_at"] = "2026-09-27T18:57:59.786849+08:00"
+
+    conflict = repository.reserve(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        payload=changed,
+        now=NOW + timedelta(hours=1),
+    )
+
+    assert conflict.kind is ReservationKind.INPUT_CONFLICT
+    assert conflict.record.response["report"]["created_at"] == body["report_context"]["created_at"]
+
+
 def test_same_analysis_is_isolated_between_users(tmp_path) -> None:
     repository, first_user, analysis_id, body = setup_repository(tmp_path)
     second_user = create_user(repository.database)
@@ -227,6 +245,77 @@ def test_same_attempt_late_success_converges_after_unknown_transition(tmp_path) 
     assert completed.response["report"]["sources"]["ai"] is True
 
 
+def test_same_attempt_late_failure_converges_with_known_usage(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path, lease_seconds=10)
+    acquired = dispatch(repository, user_id, analysis_id, body)
+    unknown = repository.reserve(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        payload=body,
+        now=NOW + timedelta(seconds=11),
+    )
+
+    failed = repository.complete_failure(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        attempt_id=acquired.record.attempt_id,
+        error_code="AI_PROVIDER_RESPONSE_INVALID",
+        usage=(120, 80, 200, "cuc/deepseek"),
+        now=NOW + timedelta(seconds=12),
+    )
+
+    assert unknown.kind is ReservationKind.OUTCOME_UNKNOWN
+    assert failed.state is AiCallState.FAILED_AFTER_PROVIDER
+    assert failed.usage_status is UsageStatus.KNOWN
+    assert failed.total_tokens == 200
+
+
+def test_same_attempt_concurrent_late_results_have_one_terminal_winner(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path, lease_seconds=10)
+    acquired = dispatch(repository, user_id, analysis_id, body)
+    repository.reserve(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        payload=body,
+        now=NOW + timedelta(seconds=11),
+    )
+
+    def late_success():
+        return complete(
+            repository,
+            user_id,
+            analysis_id,
+            acquired.record.attempt_id,
+            body,
+            now=NOW + timedelta(seconds=12),
+        )
+
+    def late_failure():
+        return repository.complete_failure(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            attempt_id=acquired.record.attempt_id,
+            error_code="AI_PROVIDER_RESPONSE_INVALID",
+            usage=(120, 80, 200, "cuc/deepseek"),
+            now=NOW + timedelta(seconds=12),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(late_success), pool.submit(late_failure)]
+        outcomes = []
+        for future in futures:
+            try:
+                outcomes.append(future.result())
+            except ValueError:
+                outcomes.append(None)
+
+    assert sum(outcome is not None for outcome in outcomes) == 1
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert record.state in {AiCallState.SUCCEEDED, AiCallState.FAILED_AFTER_PROVIDER}
+    assert record.usage_status is UsageStatus.KNOWN
+    assert record.total_tokens == 200
+
+
 def test_cache_is_cleared_after_24_hours_but_tombstone_blocks_replay(tmp_path) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path)
     acquired = dispatch(repository, user_id, analysis_id, body)
@@ -284,7 +373,10 @@ def test_only_guarded_schema_valid_response_can_be_cached(tmp_path) -> None:
     assert caught.value.code == "AI_REPORT_REJECTED"
     record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
     assert record.response is None
-    assert record.state is AiCallState.IN_PROGRESS
+    assert record.state is AiCallState.FAILED_AFTER_PROVIDER
+    assert record.usage_status is UsageStatus.KNOWN
+    assert record.total_tokens == 200
+    assert record.error_code == "AI_REPORT_REJECTED"
 
 
 def test_sensitive_guarded_response_is_rejected_before_cache_write(tmp_path) -> None:
@@ -305,6 +397,10 @@ def test_sensitive_guarded_response_is_rejected_before_cache_write(tmp_path) -> 
 
     record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
     assert record.response is None
+    assert record.state is AiCallState.FAILED_AFTER_PROVIDER
+    assert record.usage_status is UsageStatus.KNOWN
+    assert record.total_tokens == 200
+    assert record.error_code == "AI_CACHE_RESPONSE_UNSAFE"
 
 
 def test_inconsistent_provider_usage_is_rejected_before_cache_write(tmp_path) -> None:
@@ -329,7 +425,11 @@ def test_inconsistent_provider_usage_is_rejected_before_cache_write(tmp_path) ->
             result=inconsistent,
         )
 
-    assert repository.get_for_owner(user_id=user_id, analysis_id=analysis_id).response is None
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert record.response is None
+    assert record.state is AiCallState.FAILED_AFTER_PROVIDER
+    assert record.usage_status is UsageStatus.UNKNOWN
+    assert record.error_code == "AI_PROVIDER_USAGE_INVALID"
 
 
 def test_digest_rotation_accepts_records_signed_by_previous_key(tmp_path) -> None:
@@ -353,6 +453,28 @@ def test_digest_rotation_accepts_records_signed_by_previous_key(tmp_path) -> Non
     assert replay.record.attempt_id == acquired.record.attempt_id
 
 
+def test_missing_historical_digest_key_never_reacquires_provider_slot(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path, lease_seconds=10)
+    acquired = reserve(repository, user_id, analysis_id, body)
+    rotated = AiCallRepository(
+        repository.database,
+        digest_secrets={2: "new-local-test-secret"},
+        active_digest_key_version=2,
+        lease_seconds=10,
+    )
+
+    replay = rotated.reserve(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        payload=body,
+        now=NOW + timedelta(seconds=11),
+    )
+
+    assert replay.kind is ReservationKind.INPUT_CONFLICT
+    assert replay.record.attempt_id == acquired.record.attempt_id
+    assert replay.record.provider_dispatch_started_at is None
+
+
 def test_cleanup_worker_runs_expiry_without_request_path(tmp_path) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path)
     acquired = dispatch(repository, user_id, analysis_id, body)
@@ -371,7 +493,9 @@ def test_cleanup_worker_runs_expiry_without_request_path(tmp_path) -> None:
     assert record.state is AiCallState.SUCCEEDED
 
 
-def test_digest_normalizes_time_zone_and_array_order_and_database_has_no_secrets(tmp_path) -> None:
+def test_digest_binds_time_text_and_normalizes_array_order_and_database_has_no_secrets(
+    tmp_path,
+) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path)
     reordered = deepcopy(body)
     reordered["report_context"]["created_at"] = "2026-09-27T18:57:59.786849+08:00"
@@ -380,7 +504,11 @@ def test_digest_normalizes_time_zone_and_array_order_and_database_has_no_secrets
     )
     reordered["hard_risk_findings"] = list(reversed(reordered["hard_risk_findings"]))
 
+    original_time = reordered["report_context"]["created_at"]
+    reordered["report_context"]["created_at"] = body["report_context"]["created_at"]
     assert repository.digest(reordered) == repository.digest(body)
+    reordered["report_context"]["created_at"] = original_time
+    assert repository.digest(reordered) != repository.digest(body)
     reserve(repository, user_id, analysis_id, body)
 
     raw = repository.database.path.read_bytes()
