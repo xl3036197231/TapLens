@@ -14,6 +14,7 @@ from validate_day4_evidence import audit, audit_bundle
 
 A = "839c1e51e9094f43586ae078fffb31cf29fcbb74"
 B = "3bf8657ce188716daa7a83471c3d751a92de65e0"
+B_RETENTION = "a1068cbb41d571d68c037c7b91019c8606e653b0"
 C = "05d08aeb3e9854b01722b4ecab036ea961273a9d"
 ANALYSIS_ID = "3def1166-1bff-49c0-a601-62ef37cfe503"
 TASK_ID = "e454f7ea-5b9c-4626-83d3-d17d43496f40"
@@ -39,6 +40,7 @@ def main() -> None:
     bundle = git_json(A, "shared/daliy_task/day6-a-evidence/day6-a-unified-audit-bundle.json")
     fallback = git_json(A, "shared/daliy_task/day6-a-evidence/day6-a-school-ai-attempt-fallback.json")
     server = git_json(B, "shared/daliy_task/day7-b-evidence/ai-call-audit.json")
+    retention = git_json(B_RETENTION, "shared/daliy_task/day7-b-evidence/c04-retention-audit.json")
     device = git_json(C, "shared/daliy_task/day7-c-evidence/static-verification.json")
 
     result = audit_bundle(bundle, analysis_id=ANALYSIS_ID, task_id=TASK_ID, rule_only=True)
@@ -101,14 +103,25 @@ def main() -> None:
             "12:04 successful provider call or usage mismatch")
     require(second["client_result"] == "rule_report_fallback_sources_ai_false",
             "12:04 client fallback classification mismatch")
+    require(retention["analysis_id"] == ANALYSIS_ID and retention["task_id"] == TASK_ID and
+            cloud["screenshot"]["artifact_id"] == TASK_ID,
+            "B C04 retention record does not match A candidate")
+    require(retention["current_database"]["status"] == "expired" and
+            retention["current_database"]["evidence_json_bytes"] == 0 and
+            len(retention["backups"]) == 2 and
+            all(backup["status"] == "expired" and backup["evidence_json_bytes"] == 0 and
+                backup["artifact_files"] == 0 for backup in retention["backups"]) and
+            retention["persistent_volume_matching_task_files"] == 0 and
+            retention["c04_png_binary"] == "unavailable",
+            "B C04 retention record does not support unavailable-PNG conclusion")
 
     print(json.dumps({
         "candidate": {"analysis_id": ANALYSIS_ID, "task_id": TASK_ID},
-        "pinned_commits": {"A": A, "B": B, "C": C},
+        "pinned_commits": {"A": A, "B_calls": B, "B_retention": B_RETENTION, "C": C},
         "rule_json_schema_ids_urls": "PASS",
         "fallback_is_non_ai": "PASS",
         "c04_metadata": "PASS",
-        "c04_png_binary_and_hash": "BLOCKED: candidate PNG plus B hash attestation not supplied",
+        "c04_png_binary_and_hash": "BLOCKED: B attests current ECS/two backups have no PNG; D did not inspect ECS",
         "first_call": "502; provider gateway 302; model inference not entered; usage unknown",
         "second_call": "200; provider model and backend guard passed; 5203 provider tokens",
         "client_accepted_ai_report": "BLOCKED: only rule fallback is archived",
