@@ -60,6 +60,7 @@ class SchoolOpenAiProvider:
         self.api_key = settings.llm_api_key.get_secret_value()
         self.model = settings.llm_model
         self.timeout = settings.llm_timeout_seconds
+        self.proxy_url = settings.llm_proxy_url or None
         self.transport = transport
 
     async def analyze(self, payload: dict[str, object]) -> ProviderResult:
@@ -98,6 +99,7 @@ class SchoolOpenAiProvider:
             async with httpx.AsyncClient(
                 timeout=self.timeout,
                 transport=self.transport,
+                proxy=self.proxy_url if self.transport is None else None,
             ) as client:
                 response = await client.post(
                     self.endpoint,
