@@ -273,19 +273,33 @@ class _ReportPageState extends State<ReportPage> {
               _SectionCard(
                 title: '报告来源',
                 icon: Icons.source_outlined,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (report.localSource) const Chip(label: Text('本地证据')),
-                    if (report.cloudSource) const Chip(label: Text('云端证据')),
-                    Chip(
-                      label: Text(
-                        report.aiSource
-                            ? 'AI 深度研判：已调用（sources.ai=true）'
-                            : 'AI 深度研判：未调用（sources.ai=false）',
-                      ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (report.localSource) const Chip(label: Text('本地证据')),
+                        if (report.cloudSource) const Chip(label: Text('云端证据')),
+                        Chip(
+                          label: Text(
+                            report.aiSource
+                                ? 'AI 深度研判：已调用（sources.ai=true）'
+                                : _schoolCallAttempted
+                                    ? 'AI 调用已尝试，未取得 AI 报告'
+                                    : 'AI 深度研判：未调用（sources.ai=false）',
+                          ),
+                        ),
+                      ],
                     ),
+                    if (!report.aiSource && _schoolCallAttempted) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '当前显示规则报告。服务端调用状态和实际 Token 用量待核实；不要据此认定为零消耗。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ],
                 ),
               ),

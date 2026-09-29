@@ -20,11 +20,40 @@ enum AiClientErrorCode {
 class AiClientException implements Exception {
   final AiClientErrorCode code;
   final String message;
+  final int? httpStatus;
+  final String? backendCode;
+  final bool? retryable;
+  final List<AiValidationIssue> validationIssues;
 
-  const AiClientException(this.code, this.message);
+  const AiClientException(
+    this.code,
+    this.message, {
+    this.httpStatus,
+    this.backendCode,
+    this.retryable,
+    this.validationIssues = const [],
+  });
 
   @override
   String toString() => 'AiClientException($code): $message';
+}
+
+class AiValidationIssue {
+  final String path;
+  final String type;
+  final String? message;
+
+  const AiValidationIssue({
+    required this.path,
+    required this.type,
+    this.message,
+  });
+
+  Map<String, Object?> toJson() => {
+        'path': path,
+        'type': type,
+        if (message != null) 'message': message,
+      };
 }
 
 class AiUsage {

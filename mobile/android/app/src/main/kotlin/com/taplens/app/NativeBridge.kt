@@ -44,6 +44,21 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     SecureKeyStore.clear(applicationContext)
                     result.success(null)
                 }
+                "saveSession" -> {
+                    val value = call.argument<String>("session")
+                    if (value.isNullOrBlank()) {
+                        result.error("SESSION_INVALID", "Session cannot be empty", null)
+                    } else {
+                        runCatching { SecureKeyStore.saveSession(applicationContext, value) }
+                            .onSuccess { result.success(null) }
+                            .onFailure { result.error("SESSION_STORAGE_ERROR", "Unable to save session", null) }
+                    }
+                }
+                "readSession" -> result.success(SecureKeyStore.readSession(applicationContext))
+                "clearSession" -> {
+                    SecureKeyStore.clearSession(applicationContext)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

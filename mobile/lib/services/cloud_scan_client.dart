@@ -58,6 +58,9 @@ class LoginSession {
     required this.username,
   });
 
+  bool isValidAt(DateTime now) =>
+      accessToken.isNotEmpty && expiresAt != null && expiresAt!.isAfter(now);
+
   factory LoginSession.fromJson(Map<String, dynamic> json) {
     final user = _map(json['user']);
     return LoginSession(
@@ -67,6 +70,25 @@ class LoginSession {
       username: _text(user['username']),
     );
   }
+}
+
+class RegisteredAccount {
+  final String userId;
+  final String username;
+  final DateTime? createdAt;
+
+  const RegisteredAccount({
+    required this.userId,
+    required this.username,
+    required this.createdAt,
+  });
+
+  factory RegisteredAccount.fromJson(Map<String, dynamic> json) =>
+      RegisteredAccount(
+        userId: _text(json['user_id']),
+        username: _text(json['username']),
+        createdAt: DateTime.tryParse(_text(json['created_at'])),
+      );
 }
 
 class QuotaSnapshot {
@@ -134,9 +156,8 @@ class TapLensApiClient {
         client = client ?? http.Client();
 
   Future<bool> health() async {
-    final response = await client
-        .get(config.path('/health'))
-        .timeout(requestTimeout);
+    final response =
+        await client.get(config.path('/health')).timeout(requestTimeout);
     return response.statusCode == 200;
   }
 
@@ -150,6 +171,18 @@ class TapLensApiClient {
       body: {'username': username, 'password': password},
     );
     return LoginSession.fromJson(json);
+  }
+
+  Future<RegisteredAccount> register({
+    required String username,
+    required String password,
+  }) async {
+    final json = await _request(
+      'POST',
+      config.path('/auth/register'),
+      body: {'username': username, 'password': password},
+    );
+    return RegisteredAccount.fromJson(json);
   }
 
   Future<QuotaSnapshot> quota(String accessToken) async {

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../ai/ai_client.dart';
 import '../ai/ai_report_service.dart';
@@ -15,9 +16,11 @@ import '../ai/offline_ai_report_demo.dart';
 import '../ai/school_ai_client.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
+import '../services/auth_session.dart';
 import '../services/cloud_scan_client.dart';
 import '../services/local_safety_service.dart';
 import '../services/local_target_matcher.dart';
+import 'account_page.dart';
 import 'report_page.dart';
 
 class CloudAnalysisPage extends StatefulWidget {
@@ -25,6 +28,8 @@ class CloudAnalysisPage extends StatefulWidget {
   final String? analysisId;
   final Map<String, dynamic>? localEvidence;
   final String? initialBaseUrl;
+  final AuthSessionController? sessionController;
+  final http.Client? httpClient;
 
   const CloudAnalysisPage({
     super.key,
@@ -32,6 +37,8 @@ class CloudAnalysisPage extends StatefulWidget {
     this.analysisId,
     this.localEvidence,
     this.initialBaseUrl,
+    this.sessionController,
+    this.httpClient,
   });
 
   @override
@@ -39,18 +46,19 @@ class CloudAnalysisPage extends StatefulWidget {
 }
 
 class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
-  static const _acceptanceReplayEnabled =
-      bool.fromEnvironment('TAPLENS_ACCEPTANCE_REPLAY');
-  static const _acceptanceAnalysisId =
-      String.fromEnvironment('TAPLENS_ACCEPTANCE_ANALYSIS_ID');
-  static const _acceptanceTaskId =
-      String.fromEnvironment('TAPLENS_ACCEPTANCE_TASK_ID');
+  static const _acceptanceReplayEnabled = bool.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_REPLAY',
+  );
+  static const _acceptanceAnalysisId = String.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_ANALYSIS_ID',
+  );
+  static const _acceptanceTaskId = String.fromEnvironment(
+    'TAPLENS_ACCEPTANCE_TASK_ID',
+  );
 
   late final TextEditingController _urlController;
   late final TextEditingController _baseUrlController;
   final _taskIdController = TextEditingController();
-  final _usernameController = TextEditingController(text: 'demo_user');
-  final _passwordController = TextEditingController();
 
   QuotaSnapshot? _quota;
   DeepScanTask? _task;
@@ -80,13 +88,13 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     _urlController.dispose();
     _baseUrlController.dispose();
     _taskIdController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
   Uri _backendUri() {
-    final uri = Uri.tryParse(_baseUrlController.text.trim());
+    final uri = Uri.tryParse(
+      (_sessionController?.apiBaseUrl ?? _baseUrlController.text).trim(),
+    );
     if (uri == null ||
         !{'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
         uri.host.isEmpty ||
@@ -98,13 +106,20 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     return uri;
   }
 
+  AuthSessionController? get _sessionController =>
+      widget.sessionController ?? TapLensSessionScope.maybeOf(context);
+
   Future<void> _runCloudScan() async {
     final url = _urlController.text.trim();
     final existingTaskId = _taskIdController.text.trim();
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
-    if (url.isEmpty || username.isEmpty || password.isEmpty) {
-      setState(() => _error = '请填写链接、用户名和密码。');
+    final controller = _sessionController;
+    if (url.isEmpty) {
+      setState(() => _error = '请填写链接。');
+      return;
+    }
+    if (controller == null || !controller.isAuthenticated) {
+      if (controller?.current != null) await controller!.expireSession();
+      setState(() => _error = '请先登录 TapLens 账号，再进行云端分析。');
       return;
     }
     if (existingTaskId.isNotEmpty &&
@@ -122,11 +137,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       _loading = true;
       _error = null;
       _task = null;
-      _accessToken = null;
+      _accessToken = controller.activeLogin!.accessToken;
     });
     try {
       final api = TapLensApiClient(
         config: TapLensApiConfig(baseUri: _backendUri()),
+        client: widget.httpClient,
       );
       if (!await api.health()) {
         throw const TapLensApiException(
@@ -136,13 +152,11 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           retryable: true,
         );
       }
-      final session = await api.login(username: username, password: password);
-      if (!mounted) return;
-      setState(() => _accessToken = session.accessToken);
+      final accessToken = controller.activeLogin!.accessToken;
 
       late final DeepScanTask task;
       if (existingTaskId.isEmpty) {
-        final quota = await api.quota(session.accessToken);
+        final quota = await api.quota(accessToken);
         if (quota.remaining <= 0) {
           throw const TapLensApiException(
             statusCode: 429,
@@ -154,14 +168,14 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
         if (!mounted) return;
         setState(() => _quota = quota);
         task = await api.createDeepScan(
-          accessToken: session.accessToken,
+          accessToken: accessToken,
           analysisId: analysisId,
           url: url,
         );
       } else {
         task = await _recoverTask(
           api: api,
-          accessToken: session.accessToken,
+          accessToken: accessToken,
           taskId: existingTaskId,
           url: url,
         );
@@ -172,7 +186,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       final finished = task.isFinished
           ? task
           : await api.waitForCompletion(
-              accessToken: session.accessToken,
+              accessToken: accessToken,
               taskId: task.taskId,
             );
       if (!mounted) return;
@@ -319,16 +333,23 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       );
     } on Exception catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法载入已归档验收证据：$error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('无法载入已归档验收证据：$error')));
     }
   }
 
   Future<void> _continuePolling() async {
     final task = _task;
-    final token = _accessToken;
-    if (task == null || token == null || task.isFinished) return;
+    final controller = _sessionController;
+    if (task == null || task.isFinished) return;
+    if (controller == null || !controller.isAuthenticated) {
+      if (controller?.current != null) await controller!.expireSession();
+      if (mounted) {
+        setState(() => _error = '登录状态已失效，请重新登录后再继续查询。');
+      }
+      return;
+    }
+    final token = controller.activeLogin!.accessToken;
     setState(() {
       _loading = true;
       _error = null;
@@ -336,6 +357,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     try {
       final api = TapLensApiClient(
         config: TapLensApiConfig(baseUri: _backendUri()),
+        client: widget.httpClient,
       );
       final result = await api.waitForCompletion(
         accessToken: token,
@@ -363,9 +385,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final localEvidence = _localEvidence;
     final cloudEvidence = task.cloudEvidence;
     if (localEvidence == null || cloudEvidence == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('缺少本地或云端证据，无法生成审计 JSON。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('缺少本地或云端证据，无法生成审计 JSON。')));
       return;
     }
 
@@ -424,9 +446,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       );
     } on Exception {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('证据格式不完整，无法生成调试审计 JSON。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('证据格式不完整，无法生成调试审计 JSON。')));
     }
   }
 
@@ -435,6 +457,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final hasActiveTask = _task != null && !_task!.isFinished;
     final String message;
     if (error is TapLensApiException) {
+      if ({
+        'AUTH_TOKEN_MISSING',
+        'AUTH_TOKEN_INVALID',
+        'AUTH_TOKEN_EXPIRED',
+      }.contains(error.code)) {
+        _accessToken = null;
+        final controller = _sessionController;
+        if (controller != null) unawaited(controller.expireSession());
+      }
       message = switch (error.code) {
         'AUTH_INVALID_CREDENTIALS' => '用户名或密码不正确。',
         'AUTH_TOKEN_MISSING' ||
@@ -463,6 +494,16 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           hasActiveTask ? '暂时无法查询。任务已创建，恢复连接后点击“继续查询”。' : '云端服务暂时不可用，请稍后重试。';
     }
     setState(() => _error = message);
+  }
+
+  void _openAccountPage() {
+    final controller = _sessionController;
+    if (controller == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AccountPage(controller: controller),
+      ),
+    );
   }
 
   String? _taskStatusMessage(DeepScanTask task) {
@@ -515,9 +556,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       ruleReport,
       localEvidence: _localEvidence,
     );
-    final result = await AiReportService(
-      DeepSeekAiClient(modelName: modelName),
-    ).analyzeOrFallback(
+    final result = await AiReportService(DeepSeekAiClient(modelName: modelName))
+        .analyzeOrFallback(
       apiKey: apiKey,
       sanitizedPayload: payload,
       availableEvidenceIds: availableEvidenceIds,
@@ -553,8 +593,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       ruleReport,
       localEvidence: _localEvidence,
     );
-    final token = _accessToken;
-    final schoolClient = SchoolAiClient();
+    final token = _sessionController?.isAuthenticated == true
+        ? _sessionController?.activeLogin?.accessToken
+        : null;
+    final schoolClient = SchoolAiClient(
+      endpoint: SchoolAiClient.endpointForApiBase(_backendUri()),
+    );
     final result = await const AiReportService().analyzeRequestOrFallback(
       request: () {
         if (token == null || token.isEmpty) {
@@ -563,23 +607,24 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             'A TapLens login token is required',
           );
         }
-        return schoolClient.analyze(
-          accessToken: token,
-          payload: payload,
-        );
+        return schoolClient.analyze(accessToken: token, payload: payload);
       },
       availableEvidenceIds: availableEvidenceIds,
       ruleReport: ruleJson,
       hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
-      modelName: 'deepseek-flash',
+      modelName: 'cuc/deepseek',
     );
     schoolClient.close();
+    if (result.error?.code == AiClientErrorCode.authRequired) {
+      _accessToken = null;
+      final controller = _sessionController;
+      if (controller != null) await controller.expireSession();
+    }
     return AiReportExecution(
       report: AnalysisReport.fromJson(result.report),
       usedFallback: result.usedFallback,
-      message: result.error == null
-          ? null
-          : _schoolAiErrorMessage(result.error!.code),
+      message:
+          result.error == null ? null : _schoolAiErrorMessage(result.error!),
       reportJson: result.report,
     );
   }
@@ -643,29 +688,52 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     return '$reason，已保留规则报告。';
   }
 
-  String _schoolAiErrorMessage(AiClientErrorCode code) => switch (code) {
-        AiClientErrorCode.authRequired => '登录状态已失效或未登录，请返回并重新登录。规则报告仍可查看。',
-        AiClientErrorCode.timeout => '学校模型响应超时，未自动重试。规则报告仍可查看。',
-        AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，请稍后再试。规则报告仍可查看。',
-        AiClientErrorCode.guardRejected => '模型报告被后端守卫拒绝，已保留原规则报告。',
-        AiClientErrorCode.invalidRequest =>
-          '学校模型请求未通过后端接口校验，请联系管理员核对接口字段和格式。规则报告仍可查看。',
-        AiClientErrorCode.network => '网络不可用，无法连接学校模型。规则报告仍可查看。',
-        AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
-        AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
-        AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
-        AiClientErrorCode.invalidJson ||
-        AiClientErrorCode.reportSchemaInvalid =>
-          '学校模型返回的报告格式未通过检查，已保留规则报告。',
-        AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
-        AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
-        AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
-      };
+  String _schoolAiErrorMessage(AiClientException error) {
+    final base = switch (error.code) {
+      AiClientErrorCode.authRequired => 'TapLens 登录状态已失效或未登录，请重新登录。',
+      AiClientErrorCode.timeout => '学校模型请求超时。请求可能仍在服务器处理中，确认服务端调用状态后再重试。',
+      AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，服务端调用状态待核实；先不要立即重试。',
+      AiClientErrorCode.guardRejected =>
+        '后端报告守卫拒绝了模型结果；模型可能已经运行。重试前请先核对服务端调用记录。',
+      AiClientErrorCode.invalidRequest => _schoolAiValidationMessage(error),
+      AiClientErrorCode.network => '设备网络不可用；服务端结果待核实，先不要立即重试。',
+      AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
+      AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
+      AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
+      AiClientErrorCode.invalidJson ||
+      AiClientErrorCode.reportSchemaInvalid =>
+        '学校模型返回的报告格式未通过检查，已保留规则报告。',
+      AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
+      AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
+      AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
+    };
+    return '$base 规则报告仍可查看';
+  }
+
+  String _schoolAiValidationMessage(AiClientException error) {
+    final issues = error.validationIssues;
+    if (issues.isEmpty) {
+      return '学校模型请求未通过接口字段校验，请检查请求结构。';
+    }
+    final details =
+        issues.take(3).map((issue) => '${issue.path}（${issue.type}）').join('、');
+    final more = issues.length > 3 ? '，另有 ${issues.length - 3} 项' : '';
+    return '学校模型请求未通过字段校验：$details$more。请修正后再试。';
+  }
 
   @override
   Widget build(BuildContext context) {
     final quota = _quota;
     final task = _task;
+    final authController = _sessionController;
+    final authenticated = authController?.isAuthenticated == true;
+    final savedBaseUrl = authController?.apiBaseUrl;
+    if (savedBaseUrl != null && _baseUrlController.text != savedBaseUrl) {
+      _baseUrlController.text = savedBaseUrl;
+    }
+    final accountLabel = authenticated
+        ? '已登录：${authController!.current!.login.username}'
+        : '尚未登录 TapLens 账号';
     final recoveringTask = _taskIdController.text.trim().isNotEmpty;
     final actionLabel = _loading
         ? (recoveringTask ? '查询中…' : '分析中…')
@@ -691,11 +759,29 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _baseUrlController,
-              keyboardType: TextInputType.url,
+              readOnly: true,
               decoration: const InputDecoration(
-                labelText: '后端地址',
-                helperText: 'Android 模拟器可用 10.0.2.2；真机填写同一 Wi-Fi 下电脑的局域网地址。',
+                labelText: '已登录账号使用的后端地址',
+                helperText: '如需更改，请到“账号与登录”中设置。',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  authenticated
+                      ? Icons.verified_user_outlined
+                      : Icons.person_outline,
+                ),
+                title: Text(accountLabel),
+                subtitle: Text(
+                  authenticated ? '额度、云任务和学校模型共用此登录状态。' : '登录一次即可继续使用云端分析。',
+                ),
+                trailing: TextButton(
+                  onPressed: authController == null ? null : _openAccountPage,
+                  child: Text(authenticated ? '账号' : '登录'),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -707,23 +793,6 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                 labelText: '已有云任务 ID（可选）',
                 helperText:
                     '只查询并轮询该任务；APP 会按任务 ID 对应的 analysis_id 重做本地静态解析，不创建云任务、不扣额度。',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: 'TapLens 用户名',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'TapLens 密码',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -747,12 +816,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 16),
-              Card(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.error_outline),
-                  title: const Text('云端分析未完成'),
-                  subtitle: Text(_error!),
+              Semantics(
+                liveRegion: true,
+                child: Card(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.error_outline),
+                    title: const Text('云端分析未完成'),
+                    subtitle: Text(_error!),
+                  ),
                 ),
               ),
             ],
