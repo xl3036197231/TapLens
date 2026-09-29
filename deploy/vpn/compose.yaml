@@ -1,0 +1,50 @@
+name: taplens-vpn
+
+services:
+  easyconnect:
+    build:
+      context: ../..
+      dockerfile: deploy/vpn/Dockerfile
+    image: taplens-cuc-vpn:7.6.7.3
+    container_name: taplens-cuc-vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    shm_size: 256mb
+    ports:
+      - 127.0.0.1:6080:6080
+    volumes:
+      - taplens-cuc-vpn-home:/home/easyconnect
+      - taplens-cuc-vpn-conf:/usr/share/sangfor/EasyConnect/resources/conf
+    networks:
+      vpn-egress:
+        ipv4_address: 192.168.250.2
+
+  proxy:
+    build:
+      context: ../..
+      dockerfile: deploy/vpn/Dockerfile.proxy
+    image: taplens-cuc-vpn-proxy:1
+    container_name: taplens-cuc-vpn-proxy
+    restart: unless-stopped
+    depends_on:
+      - easyconnect
+    network_mode: service:easyconnect
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=2m
+
+networks:
+  vpn-egress:
+    name: taplens_vpn_egress
+    ipam:
+      config:
+        - subnet: 192.168.250.0/24
+
+volumes:
+  taplens-cuc-vpn-home:
+    name: taplens_cuc_vpn_home
+  taplens-cuc-vpn-conf:
+    name: taplens_cuc_vpn_conf

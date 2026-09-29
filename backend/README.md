@@ -1,6 +1,6 @@
 # TapLens Backend
 
-TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、Playwright 深度分析、日志脱敏和部署；后端不接收 DeepSeek Key，也不保存完整手机报告。
+TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、Playwright 深度分析、学校模型代理、日志脱敏和部署；后端拒绝客户端上传模型 Key，学校 Key 只从 ECS 私有环境读取。
 
 ## 当前状态
 
@@ -22,6 +22,7 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - BrowserContext级Playwright采集器，限制请求数和执行时间；
 - 对每个HTTP请求重新执行目标授权，阻止业务写请求、下载、弹窗和外部协议；
 - 只采集脱敏URL、请求域名、跳转、表单字段、标题、文本摘要和截图。
+- `POST /api/v1/ai/analyze` 使用服务端学校凭证分析白名单内的脱敏证据，并再次校验 Schema、证据编号和硬风险。
 
 已提供独立worker，可从SQLite队列取出任务、运行受限Playwright采集并组装正式云证据。单 Worker 重启时会把中断的 `running` 任务重新排队；多 Worker 生产级队列尚未实现，也不属于当前单机部署范围。
 
@@ -153,7 +154,9 @@ cd backend
 
 ## 安全约束
 
-- 不接收或记录 DeepSeek Key；请求对象会拒绝包括 `deepseek_key` 在内的未声明字段，错误响应不回显字段值；
+- 不接收或记录客户端模型 Key；请求对象会拒绝包括 `deepseek_key`、`api_key` 在内的未声明字段，错误响应不回显字段值；
+- 学校模型 Key 只存在 `deploy/.env`，不写入 Git、SQLite、日志或客户端响应；
+- 学校模型调用日志只记录随机 `attempt_id`、上游 HTTP 状态、安全错误码、请求 ID、耗时和 Token 数；不记录 Key、提示词、证据正文或上游错误消息；
 - 不把真实密钥写入 `.env.example`；
 - 不记录完整敏感查询参数或Authorization头；
 - 正式云任务必须在访问前后进行IP检查并阻止私网、保留地址和云元数据地址；
