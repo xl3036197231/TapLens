@@ -10,6 +10,10 @@
 >
 > A 合并提交：`378393a`
 >
+> B Day 7 基线：`3bf8657`
+>
+> B 合并提交：`d4d8a7b`
+>
 > 当前状态：**PARTIAL**。静态检查、构建和离线测试已完成；实体 Android 15 真机与 B 确认后的手机联网检查仍为 BLOCKED。
 
 ## 本轮完成内容
@@ -82,17 +86,18 @@
 
 Flutter 离线测试已验证：当学校模型未取得 AI 报告时，APP 保留规则报告，并显示“服务端调用状态和实际 Token 用量待核实”，不会把 `sources.ai=false` 错写成 AI 成功，也不会把客户端 Token 0 当作后端零消耗。本轮没有调用学校模型。
 
+B 的 Day 7 只读审计 `3bf8657` 已进一步确认：2026-09-29 12:04 的请求到达 `cuc/deepseek`，Provider 返回 200，后端报告守卫通过，实际用量为 prompt 3331、completion 1872、total 5203 Token。手机最终仍显示 `sources.ai=false` 的规则报告，因此失败点位于手机收到 HTTP 200 后的解析、本地守卫或页面状态更新；具体原因仍未知，端到端学校 AI 保持 BLOCKED。C 没有重放该请求。
+
 ## 网络状态与限制
 
-2026-09-29 16:25:38 +08:00，从开发电脑只读访问 `http://39.107.253.138/healthz` 得到 HTTP 200：
+B 已在提交 `3bf8657` 中提供真机只读窗口：2026-09-29 16:09:02 +08:00，`/healthz` 为 HTTP 200，database 与 artifacts 均为 ok，窗口可用。随后在 16:25:38 +08:00，从开发电脑只读访问 `http://39.107.253.138/healthz` 同样得到 HTTP 200：
 
 ```json
 {"status":"ready","service":"taplens-backend","checks":{"database":"ok","artifacts":"ok"}}
 ```
 
-该结果只能说明当时电脑到 ECS 可达，不能代替以下 Day 7 必需证据：
+电脑结果与 B 的状态一致，但仍不能代替以下 Day 7 必需证据：
 
-- B 提供的 Day 7 健康确认与可用测试窗口；
 - 实体 Android 15 手机浏览器访问 `/healthz`；
 - 实体手机 APP 的网络路径。
 
@@ -104,7 +109,7 @@ Flutter 离线测试已验证：当学校模型未取得 AI 报告时，APP 保�
 | 真机相机扫描安全二维码 | BLOCKED | 需要实体手机摄像头；不得用 AVD 黑屏或相册结果冒充。 |
 | 真机相册导入另一张样例 | BLOCKED | 需要连接实体手机并保存脱敏截图。 |
 | 真机 URL / Intent / Wi-Fi / 短信现场预览 | BLOCKED | 自动化已通过；仍需真机逐项确认不自动执行。 |
-| 真机浏览器 `/healthz` 与 APP 网络路径 | BLOCKED | 需要 B 先给出 Day 7 健康状态和窗口，再由手机实测。 |
+| 真机浏览器 `/healthz` 与 APP 网络路径 | BLOCKED | B 已确认窗口可用；当前只缺连接实体 Android 15 手机后实测。 |
 
 ## 复现命令
 
@@ -124,13 +129,13 @@ cd android
 ## 统一交接
 
 ```text
-成员与分支：C，feat/c-day2-device-validation，A 基线 84cc1de，合并基线 378393a
-我完成了：同步 main、合入 A Day 7、构建 APK、核对 Manifest/HTTP 白名单、复核正式 L01、完成 77 项 Flutter 与 12 项 Android 原生离线测试。
+成员与分支：C，feat/c-day2-device-validation，A 基线 84cc1de，B 基线 3bf8657
+我完成了：同步 main、合入 A/B Day 7、构建 APK、核对 Manifest/HTTP 白名单、复核正式 L01、完成 77 项 Flutter 与 12 项 Android 原生离线测试。
 你可以这样复现：按本文“复现命令”执行，并核对 day7-c-evidence/static-verification.json。
 实际结果：静态检查、构建和离线边界 PASS；工作站 healthz 当时为 200 ready；没有实体设备证据。
-目前还缺：实体 Android 15 手机扫码、相册、固定 payload、浏览器 healthz 与 APP 网络路径；B 的 Day 7 健康确认和测试窗口。
+目前还缺：实体 Android 15 手机扫码、相册、固定 payload、浏览器 healthz 与 APP 网络路径。B 的 Day 7 健康窗口已经确认。
 状态：PARTIAL
-影响成员：D（最终审计需等待真机证据），B（需提供健康窗口）
+影响成员：D（最终审计需等待真机证据）
 ```
 
 本轮没有创建云任务、没有重放学校模型请求、没有访问正式候选目标页面，也没有执行二维码载荷动作。
