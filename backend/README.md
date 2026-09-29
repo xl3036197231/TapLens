@@ -140,6 +140,7 @@ cd backend
 
 - 不接收或记录客户端模型 Key；请求对象会拒绝包括 `deepseek_key`、`api_key` 在内的未声明字段，错误响应不回显字段值；
 - 学校模型 Key 只存在 `deploy/.env`，不写入 Git、SQLite、日志或客户端响应；
+- 学校模型调用日志只记录随机 `attempt_id`、上游 HTTP 状态、安全错误码、请求 ID、耗时和 Token 数；不记录 Key、提示词、证据正文或上游错误消息；
 - 不把真实密钥写入 `.env.example`；
 - 不记录完整敏感查询参数或Authorization头；
 - 正式云任务必须在访问前后进行IP检查并阻止私网、保留地址和云元数据地址；

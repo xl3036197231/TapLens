@@ -1,0 +1,15 @@
+FROM docker.m.daocloud.io/library/ubuntu:18.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|http://mirrors.aliyun.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|http://mirrors.aliyun.com/ubuntu|g' \
+      /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tinyproxy \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/vpn/tinyproxy.conf /etc/tinyproxy/tinyproxy.conf
+
+ENTRYPOINT ["tinyproxy", "-d", "-c", "/etc/tinyproxy/tinyproxy.conf"]

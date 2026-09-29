@@ -73,10 +73,33 @@ TAPLENS_LLM_API_KEY=replace-on-the-server-only
 TAPLENS_LLM_MODEL=cuc/deepseek
 TAPLENS_LLM_PROTOCOL=openai_chat_completions
 TAPLENS_LLM_TIMEOUT_SECONDS=60
+TAPLENS_LLM_PROXY_URL=http://192.168.250.2:8888
 ```
 
 The API rejects client-supplied model keys. The server credential is never stored
 in SQLite, returned to the client, or included in backups.
+
+When the CUC gateway requires the official VPN, start the isolated EasyConnect
+stack first:
+
+```bash
+docker compose -f deploy/vpn/compose.yaml up -d --build
+ssh -N -L 6080:127.0.0.1:6080 <ecs-host>
+```
+
+Open `http://127.0.0.1:6080/vnc.html` locally and complete the unified identity
+and SMS steps yourself. The VPN UI is bound to ECS loopback only. The internal
+CONNECT proxy accepts only the dedicated `192.168.250.0/24` Docker network and
+port 443; it is not published on the host or Internet. EasyConnect home and
+official session configuration live in named Docker volumes and are excluded
+from Git and backend backups.
+
+CUC's public package metadata currently selects Linux `7.6.7.3`, while the
+generic update catalog bundled in that package advertises `7.6.7.7` and can
+incorrectly block reauthentication. The entrypoint disables only the generic
+Sangfor update host and removes that conflicting catalog. It also clears stale
+Xvfb lock files so a container restart reliably restores the noVNC login page.
+The CUC gateway and its own package metadata remain reachable.
 
 ## Operations
 

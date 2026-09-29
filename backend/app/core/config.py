@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_protocol: Literal["openai_chat_completions"] = "openai_chat_completions"
     llm_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
+    llm_proxy_url: str = ""
 
     @model_validator(mode="after")
     def require_production_jwt_secret(self) -> "Settings":
@@ -85,6 +86,19 @@ class Settings(BaseSettings):
                 raise ValueError("enabled LLM requires HTTPS base URL, API key and model")
             self.llm_base_url = self.llm_base_url.rstrip("/")
             self.llm_model = self.llm_model.strip()
+        if self.llm_proxy_url:
+            proxy_url = urlsplit(self.llm_proxy_url)
+            if (
+                proxy_url.scheme not in {"http", "https"}
+                or not proxy_url.netloc
+                or proxy_url.path not in {"", "/"}
+                or proxy_url.query
+                or proxy_url.fragment
+                or proxy_url.username is not None
+                or proxy_url.password is not None
+            ):
+                raise ValueError("llm_proxy_url must be an HTTP(S) origin without credentials")
+            self.llm_proxy_url = self.llm_proxy_url.rstrip("/")
         return self
 
     @property
