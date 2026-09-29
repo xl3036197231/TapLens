@@ -129,7 +129,7 @@ class QrPayloadInspector {
         title: '网页链接',
         behavior: '打开后可能跳转到其他网页、要求登录或下载文件。',
         advice: isFictionalOrReservedHttpUrl(value)
-            ? '这是虚构或保留示例域名。完成本地预检后，你可以选择提交云端；云端会按实际 DNS 结果处理，无法解析时会失败。'
+            ? '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 规则处理。'
             : '先核对脱敏后的域名和跳转情况；网页内容仍需进一步检查。',
         safePreview: _safeUriPreview(uri),
         // The preview is what the user may choose to submit. Credentials are

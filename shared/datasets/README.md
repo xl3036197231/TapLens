@@ -36,7 +36,7 @@
 
 | 样例 | 处理 |
 |---|---|
-| FIX-DL-007 | 逻辑输入 `https://short.example.test/go/campus`。仅在隔离测试配置中，精确映射至 D 本地站点 `mobile/test/ai/day2_site/short-link.html`；预期观察跳转 `C01` 和登录表单 `C02`。实际编号以 B 的证据生成结果为准。 |
+| FIX-DL-007 | 逻辑输入 `https://short.example.test/go/campus`。后端精确映射到仓库受控站点 `/controlled/go/campus`，预期观察跳转、登录表单和页面截图；报告必须标为模拟证据。实际编号以证据生成结果为准。 |
 | 其他 FIX/EVAL | `intent://` 或自定义 Scheme 只交给 C 静态解析；fallback 不自动跟随，云端证据为空。 |
 
-本地站点可用 `python -m http.server 8765 --bind 127.0.0.1` 从 `mobile/test/ai/day2_site` 启动。此地址是本机 HTTP 测试入口，不等于逻辑 HTTPS 短链接。B 需要保留 SSRF 私网阻断，并仅为受控目标设计测试环境的精确授权。站点不会公开部署，也不接收真实账号密码。
+此外，云端仅为 `https://scholarship.example.test/apply` 和 `https://campus.example.test/go/campus` 配置同一精确映射。报告会说明原虚构域名没有被解析或访问；未知虚构主机仍按正常 DNS 和 SSRF 规则处理。本地站点也可用 `python -m http.server 8765 --bind 127.0.0.1` 从 `mobile/test/ai/day2_site` 启动。此地址是本机 HTTP 测试入口，不等于逻辑 HTTPS 链接。站点不接收真实账号密码。

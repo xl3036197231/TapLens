@@ -45,7 +45,7 @@ void main() {
 
     await tester.tap(find.text('开始本地预检'));
     await tester.pumpAndSettle();
-    final testDomainNotice = find.textContaining('你仍可选择提交云端测试');
+    final testDomainNotice = find.textContaining('会映射到受控样例页');
     await tester.scrollUntilVisible(
       testDomainNotice,
       240,

@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from app.core.errors import AppError
+from app.sandbox.fictional_fixture import fixture_for_url
 from app.sandbox.url_policy import (
     UnsafeTargetError,
     resolve_and_validate_target,
@@ -46,10 +47,11 @@ class TaskService:
                 target_url,
                 allowed_test_origins=self.allowed_test_origins,
             )
-            resolve_and_validate_target(
-                validated,
-                allowed_test_origins=self.allowed_test_origins,
-            )
+            if fixture_for_url(validated.url) is None:
+                resolve_and_validate_target(
+                    validated,
+                    allowed_test_origins=self.allowed_test_origins,
+                )
         except UnsafeTargetError as exc:
             raise AppError(
                 code=exc.code,

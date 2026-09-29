@@ -18,7 +18,8 @@ void main() {
     expect(result.safePreview, isNot(contains('secret')));
     expect(result.safePreview, isNot(contains('abc123')));
     expect(result.localCheckValue, result.safePreview);
-    expect(result.advice, contains('你可以选择提交云端'));
+    expect(result.advice, contains('映射到受控样例页'));
+    expect(result.advice, contains('标注为模拟证据'));
   });
 
   test('普通 HTTPS QR 可以在本地预检后由用户选择云分析', () {

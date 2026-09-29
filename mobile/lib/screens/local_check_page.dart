@@ -168,7 +168,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                   child: const Padding(
                     padding: EdgeInsets.all(16),
                     child: Text(
-                      '这是虚构或保留示例域名。你仍可选择提交云端测试；云端会先检查 DNS 和目标安全性，无法解析或不安全的目标会被拒绝。',
+                      '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 和安全规则处理。',
                     ),
                   ),
                 ),

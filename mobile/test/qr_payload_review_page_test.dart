@@ -32,7 +32,7 @@ void main() {
     expect(find.text('网页链接'), findsOneWidget);
     expect(find.text('继续做本地安全预检'), findsOneWidget);
     expect(find.textContaining('虚构或保留示例域名'), findsOneWidget);
-    expect(find.textContaining('你可以选择提交云端'), findsOneWidget);
+    expect(find.textContaining('映射到受控样例页'), findsOneWidget);
     final optInNote = find.textContaining('云端分析不会自动开始');
     await tester.scrollUntilVisible(
       optInNote,
