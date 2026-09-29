@@ -35,3 +35,9 @@ App 未显示或保存 HTTP 状态、后端错误码、`attempt_id`、`elapsed_m
 - 这项代码修正在本次 AI 请求之后完成，不能算作本次请求所用 APK 的内容。请求 APK 仍以现场记录里的 SHA-256 为准；修正后的 APK SHA-256 为 `BAE698970589370889D1BAAC1CE176ED4153BF69F76A17793D9EF81CEFC7E37B`，已重新安装到 `emulator-5554`，设备内 APK 哈希匹配。重新安装和打开 App 后没有再次点击学校模型，也没有创建云任务。
 - 修正后 `flutter test`：66 项通过；`flutter analyze`：无问题；`flutter build apk --debug --no-pub --android-project-arg=kotlin.incremental=false`：成功。
 - 本目录记录的是 12:04 的一次调用。A 较早在 10:01 对同一 `analysis_id` 的一次独立尝试记录在 `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`。请 B 在只读核查中同时区分两次 A 请求。
+
+## ID 说明
+
+仓库还保留一套较早的 Day 5 正式 bundle：`analysis_id=0bab7eba-ff50-42f8-a264-543596b2c9bf`、`task_id=f1858539-4595-4297-acfe-5bf81a91bc54`，见 `shared/daliy_task/day5-a-evidence/test1.json`。B 的 Day 6 交接说明这条旧任务已过期。
+
+本次 12:04 模拟器调用实际使用的是当前模拟器已有的另一套证据：`analysis_id=3def1166-1bff-49c0-a601-62ef37cfe503`、`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40`。本次没有创建云任务。两组 ID 不能互相替代；本次请求不能当作对 Day 5 正式 ID 的调用或验收。请 B 只读核查本次实际请求对应的 3def/e454，并将 Day 5 ID 留作历史过期记录。

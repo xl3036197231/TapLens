@@ -40,7 +40,8 @@
     "The UI did not expose or persist the HTTP status, backend error code, attempt_id, or elapsed_ms.",
     "The client fallback's zero token fields do not prove that the server provider was not invoked.",
     "B must correlate ECS/Nginx/API/Worker records read-only using the analysis_id and the 2026-09-29 12:04-12:06 +08:00 window.",
-    "Do not replay the request or create a replacement cloud task."
+    "Do not replay the request or create a replacement cloud task.",
+    "The repository also contains an older formal Day 5 bundle for analysis_id 0bab7eba-ff50-42f8-a264-543596b2c9bf and task_id f1858539-4595-4297-acfe-5bf81a91bc54. This 12:04 app call used the separate existing emulator bundle 3def1166-1bff-49c0-a601-62ef37cfe503 / e454f7ea-5b9c-4626-83d3-d17d43496f40; do not treat it as a call against the older formal IDs."
   ],
   "screenshots": [
     "school-model-before.png",
@@ -63,5 +64,12 @@
     "school_ai_called_again": false,
     "apk_path": "mobile/build/app/outputs/flutter-apk/app-debug.apk",
     "command": "flutter build apk --debug --no-pub --android-project-arg=kotlin.incremental=false"
+  },
+  "older_formal_task_reference": {
+    "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+    "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+    "evidence": "shared/daliy_task/day5-a-evidence/test1.json",
+    "used_for_this_app_call": false,
+    "status_in_b_day6_handoff": "expired"
   }
 }

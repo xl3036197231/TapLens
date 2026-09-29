@@ -1,1 +1,95 @@
-# A Day 6 进度\n\n日期：2026-09-28\n\n> 2026-09-29 的设备和学校模型验收结果见文末“Day 6 现场验收更新”；该记录更新了下方当时尚未完成的事项。\n\n分支：`feat/a-mobile-function`\n\n## 已完成\n\n1. 学校模型客户端现在支持无 JWT 的请求预检。预检沿用实际模型请求的脱敏白名单，只发五段 JSON，不添加 `Authorization`，不会调用 Provider。\n2. 客户端保留 HTTP 状态、后端错误码、`retryable` 和脱敏字段路径/类型；FastAPI 的数字数组路径会被规范为 `targets[0]`。标准 `detail` 的错误消息只保留固定安全文案，不回显服务端输入值。\n3. 修正 URL 脱敏问题：清理查询和片段后不再保留空的 `?`、`#`。第一次真实无 JWT 预检得到 `422 AI_REQUEST_INVALID`；修正后重新发送，得到 `401 AUTH_TOKEN_MISSING`、`retryable=false`。请求没有 JWT，Provider 未调用。\n4. 更新报告页的错误提示：分别说明登录失效、超时、服务不可用、字段校验失败、网络失败和报告守卫拒绝；可安全展示最多三个出错字段路径。错误卡片作为 live region 供辅助技术播报。\n5. 修复 `502 AI_REPORT_REJECTED` 被误判为服务不可用的问题；现在映射为报告守卫拒绝，并提醒用户先核对服务端调用记录。\n6. 用固定 Day 5 bundle 完成离线规则报告回归，生成 `L01`、`C01–C04`，确认 `sources.ai=false`、Token 用量为零，结果明确标记为离线回放。\n7. Android 主 Manifest 增加 `INTERNET` 权限。Debug 构建仅对测试 ECS IP `39.107.253.138` 开放明文 HTTP，其他目标在 Network Security Config 中仍默认禁止；release 没有打开全局明文 HTTP。\n8. Android 15 模拟器已启动。通过模拟器内的 HTTP GET 请求 `/healthz` 实际收到 `200 OK` 和 `status=ready`。这是模拟器 shell 的网络结果，不是 Chrome 或 TapLens 页面结果。\n\n## 证据与复现\n\n- 无 JWT 真实预检和脱敏请求体：`shared/daliy_task/day6-a-evidence/day6-a-school-ai-preflight.json`\n- 离线固定证据回放：`shared/daliy_task/day6-a-evidence/day6-a-offline-recovery.json`\n- 模拟器健康接口结果：`shared/daliy_task/day6-a-evidence/day6-a-emulator-healthz.json`\n- 客户端回归测试：`mobile/test/ai/school_ai_client_test.dart`\n- 当前环境可执行的纯 Dart smoke 检查：在 `mobile/` 下运行 `dart tool/day6_school_ai_client_smoke.dart`。\n- 重新生成离线回放：在 `mobile/` 下运行 `dart tool/day6_school_ai_preflight.dart --offline-only`。\n- 重新执行无 JWT 真实预检：在 `mobile/` 下运行 `dart tool/day6_school_ai_preflight.dart`。该命令只发送不带 Authorization 的脱敏请求；预期返回 401，不会创建任务或调用模型。\n\n## 当前验证结果\n\n- 纯 Dart 客户端 smoke 检查：24 项断言通过，覆盖无 JWT 预检、脱敏、422 字段诊断、401、502 守卫拒绝、504 超时与 503 不可用。\n- 无 JWT 真实预检：`401 AUTH_TOKEN_MISSING`，`retryable=false`，请求结构通过校验，Provider 未调用。\n- 离线回放：PASS；正式 bundle 的历史状态为 `succeeded`，B 当前核查状态为 `expired`，两者未混淆。\n- 模拟器 shell HTTP 健康检查：`200 OK`，数据库和 artifacts 检查均为 `ok`。\n- Flutter `test`、`analyze` 和最新 APK 构建尚未完成。Flutter/Dart 工具需要启动 analyzer、shader compiler 等子进程，但当前 Windows 命令沙箱返回 `CreateFile failed 5 (Access denied)`。没有把未运行的 Flutter 测试写成通过。\n\n## 尚未闭合\n\n- 在允许 Flutter 子进程的开发环境中运行完整 `flutter test`、`flutter analyze`，构建最新 Debug APK，并检查最终合并 Manifest。\n- 用 Chrome 打开模拟器 `/healthz`，再从最新 TapLens APK 验证应用内网络路径并留存截图。当前 ADB 浏览器启动被命令策略拒绝，Computer Use 窗口清单连续失败；shell HTTP 结果不能代替这两项。\n- 规则报告回归可继续 PASS；学校模型真实报告仍 BLOCKED。没有创建云任务、查询过期任务或调用模型。\n\n## 交接结论\n\nA 的客户端修复、脱敏无 JWT 预检和离线回归已完成。模拟器到 ECS 的网络已从 shell 确认可达；Chrome 与 TapLens APK 的实际页面路径、Flutter 全量验证和最新 APK 构建仍待完成，因此 A Day 6 设备验收状态为 **PARTIAL**，不能写为完整 PASS。\n\n## Day 6 现场验收更新\n\n日期：2026-09-29\n分支：`feat/a-mobile-function`\n构建基线：`3e56981`（本次 APK 也包含本地测试修复，尚未提交）\n\n### APK 与模拟器\n\n- 完成 `flutter test`：65 项通过；`flutter analyze`：无问题；`flutter build apk --debug`：成功。\n- Debug APK 安装在 `emulator-5554`（`TapLens_API35`，Android 15 / API 35）。设备上的 `base.apk` SHA-256 与本地构建产物一致：`73f5f38281a6c56500a48173cd9d9bd7b02ed01c0b26a6510f76761dc77369f7`。\n- 构建时使用的后端为 `http://39.107.253.138/api/v1`，目标为 `http://39.107.253.138/controlled/go/campus`，`analysis_id` 为 `3def1166-1bff-49c0-a601-62ef37cfe503`。\n\n### 同一 ID 的本地和云端证据\n\n- 只创建了一条新云任务：`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40`；状态 `succeeded`。之后只查询了这条已有任务，没有再次创建任务。首次完成时额度显示剩余 `9 / 10`。\n- 初始 URL 为 `http://39.107.253.138/controlled/go/campus`，经一次跳转到 `http://39.107.253.138/controlled/campus-login.html`。规则报告识别到两个敏感表单字段，并明确记录没有提交表单。\n- App 导出的 bundle 中 `analysis_id`、`task_id`、本地 `L01` 和云端 `C01–C04` 完全一致；本地为静态解析，`launched_external_app=false`、`network_accessed=false`、`preflight.status=not_started`。\n- 证据 JSON、报告和截图均已脱敏，不包含密码、TapLens JWT 或模型 API Key。\n\n### 学校模型调用\n\n- 默认选择“学校模型”，在 `2026-09-29 10:01:13.966 +08:00` 确认并发起一次调用。App 随后将按钮锁定为“学校模型已调用一次”；没有重试。\n- App 最终保存的是规则报告回退：`sources.ai=false`，客户端报告中的 `token_usage.request_count=0`、`total_tokens=0`、`model=null`。因此没有取得符合验收要求的学校模型报告。\n- 这个客户端回退 JSON 不能证明后端有没有进入 Provider：错误码未被持久化，守卫回退也会保留规则报告。请 B 按时间和 `analysis_id` 只读核对后端访问记录、Provider 是否调用、响应状态和实际 Token 用量；不要再次调用模型。\n- 学校 AI 正式验收状态：**BLOCKED**。规则报告和同 ID 证据核验通过；模型报告、`sources.ai=true` 和有效 Token 用量未通过。\n\n### 交付文件\n\n- `shared/daliy_task/day6-a-evidence/day6-a-unified-audit-bundle.json`：脱敏本地与云端证据、规则报告。\n- `shared/daliy_task/day6-a-evidence/day6-a-school-ai-attempt-fallback.json`：唯一一次调用后的规则报告回退，不是真实 AI 报告。\n- `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`：构建、任务和模型调用状态摘要。\n- `shared/daliy_task/day6-a-evidence/day6-a-cloud-task-complete.png`：裁掉账号输入区域后的任务完成页。\n- `shared/daliy_task/day6-a-evidence/day6-a-evidence-ids.png`：报告中 `L01`、`C01–C04` 的编号。\n- `shared/daliy_task/day6-a-evidence/day6-a-school-ai-attempt.png`：一次调用后的报告页，显示 AI 未通过并且学校模型入口已锁定。\n- `shared/daliy_task/day6-a-evidence/day6-a-to-b.md`：给 B 的只读后端核查交接。\n\n### 12:04 学校模型调用及后续配置修复\n\n- 2026-09-29 12:04:09 +08:00，Android 15 模拟器对同一既有 `analysis_id=3def1166-1bff-49c0-a601-62ef37cfe503` 只确认发起了一次学校模型请求；`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40` 未更换，没有创建云任务，也没有重试或运行 Mock。\n- 最终 App 页面仍是规则报告回退，`sources.ai=false`，学校模型入口已锁定。客户端没有暴露 HTTP 状态、错误码、attempt_id 或 elapsed_ms，Provider 和 Token 状态等待 B 只读核查。现场与交接文件见 `shared/daliy_task/day6-a-ai-evidence/`。\n- 此目录的 12:04 记录是本次任务的一次调用；同一 ID 在 10:01 的另一次历史尝试记录于 `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`。B 应把两个时间窗口分开核对。\n- 请求后修正了学校模型接口地址拼接，让 App 从用户填写的 API 基地址生成 `/ai/analyze`；修正后的 Debug APK 测试 66 项通过、分析无问题、构建成功并安装到模拟器。此修正后的版本没有再次调用学校模型。\n
+# A Day 6 进度
+
+日期：2026-09-28
+
+> 2026-09-29 的设备和学校模型验收结果见文末“Day 6 现场验收更新”；该记录更新了下方当时尚未完成的事项。
+
+分支：`feat/a-mobile-function`
+
+## 已完成
+
+1. 学校模型客户端现在支持无 JWT 的请求预检。预检沿用实际模型请求的脱敏白名单，只发五段 JSON，不添加 `Authorization`，不会调用 Provider。
+2. 客户端保留 HTTP 状态、后端错误码、`retryable` 和脱敏字段路径/类型；FastAPI 的数字数组路径会被规范为 `targets[0]`。标准 `detail` 的错误消息只保留固定安全文案，不回显服务端输入值。
+3. 修正 URL 脱敏问题：清理查询和片段后不再保留空的 `?`、`#`。第一次真实无 JWT 预检得到 `422 AI_REQUEST_INVALID`；修正后重新发送，得到 `401 AUTH_TOKEN_MISSING`、`retryable=false`。请求没有 JWT，Provider 未调用。
+4. 更新报告页的错误提示：分别说明登录失效、超时、服务不可用、字段校验失败、网络失败和报告守卫拒绝；可安全展示最多三个出错字段路径。错误卡片作为 live region 供辅助技术播报。
+5. 修复 `502 AI_REPORT_REJECTED` 被误判为服务不可用的问题；现在映射为报告守卫拒绝，并提醒用户先核对服务端调用记录。
+6. 用固定 Day 5 bundle 完成离线规则报告回归，生成 `L01`、`C01–C04`，确认 `sources.ai=false`、Token 用量为零，结果明确标记为离线回放。
+7. Android 主 Manifest 增加 `INTERNET` 权限。Debug 构建仅对测试 ECS IP `39.107.253.138` 开放明文 HTTP，其他目标在 Network Security Config 中仍默认禁止；release 没有打开全局明文 HTTP。
+8. Android 15 模拟器已启动。通过模拟器内的 HTTP GET 请求 `/healthz` 实际收到 `200 OK` 和 `status=ready`。这是模拟器 shell 的网络结果，不是 Chrome 或 TapLens 页面结果。
+
+## 证据与复现
+
+- 无 JWT 真实预检和脱敏请求体：`shared/daliy_task/day6-a-evidence/day6-a-school-ai-preflight.json`
+- 离线固定证据回放：`shared/daliy_task/day6-a-evidence/day6-a-offline-recovery.json`
+- 模拟器健康接口结果：`shared/daliy_task/day6-a-evidence/day6-a-emulator-healthz.json`
+- 客户端回归测试：`mobile/test/ai/school_ai_client_test.dart`
+- 当前环境可执行的纯 Dart smoke 检查：在 `mobile/` 下运行 `dart tool/day6_school_ai_client_smoke.dart`。
+- 重新生成离线回放：在 `mobile/` 下运行 `dart tool/day6_school_ai_preflight.dart --offline-only`。
+- 重新执行无 JWT 真实预检：在 `mobile/` 下运行 `dart tool/day6_school_ai_preflight.dart`。该命令只发送不带 Authorization 的脱敏请求；预期返回 401，不会创建任务或调用模型。
+
+## 当前验证结果
+
+- 纯 Dart 客户端 smoke 检查：24 项断言通过，覆盖无 JWT 预检、脱敏、422 字段诊断、401、502 守卫拒绝、504 超时与 503 不可用。
+- 无 JWT 真实预检：`401 AUTH_TOKEN_MISSING`，`retryable=false`，请求结构通过校验，Provider 未调用。
+- 离线回放：PASS；正式 bundle 的历史状态为 `succeeded`，B 当前核查状态为 `expired`，两者未混淆。
+- 模拟器 shell HTTP 健康检查：`200 OK`，数据库和 artifacts 检查均为 `ok`。
+- Flutter `test`、`analyze` 和最新 APK 构建尚未完成。Flutter/Dart 工具需要启动 analyzer、shader compiler 等子进程，但当前 Windows 命令沙箱返回 `CreateFile failed 5 (Access denied)`。没有把未运行的 Flutter 测试写成通过。
+
+## 尚未闭合
+
+- 在允许 Flutter 子进程的开发环境中运行完整 `flutter test`、`flutter analyze`，构建最新 Debug APK，并检查最终合并 Manifest。
+- 用 Chrome 打开模拟器 `/healthz`，再从最新 TapLens APK 验证应用内网络路径并留存截图。当前 ADB 浏览器启动被命令策略拒绝，Computer Use 窗口清单连续失败；shell HTTP 结果不能代替这两项。
+- 规则报告回归可继续 PASS；学校模型真实报告仍 BLOCKED。没有创建云任务、查询过期任务或调用模型。
+
+## 交接结论
+
+A 的客户端修复、脱敏无 JWT 预检和离线回归已完成。模拟器到 ECS 的网络已从 shell 确认可达；Chrome 与 TapLens APK 的实际页面路径、Flutter 全量验证和最新 APK 构建仍待完成，因此 A Day 6 设备验收状态为 **PARTIAL**，不能写为完整 PASS。
+
+## Day 6 现场验收更新
+
+日期：2026-09-29
+分支：`feat/a-mobile-function`
+构建基线：`3e56981`（本次 APK 也包含本地测试修复，尚未提交）
+
+### APK 与模拟器
+
+- 完成 `flutter test`：65 项通过；`flutter analyze`：无问题；`flutter build apk --debug`：成功。
+- Debug APK 安装在 `emulator-5554`（`TapLens_API35`，Android 15 / API 35）。设备上的 `base.apk` SHA-256 与本地构建产物一致：`73f5f38281a6c56500a48173cd9d9bd7b02ed01c0b26a6510f76761dc77369f7`。
+- 构建时使用的后端为 `http://39.107.253.138/api/v1`，目标为 `http://39.107.253.138/controlled/go/campus`，`analysis_id` 为 `3def1166-1bff-49c0-a601-62ef37cfe503`。
+
+### 同一 ID 的本地和云端证据
+
+- 只创建了一条新云任务：`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40`；状态 `succeeded`。之后只查询了这条已有任务，没有再次创建任务。首次完成时额度显示剩余 `9 / 10`。
+- 初始 URL 为 `http://39.107.253.138/controlled/go/campus`，经一次跳转到 `http://39.107.253.138/controlled/campus-login.html`。规则报告识别到两个敏感表单字段，并明确记录没有提交表单。
+- App 导出的 bundle 中 `analysis_id`、`task_id`、本地 `L01` 和云端 `C01–C04` 完全一致；本地为静态解析，`launched_external_app=false`、`network_accessed=false`、`preflight.status=not_started`。
+- 证据 JSON、报告和截图均已脱敏，不包含密码、TapLens JWT 或模型 API Key。
+
+### 学校模型调用
+
+- 默认选择“学校模型”，在 `2026-09-29 10:01:13.966 +08:00` 确认并发起一次调用。App 随后将按钮锁定为“学校模型已调用一次”；没有重试。
+- App 最终保存的是规则报告回退：`sources.ai=false`，客户端报告中的 `token_usage.request_count=0`、`total_tokens=0`、`model=null`。因此没有取得符合验收要求的学校模型报告。
+- 这个客户端回退 JSON 不能证明后端有没有进入 Provider：错误码未被持久化，守卫回退也会保留规则报告。请 B 按时间和 `analysis_id` 只读核对后端访问记录、Provider 是否调用、响应状态和实际 Token 用量；不要再次调用模型。
+- 学校 AI 正式验收状态：**BLOCKED**。规则报告和同 ID 证据核验通过；模型报告、`sources.ai=true` 和有效 Token 用量未通过。
+
+### 交付文件
+
+- `shared/daliy_task/day6-a-evidence/day6-a-unified-audit-bundle.json`：脱敏本地与云端证据、规则报告。
+- `shared/daliy_task/day6-a-evidence/day6-a-school-ai-attempt-fallback.json`：唯一一次调用后的规则报告回退，不是真实 AI 报告。
+- `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`：构建、任务和模型调用状态摘要。
+- `shared/daliy_task/day6-a-evidence/day6-a-cloud-task-complete.png`：裁掉账号输入区域后的任务完成页。
+- `shared/daliy_task/day6-a-evidence/day6-a-evidence-ids.png`：报告中 `L01`、`C01–C04` 的编号。
+- `shared/daliy_task/day6-a-evidence/day6-a-school-ai-attempt.png`：一次调用后的报告页，显示 AI 未通过并且学校模型入口已锁定。
+- `shared/daliy_task/day6-a-evidence/day6-a-to-b.md`：给 B 的只读后端核查交接。
+
+### 12:04 学校模型调用及后续配置修复
+
+- 2026-09-29 12:04:09 +08:00，Android 15 模拟器对同一既有 `analysis_id=3def1166-1bff-49c0-a601-62ef37cfe503` 只确认发起了一次学校模型请求；`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40` 未更换，没有创建云任务，也没有重试或运行 Mock。
+- 最终 App 页面仍是规则报告回退，`sources.ai=false`，学校模型入口已锁定。客户端没有暴露 HTTP 状态、错误码、attempt_id 或 elapsed_ms，Provider 和 Token 状态等待 B 只读核查。现场与交接文件见 `shared/daliy_task/day6-a-ai-evidence/`。
+- 此目录的 12:04 记录是本次任务的一次调用；同一 ID 在 10:01 的另一次历史尝试记录于 `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`。B 应把两个时间窗口分开核对。
+- 请求后修正了学校模型接口地址拼接，让 App 从用户填写的 API 基地址生成 `/ai/analyze`；修正后的 Debug APK 测试 66 项通过、分析无问题、构建成功并安装到模拟器。此修正后的版本没有再次调用学校模型。
+
+### ID 范围说明
+
+- 本次 12:04 App 请求使用 `analysis_id=3def1166-1bff-49c0-a601-62ef37cfe503`、`task_id=e454f7ea-5b9c-4626-83d3-d17d43496f40` 的现有模拟器证据。
+- 较早 Day 5 正式 bundle 使用 `analysis_id=0bab7eba-ff50-42f8-a264-543596b2c9bf`、`task_id=f1858539-4595-4297-acfe-5bf81a91bc54`；B 的 Day 6 交接记录其已过期。
+- 两组 ID 不一致。本次请求和 App 回退只适用于 3def/e454，不能充当 0bab/f185 的 AI 验收证据。没有发起第二次模型请求。
