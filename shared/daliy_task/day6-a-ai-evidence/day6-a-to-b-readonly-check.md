@@ -18,3 +18,5 @@ App 在提交后锁定了学校模型按钮，最终显示规则报告回退（`
 现场截图和脱敏记录在 `shared/daliy_task/day6-a-ai-evidence/`。禁止回传 JWT、Key、Cookie、密码或验证码。
 
 注意：本次现场使用的是 `3def1166-1bff-49c0-a601-62ef37cfe503 / e454f7ea-5b9c-4626-83d3-d17d43496f40`。较早的 Day 5 正式 bundle ID 是 `0bab7eba-ff50-42f8-a264-543596b2c9bf / f1858539-4595-4297-acfe-5bf81a91bc54`，并非本次请求使用的证据；B 的 Day 6 交接称该旧任务已过期。请核查 12:04 请求时按本次实际 ID 关联，不能把结果记到旧 ID 下。
+
+另有一条较早的 A 端尝试：`2026-09-29 10:01:13.966 +08:00`，记录在 `shared/daliy_task/day6-a-evidence/day6-a-call-record.json`，也是 3def/e454。请把 10:01 与本次 12:04–12:06 分开查日志，分别报告状态和 Provider/Token 结果；本次没有重试。
