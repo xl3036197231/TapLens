@@ -5,10 +5,67 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:taplens_mobile/main.dart';
 import 'package:taplens_mobile/screens/cloud_analysis_page.dart';
+import 'package:taplens_mobile/screens/local_check_page.dart';
 import 'package:taplens_mobile/services/auth_session.dart';
 import 'package:taplens_mobile/theme/app_theme.dart';
 
 void main() {
+  testWidgets('虚构 .test 目标完成本地预检后可手动进入云端分析', (tester) async {
+    const channel = MethodChannel('com.taplens.app/local_safety');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'analyzeLink') {
+        return <String, dynamic>{
+          'input_type': 'url',
+          'scheme': 'https',
+          'host': 'scholarship.example.test',
+          'path': '/apply',
+          'parameters': <String, List<String>>{},
+          'extras': <String, String>{},
+          'candidate_apps': <Map<String, dynamic>>[],
+          'launched_external_app': false,
+          'network_accessed': false,
+        };
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
+        home: const LocalCheckPage(
+          initialValue: 'https://scholarship.example.test/apply',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('开始本地预检'));
+    await tester.pumpAndSettle();
+    final testDomainNotice = find.textContaining('你仍可选择提交云端测试');
+    await tester.scrollUntilVisible(
+      testDomainNotice,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(testDomainNotice, findsOneWidget);
+
+    final cloudButton = find.text('提交云端深度分析');
+    await tester.scrollUntilVisible(
+      cloudButton,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(cloudButton, findsOneWidget);
+    await tester.tap(cloudButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('云端深度分析'), findsOneWidget);
+  });
+
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
     const channel = MethodChannel('com.taplens.app/local_safety');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

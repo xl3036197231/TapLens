@@ -160,6 +160,19 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('查看固定演示报告'),
               ),
+              if (result.inputType == 'url' &&
+                  isFictionalOrReservedHttpUrl(result.safeValue)) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      '这是虚构或保留示例域名。你仍可选择提交云端测试；云端会先检查 DNS 和目标安全性，无法解析或不安全的目标会被拒绝。',
+                    ),
+                  ),
+                ),
+              ],
               if (_canSubmitToCloud(result)) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
@@ -191,7 +204,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
     final uri = Uri.tryParse(result.safeValue);
     return uri != null &&
         !uri.path.toLowerCase().endsWith('.apk') &&
-        isCloudEligibleHttpUrl(result.safeValue);
+        canOfferCloudAnalysis(result.safeValue);
   }
 }
 

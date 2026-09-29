@@ -128,11 +128,13 @@ class QrPayloadInspector {
         kind: QrPayloadKind.webLink,
         title: '网页链接',
         behavior: '打开后可能跳转到其他网页、要求登录或下载文件。',
-        advice: _isReservedTestHost(uri.host)
-            ? '这是虚构的保留测试域名，只适合本地演示；不要提交云端分析。'
+        advice: isFictionalOrReservedHttpUrl(value)
+            ? '这是虚构或保留示例域名。完成本地预检后，你可以选择提交云端；云端会按实际 DNS 结果处理，无法解析时会失败。'
             : '先核对脱敏后的域名和跳转情况；网页内容仍需进一步检查。',
         safePreview: _safeUriPreview(uri),
-        cloudAllowed: isCloudEligibleHttpUrl(value),
+        // The preview is what the user may choose to submit. Credentials are
+        // removed before the cloud option is offered.
+        cloudAllowed: canOfferCloudAnalysis(_safeUriPreview(uri)),
         localCheckValue: _safeUriPreview(uri),
       );
     }
@@ -276,22 +278,33 @@ bool _isSensitiveKey(String key) {
   return markers.any(normalized.contains);
 }
 
-/// Returns whether an HTTP(S) link is suitable for an explicitly requested
-/// cloud scan. Reserved example/test hosts stay local to prevent fixture URLs
-/// from being mistaken for real targets.
-bool isCloudEligibleHttpUrl(String value) {
+/// Cloud analysis is optional for HTTP(S) links, including fictional fixture
+/// domains. The backend remains responsible for authoritative SSRF and DNS
+/// checks; local-only and internal hostnames are not offered by the app.
+bool canOfferCloudAnalysis(String value) {
   final uri = Uri.tryParse(value.trim());
   if (uri == null ||
       !{'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
-      uri.host.isEmpty) {
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty) {
     return false;
   }
   final host = uri.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
-  if (uri.userInfo.isNotEmpty ||
-      host == 'localhost' ||
-      host.endsWith('.localhost') ||
-      host.endsWith('.local') ||
-      host.endsWith('.test') ||
+  return host.contains('.') &&
+      host != 'localhost' &&
+      !host.endsWith('.localhost') &&
+      !host.endsWith('.local') &&
+      !host.endsWith('.lan') &&
+      !host.endsWith('.internal');
+}
+
+bool isFictionalOrReservedHttpUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  if (uri == null || !{'http', 'https'}.contains(uri.scheme.toLowerCase())) {
+    return false;
+  }
+  final host = uri.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
+  return host.endsWith('.test') ||
       host.endsWith('.invalid') ||
       host.endsWith('.example') ||
       host == 'example.com' ||
@@ -299,14 +312,8 @@ bool isCloudEligibleHttpUrl(String value) {
       host == 'example.net' ||
       host.endsWith('.example.net') ||
       host == 'example.org' ||
-      host.endsWith('.example.org')) {
-    return false;
-  }
-  return true;
+      host.endsWith('.example.org');
 }
-
-bool _isReservedTestHost(String host) =>
-    !isCloudEligibleHttpUrl('https://${host.toLowerCase()}');
 
 String _limit(String value) =>
     value.length <= 240 ? value : '${value.substring(0, 240)}…';
