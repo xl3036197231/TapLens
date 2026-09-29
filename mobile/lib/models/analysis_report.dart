@@ -95,6 +95,7 @@ class AnalysisReport {
   final bool localSource;
   final bool cloudSource;
   final bool aiSource;
+  final String? modelName;
   final int? totalTokens;
 
   const AnalysisReport({
@@ -115,6 +116,7 @@ class AnalysisReport {
     required this.localSource,
     required this.cloudSource,
     required this.aiSource,
+    required this.modelName,
     required this.totalTokens,
   });
 
@@ -175,6 +177,8 @@ class AnalysisReport {
       localSource: sources['local'] == true,
       cloudSource: sources['cloud'] == true,
       aiSource: sources['ai'] == true,
+      modelName:
+          tokenUsage['model'] is String ? tokenUsage['model'] as String : null,
       totalTokens: tokenUsage['total_tokens'] is num
           ? (tokenUsage['total_tokens'] as num).toInt()
           : null,
@@ -297,6 +301,7 @@ class AnalysisReport {
       localSource: false,
       cloudSource: true,
       aiSource: false,
+      modelName: null,
       totalTokens: null,
     );
   }

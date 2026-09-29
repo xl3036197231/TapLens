@@ -7,18 +7,20 @@ class AiReportResult {
   final Map<String, dynamic> report;
   final bool usedFallback;
   final AiClientException? error;
+  final int? httpStatus;
 
   const AiReportResult({
     required this.report,
     required this.usedFallback,
     this.error,
+    this.httpStatus,
   });
 }
 
 class AiReportService {
-  final AiClient client;
+  final AiClient? client;
 
-  const AiReportService(this.client);
+  const AiReportService([this.client]);
 
   Future<AiReportResult> analyzeOrFallback({
     required String apiKey,
@@ -26,13 +28,51 @@ class AiReportService {
     required Set<String> availableEvidenceIds,
     required Map<String, dynamic> ruleReport,
     String? hardRiskLevel,
+    String modelName = 'deepseek-flash',
   }) async {
+    return analyzeRequestOrFallback(
+      request: () {
+        final activeClient = client;
+        if (activeClient == null) {
+          throw const AiClientException(
+            AiClientErrorCode.network,
+            'No AI client is configured',
+          );
+        }
+        return activeClient.analyze(
+          apiKey: apiKey,
+          sanitizedPayload: sanitizedPayload,
+        );
+      },
+      availableEvidenceIds: availableEvidenceIds,
+      ruleReport: ruleReport,
+      hardRiskLevel: hardRiskLevel,
+      modelName: modelName,
+    );
+  }
+
+  Future<AiReportResult> analyzeRequestOrFallback({
+    required Future<AiClientResponse> Function() request,
+    required Set<String> availableEvidenceIds,
+    required Map<String, dynamic> ruleReport,
+    required String modelName,
+    String? hardRiskLevel,
+  }) async {
+    AiFailureStage stage = AiFailureStage.request;
+    int? httpStatus;
     try {
-      final response = await client.analyze(
-        apiKey: apiKey,
-        sanitizedPayload: sanitizedPayload,
-      );
-      final modelReport = decodeJsonObject(response.rawReportJson);
+      final response = await request();
+      httpStatus = response.httpStatus;
+      stage = AiFailureStage.localReportJsonParsing;
+      late final Map<String, dynamic> modelReport;
+      try {
+        modelReport = decodeJsonObject(response.rawReportJson);
+      } on AiClientException catch (error) {
+        throw error.withFailureStage(
+          AiFailureStage.localReportJsonParsing,
+          httpStatus: response.httpStatus,
+        );
+      }
       modelReport['sources'] = {
         ...?((modelReport['sources'] is Map<String, dynamic>)
             ? modelReport['sources'] as Map<String, dynamic>
@@ -44,8 +84,9 @@ class AiReportService {
         'prompt_tokens': response.usage.promptTokens,
         'completion_tokens': response.usage.completionTokens,
         'total_tokens': response.usage.totalTokens,
-        'model': 'deepseek-flash',
+        'model': response.modelName ?? modelName,
       };
+      stage = AiFailureStage.localReportGuard;
       final guarded = AnalysisReportGuard.validate(
         jsonEncode(modelReport),
         availableEvidenceIds: availableEvidenceIds,
@@ -55,27 +96,46 @@ class AiReportService {
             : null,
       );
       if (guarded.isValid) {
-        return AiReportResult(report: guarded.report!, usedFallback: false);
+        return AiReportResult(
+          report: guarded.report!,
+          usedFallback: false,
+          httpStatus: response.httpStatus,
+        );
       }
       return AiReportResult(
         report: ruleReport,
         usedFallback: true,
-        error: guarded.error,
+        error: guarded.error?.withFailureStage(
+          AiFailureStage.localReportGuard,
+          httpStatus: response.httpStatus,
+        ),
+        httpStatus: response.httpStatus,
       );
     } on AiClientException catch (error) {
       return AiReportResult(
         report: ruleReport,
         usedFallback: true,
-        error: error,
+        error: error.failureStage == null
+            ? error.withFailureStage(
+                error.httpStatus == 200
+                    ? AiFailureStage.responseEnvelope
+                    : AiFailureStage.request,
+                httpStatus: httpStatus ?? error.httpStatus,
+              )
+            : error,
+        httpStatus: httpStatus ?? error.httpStatus,
       );
-    } on Exception {
+    } on Object {
       return AiReportResult(
         report: ruleReport,
         usedFallback: true,
-        error: const AiClientException(
-          AiClientErrorCode.network,
-          'The AI request failed',
+        error: AiClientException(
+          AiClientErrorCode.processingFailed,
+          'The AI response could not be processed',
+          httpStatus: httpStatus,
+          failureStage: stage,
         ),
+        httpStatus: httpStatus,
       );
     }
   }

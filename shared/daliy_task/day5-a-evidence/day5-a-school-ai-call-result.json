@@ -1,0 +1,24 @@
+{
+  "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+  "school_ai_endpoint": "http://39.107.253.138/api/v1/ai/analyze",
+  "school_ai_call_count": 1,
+  "http_status": 422,
+  "result": "http_422_mapped_by_client_to_guard_rejected",
+  "backend_error_code_captured": false,
+  "backend_error_detail_captured": false,
+  "app_message": "模型报告被后端守卫拒绝，已保留原规则报告。",
+  "accepted_ai_report": false,
+  "sources_ai": false,
+  "model_name": null,
+  "token_usage": null,
+  "existing_cloud_task_status_at_retrieval": "expired",
+  "archived_same_task_evidence_used": true,
+  "new_cloud_scan_created": false,
+  "evidence_ids": ["L01", "C01", "C02", "C03", "C04"],
+  "saved_app_report": "day5-a-school-ai-report.json",
+  "screenshots": [
+    "day5-a-school-ai-guard-rejected.png",
+    "day5-a-school-ai-evidence.png"
+  ]
+}

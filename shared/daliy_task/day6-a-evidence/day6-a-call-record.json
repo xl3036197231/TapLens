@@ -1,0 +1,57 @@
+{
+  "record_version": "1.0",
+  "recorded_at": "2026-09-29T10:20:00+08:00",
+  "branch": "feat/a-mobile-function",
+  "build_commit": "3e56981b52996a8754d8e9d96fd3d358457f388a",
+  "package_name": "com.taplens.app",
+  "app_version": "0.1.0",
+  "emulator": {
+    "serial": "emulator-5554",
+    "avd": "TapLens_API35",
+    "android_version": 15,
+    "api_level": 35
+  },
+  "debug_apk": {
+    "path": "mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "sha256": "73f5f38281a6c56500a48173cd9d9bd7b02ed01c0b26a6510f76761dc77369f7",
+    "device_apk_sha256_matches_local": true,
+    "flutter_test": "65 passed",
+    "flutter_analyze": "no issues",
+    "flutter_build_apk_debug": "succeeded"
+  },
+  "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+  "task_id": "e454f7ea-5b9c-4626-83d3-d17d43496f40",
+  "target_url": "http://39.107.253.138/controlled/go/campus",
+  "api_base_url": "http://39.107.253.138/api/v1",
+  "cloud_task": {
+    "created_task_count": 1,
+    "status": "succeeded",
+    "remaining_quota_at_completion": "9/10",
+    "final_url": "http://39.107.253.138/controlled/campus-login.html",
+    "subsequent_action": "queried this existing task once; no second task was created"
+  },
+  "evidence_ids": ["L01", "C01", "C02", "C03", "C04"],
+  "local_evidence": {
+    "launched_external_app": false,
+    "network_accessed": false,
+    "preflight_status": "not_started"
+  },
+  "school_model_attempt": {
+    "attempt_count": 1,
+    "confirmed_at_local": "2026-09-29T10:01:13.966+08:00",
+    "retry_performed": false,
+    "app_state": "school model called once; rule report fallback retained",
+    "accepted_ai_report": false,
+    "client_report_sources_ai": false,
+    "client_report_token_usage": {
+      "request_count": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "model": null
+    },
+    "backend_provider_invocation": "unverified; B must check server records",
+    "note": "Client fallback data does not prove whether the server entered the provider before returning or rejecting a response."
+  },
+  "secrets_included": false
+}
