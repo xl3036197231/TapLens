@@ -19,9 +19,8 @@
 后端对经 Pydantic 校验后的脱敏 payload 进行稳定 JSON 序列化（UTF-8、键排序、紧凑分隔符），计算：
 
 ```text
-input_digest = SHA-256(canonical_sanitized_payload)
 analysis_unique_key = (user_id, analysis_id)
-input_match_key = HMAC-SHA256(server_secret, canonical_sanitized_payload)
+input_match_key = HMAC-SHA256(versioned_server_secret, canonical_sanitized_payload_v2)
 ```
 
 不把 JWT、学校 Key、Cookie、用户密码或完整 HTTP 头写入数据库。
@@ -33,7 +32,9 @@ input_match_key = HMAC-SHA256(server_secret, canonical_sanitized_payload)
 | 字段 | 用途 |
 | --- | --- |
 | `user_id` / `analysis_id` | 数据库唯一约束，隔离用户并阻止同一分析产生第二次调用 |
+| `report_created_at` | 固定绑定首次请求时间；同 ID 改时间返回输入冲突，绝不返回旧时间报告 |
 | `input_digest` | 使用服务端秘密计算的 HMAC 摘要，只用于同一输入匹配 |
+| `digest_key_version` | HMAC 密钥版本；轮换窗口保留上一版本以匹配仍在处理或缓存期内的调用 |
 | `state` | `in_progress` / `succeeded` / `failed_before_provider` / `failed_after_provider` / `outcome_unknown` |
 | `attempt_id` | 服务端生成的脱敏调用关联 ID |
 | `lease_expires_at` | 处理进程崩溃后可恢复的租约 |
@@ -59,13 +60,18 @@ input_match_key = HMAC-SHA256(server_secret, canonical_sanitized_payload)
 9. 后端守卫拒绝记为 `failed_after_provider`；若已获得 usage 则保存脱敏用量，不能解释为零 Token。
 10. `failed_before_provider` 表示已明确没有发出 Provider 请求；原型仍将其作为终态，
     客户端需建立新的分析上下文，不对原记录自动重试。
+11. 长调用可由同一 `attempt_id` 续租；若已被观察者转为 `outcome_unknown`，同一 attempt
+    稍后拿到守卫通过的响应仍可收敛为成功，但任何观察者都不能启动第二次 Provider 请求。
+12. 成功写入方法内部强制运行 `validate_and_finalize_report()`、`AiAnalyzeResponse` 校验、
+    用量算术检查和敏感缓存扫描，不接受调用方传入的任意报告字典。
 
-## 规范化输入 v1
+## 规范化输入 v2
 
-原型采用固定字段白名单，只包括 `analysis_id`、脱敏分析输入、L/C 证据摘要和硬风险。
-`created_at` 不进入摘要，目标、证据、风险和证据编号集合按规范 JSON 排序，避免客户端重试时
-时间戳或数组顺序变化造成误冲突。摘要使用服务端 HMAC，而不是裸 SHA-256；服务端秘密需独立
-管理和轮换，不能写入仓库或日志。
+原型采用固定字段白名单，包括 `analysis_id`、规范化 UTC `created_at`、脱敏分析输入、L/C
+证据摘要和硬风险。目标、证据、风险和证据编号集合按规范 JSON 排序；相同时间点的 `Z` 与
+时区偏移写法归一化为同一值。A 必须为同一 `analysis_id` 持久复用首次 `created_at`；修改时间
+视为输入冲突。摘要使用带版本的服务端 HMAC，密钥不能写入仓库或日志；轮换期间至少保留覆盖
+最长调用时间和 24 小时缓存期的上一版本。缓存过期后的旧 ID 直接由永久墓碑拒绝，无需旧密钥。
 
 ## 需 A/D 对齐的最小合同变化
 
@@ -93,12 +99,14 @@ Authorization: Bearer <TapLens JWT>
 
 - 只保留经守卫报告、脱敏用量和 HMAC digest，不保存 Provider 原始响应。
 - 经守卫响应按用户隔离缓存 24 小时；到期清空 `response_json`，墓碑继续阻止重放。
-- 最小墓碑保留 30 天：`user_id + analysis_id + digest + state + dispatch/usage 状态`。
-- 30 天后删除墓碑，不影响用户账号或云任务；产品隐私说明应告知服务端暂存守卫报告。
+- 前 30 天保留防重放审计字段；30 天后清除 Token 数、模型和其他可删字段，但保留最小永久墓碑。
+- 永久墓碑保留 `user_id + analysis_id + HMAC digest + state + dispatch/usage 状态`，在服务端尚无
+  不可伪造分析生命周期前绝不删除，因此第 31 天及以后旧 ID 仍不能重新预留。
 - 守卫报告仍可能含目标或页面内容，写入前需要最小化和脱敏；数据库文件和备份均使用受控权限与加密存储。
-- 备份不得把 `response_json` 的实际可恢复时间延长到 24 小时以上。部署前需选择：
-  备份前清空到期缓存，或把响应缓存放入独立加密存储并在 24 小时后销毁密钥；
-  恢复演练也必须执行同一清理规则。日志禁止记录响应、digest 或输入正文。
+- 部署备份副本无条件清除全部 `response_json` 和 `cache_expires_at`，manifest 明确记录不包含 AI
+  响应缓存；恢复脚本对旧备份再次执行相同清除。因此备份不会延长 24 小时缓存可恢复时间。
+- 原型提供每小时清理 Worker；待正式路由获批时再接入应用生命周期。日志禁止记录响应、digest
+  或输入正文，产品隐私说明应告知服务端最多暂存 24 小时的已守卫报告。
 
 ## Mock/单元测试清单
 
@@ -113,8 +121,9 @@ Authorization: Bearer <TapLens JWT>
 7. 租约过期与进程重启后行为可预期；
 8. 数据库和错误响应不包含 JWT、Key、Cookie 或密码。
 
-当前 `backend/tests/test_ai_call_idempotency.py` 已覆盖 10 项，包括数据库唯一约束、
-并发预留、dispatch 前后租约、守卫失败用量、用户隔离、24 小时缓存清理、30 天墓碑和敏感值检查。
+当前隔离原型共 20 项测试：18 项覆盖 SQLite 幂等、`created_at` 绑定、第 31 天永久墓碑、
+守卫缓存边界、敏感值拒绝、用量算术、续租、迟到成功、HMAC 轮换和自动清理；2 项覆盖备份与
+恢复脚本的 AI 响应缓存剥离。完整后端回归结果另见进度记录。
 
 ## 推进条件
 

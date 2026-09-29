@@ -1,15 +1,39 @@
+import asyncio
 import hashlib
 import hmac
 import json
+import re
 import sqlite3
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from app.ai.guard import validate_and_finalize_report
+from app.ai.provider import ProviderResult
+from app.ai.schemas import AiAnalyzeRequest, AiAnalyzeResponse, AiUsage
 from app.storage.database import Database
+
+
+SENSITIVE_CACHE_KEYS = {
+    "api_key",
+    "authorization",
+    "cookie",
+    "deepseek_key",
+    "jwt",
+    "password",
+    "refresh_token",
+    "access_token",
+}
+SENSITIVE_CACHE_VALUES = (
+    re.compile(r"\bBearer\s+\S+", re.IGNORECASE),
+    re.compile(r"\b(?:sk|api)[-_][A-Za-z0-9_-]{8,}\b", re.IGNORECASE),
+    re.compile(r"\b(?:Cookie|Set-Cookie)\s*:", re.IGNORECASE),
+    re.compile(r"\bpassword\s*=", re.IGNORECASE),
+)
 
 
 class AiCallState(StrEnum):
@@ -36,11 +60,17 @@ class ReservationKind(StrEnum):
     RESULT_EXPIRED = "result_expired"
 
 
+class UnsafeCacheResponseError(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class AiCallRecord:
     user_id: UUID
     analysis_id: UUID
+    report_created_at: datetime
     input_digest: str
+    digest_key_version: int
     state: AiCallState
     usage_status: UsageStatus
     attempt_id: UUID
@@ -57,6 +87,7 @@ class AiCallRecord:
     updated_at: datetime
     cache_expires_at: datetime | None
     record_expires_at: datetime
+    compacted_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -66,55 +97,63 @@ class Reservation:
 
 
 class AiCallRepository:
-    """SQLite prototype for exactly-once Provider dispatch protection.
+    """Isolated SQLite prototype for exactly-once Provider dispatch protection.
 
-    The API route intentionally does not use this repository yet. A and D still
-    need to approve the mobile 409/status-query contract before route integration.
+    The production API route intentionally does not use this repository yet.
     """
 
     def __init__(
         self,
         database: Database,
         *,
-        digest_secret: str,
+        digest_secrets: dict[int, str],
+        active_digest_key_version: int,
         lease_seconds: int = 90,
         cache_hours: int = 24,
-        tombstone_days: int = 30,
+        compact_days: int = 30,
     ) -> None:
-        if not digest_secret:
-            raise ValueError("digest_secret is required")
+        if active_digest_key_version not in digest_secrets:
+            raise ValueError("active digest key version is missing")
+        if any(version < 1 or not secret for version, secret in digest_secrets.items()):
+            raise ValueError("digest key versions and secrets must be non-empty")
         self.database = database
-        self.digest_secret = digest_secret.encode("utf-8")
+        self.digest_secrets = {
+            version: secret.encode("utf-8") for version, secret in digest_secrets.items()
+        }
+        self.active_digest_key_version = active_digest_key_version
         self.lease = timedelta(seconds=lease_seconds)
         self.cache_ttl = timedelta(hours=cache_hours)
-        self.tombstone_ttl = timedelta(days=tombstone_days)
+        self.compact_ttl = timedelta(days=compact_days)
 
-    def digest(self, payload: dict[str, object]) -> str:
-        canonical = canonical_sanitized_payload(payload)
+    def digest(self, payload: dict[str, object], *, key_version: int | None = None) -> str:
+        version = key_version or self.active_digest_key_version
+        secret = self.digest_secrets.get(version)
+        if secret is None:
+            raise ValueError("digest key version is unavailable")
         encoded = json.dumps(
-            canonical,
+            canonical_sanitized_payload(payload),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-        return hmac.new(self.digest_secret, encoded, hashlib.sha256).hexdigest()
+        return hmac.new(secret, encoded, hashlib.sha256).hexdigest()
 
     def reserve(
         self,
         *,
         user_id: UUID,
         analysis_id: UUID,
-        input_digest: str,
+        payload: dict[str, object],
         now: datetime | None = None,
     ) -> Reservation:
         timestamp = _utc(now)
+        payload_analysis_id, report_created_at = payload_binding(payload)
+        if payload_analysis_id != analysis_id:
+            raise ValueError("payload analysis_id does not match reservation")
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                """
-                SELECT * FROM ai_analysis_calls
-                WHERE user_id = ? AND analysis_id = ?
-                """,
+                "SELECT * FROM ai_analysis_calls WHERE user_id = ? AND analysis_id = ?",
                 (str(user_id), str(analysis_id)),
             ).fetchone()
             if row is None:
@@ -122,82 +161,97 @@ class AiCallRepository:
                 connection.execute(
                     """
                     INSERT INTO ai_analysis_calls (
-                        user_id, analysis_id, input_digest, state, usage_status,
-                        attempt_id, lease_expires_at, created_at, updated_at,
-                        record_expires_at
-                    ) VALUES (?, ?, ?, 'in_progress', 'not_applicable', ?, ?, ?, ?, ?)
+                        user_id, analysis_id, report_created_at, input_digest,
+                        digest_key_version, state, usage_status, attempt_id,
+                        lease_expires_at, created_at, updated_at, record_expires_at
+                    ) VALUES (?, ?, ?, ?, ?, 'in_progress', 'not_applicable', ?, ?, ?, ?, ?)
                     """,
                     (
                         str(user_id),
                         str(analysis_id),
-                        input_digest,
+                        _iso(report_created_at),
+                        self.digest(payload),
+                        self.active_digest_key_version,
                         str(attempt_id),
                         _iso(timestamp + self.lease),
                         _iso(timestamp),
                         _iso(timestamp),
-                        _iso(timestamp + self.tombstone_ttl),
+                        _iso(timestamp + self.compact_ttl),
                     ),
                 )
                 row = self._select(connection, user_id, analysis_id)
                 return Reservation(ReservationKind.ACQUIRED, row_to_record(row))
 
             record = row_to_record(row)
-            if not hmac.compare_digest(record.input_digest, input_digest):
+            if record.report_created_at != report_created_at:
+                return Reservation(ReservationKind.INPUT_CONFLICT, record)
+            try:
+                candidate_digest = self.digest(payload, key_version=record.digest_key_version)
+            except ValueError:
+                candidate_digest = None
+            if candidate_digest is not None and not hmac.compare_digest(
+                record.input_digest, candidate_digest
+            ):
+                return Reservation(ReservationKind.INPUT_CONFLICT, record)
+            if candidate_digest is None and record.response is not None:
                 return Reservation(ReservationKind.INPUT_CONFLICT, record)
 
-            if record.state is AiCallState.SUCCEEDED:
-                if (
-                    record.response is not None
-                    and record.cache_expires_at is not None
-                    and record.cache_expires_at > timestamp
-                ):
-                    return Reservation(ReservationKind.CACHED, record)
+            if record.state is AiCallState.SUCCEEDED and (
+                record.response is None
+                or record.cache_expires_at is None
+                or record.cache_expires_at <= timestamp
+            ):
                 return Reservation(ReservationKind.RESULT_EXPIRED, record)
+            if record.state is AiCallState.OUTCOME_UNKNOWN:
+                return Reservation(ReservationKind.OUTCOME_UNKNOWN, record)
+            if record.state in {
+                AiCallState.FAILED_BEFORE_PROVIDER,
+                AiCallState.FAILED_AFTER_PROVIDER,
+            }:
+                return Reservation(ReservationKind.TERMINAL_FAILURE, record)
 
-            if record.state is AiCallState.IN_PROGRESS:
-                if record.lease_expires_at and record.lease_expires_at > timestamp:
-                    return Reservation(ReservationKind.IN_PROGRESS, record)
-                if record.provider_dispatch_started_at is not None:
-                    connection.execute(
-                        """
-                        UPDATE ai_analysis_calls
-                        SET state = 'outcome_unknown', usage_status = 'unknown',
-                            error_code = 'AI_OUTCOME_UNKNOWN', retryable = 0,
-                            lease_expires_at = NULL, updated_at = ?,
-                            record_expires_at = ?
-                        WHERE user_id = ? AND analysis_id = ?
-                        """,
-                        (
-                            _iso(timestamp),
-                            _iso(timestamp + self.tombstone_ttl),
-                            str(user_id),
-                            str(analysis_id),
-                        ),
-                    )
-                    row = self._select(connection, user_id, analysis_id)
-                    return Reservation(ReservationKind.OUTCOME_UNKNOWN, row_to_record(row))
-
-                new_attempt_id = uuid.uuid4()
+            if record.state is AiCallState.SUCCEEDED:
+                return Reservation(ReservationKind.CACHED, record)
+            if record.lease_expires_at and record.lease_expires_at > timestamp:
+                return Reservation(ReservationKind.IN_PROGRESS, record)
+            if record.provider_dispatch_started_at is not None:
                 connection.execute(
                     """
                     UPDATE ai_analysis_calls
-                    SET attempt_id = ?, lease_expires_at = ?, updated_at = ?
+                    SET state = 'outcome_unknown', usage_status = 'unknown',
+                        error_code = 'AI_OUTCOME_UNKNOWN', retryable = 0,
+                        lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
                     WHERE user_id = ? AND analysis_id = ?
                     """,
                     (
-                        str(new_attempt_id),
-                        _iso(timestamp + self.lease),
                         _iso(timestamp),
+                        _iso(timestamp + self.compact_ttl),
                         str(user_id),
                         str(analysis_id),
                     ),
                 )
                 row = self._select(connection, user_id, analysis_id)
-                return Reservation(ReservationKind.ACQUIRED, row_to_record(row))
+                return Reservation(ReservationKind.OUTCOME_UNKNOWN, row_to_record(row))
 
-            if record.state is AiCallState.OUTCOME_UNKNOWN:
-                return Reservation(ReservationKind.OUTCOME_UNKNOWN, record)
-            return Reservation(ReservationKind.TERMINAL_FAILURE, record)
+            new_attempt_id = uuid.uuid4()
+            connection.execute(
+                """
+                UPDATE ai_analysis_calls
+                SET attempt_id = ?, lease_expires_at = ?, updated_at = ?
+                WHERE user_id = ? AND analysis_id = ?
+                """,
+                (
+                    str(new_attempt_id),
+                    _iso(timestamp + self.lease),
+                    _iso(timestamp),
+                    str(user_id),
+                    str(analysis_id),
+                ),
+            )
+            return Reservation(
+                ReservationKind.ACQUIRED,
+                row_to_record(self._select(connection, user_id, analysis_id)),
+            )
 
     def mark_provider_dispatch_started(
         self,
@@ -229,17 +283,12 @@ class AiCallRepository:
                 raise ValueError("AI call is not dispatchable")
             return row_to_record(self._select(connection, user_id, analysis_id))
 
-    def complete_success(
+    def renew_lease(
         self,
         *,
         user_id: UUID,
         analysis_id: UUID,
         attempt_id: UUID,
-        response: dict[str, object],
-        prompt_tokens: int,
-        completion_tokens: int,
-        total_tokens: int,
-        model: str,
         now: datetime | None = None,
     ) -> AiCallRecord:
         timestamp = _utc(now)
@@ -248,22 +297,90 @@ class AiCallRepository:
             cursor = connection.execute(
                 """
                 UPDATE ai_analysis_calls
+                SET lease_expires_at = ?, updated_at = ?
+                WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                  AND state = 'in_progress' AND provider_dispatch_started_at IS NOT NULL
+                """,
+                (
+                    _iso(timestamp + self.lease),
+                    _iso(timestamp),
+                    str(user_id),
+                    str(analysis_id),
+                    str(attempt_id),
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("AI call lease cannot be renewed")
+            return row_to_record(self._select(connection, user_id, analysis_id))
+
+    def complete_guarded_success(
+        self,
+        *,
+        user_id: UUID,
+        analysis_id: UUID,
+        attempt_id: UUID,
+        payload: AiAnalyzeRequest,
+        result: ProviderResult,
+        now: datetime | None = None,
+    ) -> AiCallRecord:
+        if payload.report_context.analysis_id != analysis_id:
+            raise ValueError("payload analysis_id does not match completion")
+        if (
+            result.prompt_tokens < 0
+            or result.completion_tokens < 0
+            or result.total_tokens < 0
+            or result.prompt_tokens + result.completion_tokens != result.total_tokens
+            or not result.model.strip()
+        ):
+            raise ValueError("Provider usage is inconsistent")
+        report = validate_and_finalize_report(payload, result)
+        response = AiAnalyzeResponse(
+            analysis_id=analysis_id,
+            report=report,
+            usage=AiUsage(
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+                total_tokens=result.total_tokens,
+                model=result.model,
+            ),
+        )
+        response_data = response.model_dump(mode="json")
+        assert_cache_safe(response_data)
+        timestamp = _utc(now)
+        report_created_at = _utc(payload.report_context.created_at)
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            record = row_to_record(self._select(connection, user_id, analysis_id))
+            expected_digest = self.digest(
+                payload.model_dump(mode="json"),
+                key_version=record.digest_key_version,
+            )
+            if (
+                record.attempt_id != attempt_id
+                or record.report_created_at != report_created_at
+                or not hmac.compare_digest(record.input_digest, expected_digest)
+            ):
+                raise ValueError("AI call completion does not match reservation")
+            cursor = connection.execute(
+                """
+                UPDATE ai_analysis_calls
                 SET state = 'succeeded', usage_status = 'known', lease_expires_at = NULL,
                     response_json = ?, error_code = NULL, retryable = 0,
                     prompt_tokens = ?, completion_tokens = ?, total_tokens = ?, model = ?,
                     updated_at = ?, cache_expires_at = ?, record_expires_at = ?
                 WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
-                  AND state = 'in_progress' AND provider_dispatch_started_at IS NOT NULL
+                  AND state IN ('in_progress', 'outcome_unknown')
+                  AND provider_dispatch_started_at IS NOT NULL
                 """,
                 (
-                    json.dumps(response, ensure_ascii=False, separators=(",", ":")),
-                    prompt_tokens,
-                    completion_tokens,
-                    total_tokens,
-                    model,
+                    json.dumps(response_data, ensure_ascii=False, separators=(",", ":")),
+                    result.prompt_tokens,
+                    result.completion_tokens,
+                    result.total_tokens,
+                    result.model,
                     _iso(timestamp),
                     _iso(timestamp + self.cache_ttl),
-                    _iso(timestamp + self.tombstone_ttl),
+                    _iso(timestamp + self.compact_ttl),
                     str(user_id),
                     str(analysis_id),
                     str(attempt_id),
@@ -285,10 +402,13 @@ class AiCallRepository:
         now: datetime | None = None,
     ) -> AiCallRecord:
         timestamp = _utc(now)
+        if usage is not None and (
+            min(usage[0], usage[1], usage[2]) < 0 or usage[0] + usage[1] != usage[2]
+        ):
+            raise ValueError("Provider usage is inconsistent")
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            row = self._select(connection, user_id, analysis_id)
-            record = row_to_record(row)
+            record = row_to_record(self._select(connection, user_id, analysis_id))
             if record.attempt_id != attempt_id or record.state is not AiCallState.IN_PROGRESS:
                 raise ValueError("AI call cannot be failed")
             dispatched = record.provider_dispatch_started_at is not None
@@ -325,7 +445,7 @@ class AiCallRepository:
                     total,
                     model,
                     _iso(timestamp),
-                    _iso(timestamp + self.tombstone_ttl),
+                    _iso(timestamp + self.compact_ttl),
                     str(user_id),
                     str(analysis_id),
                     str(attempt_id),
@@ -336,15 +456,13 @@ class AiCallRepository:
     def get_for_owner(self, *, user_id: UUID, analysis_id: UUID) -> AiCallRecord | None:
         with self.database.connect() as connection:
             row = connection.execute(
-                """
-                SELECT * FROM ai_analysis_calls
-                WHERE user_id = ? AND analysis_id = ?
-                """,
+                "SELECT * FROM ai_analysis_calls WHERE user_id = ? AND analysis_id = ?",
                 (str(user_id), str(analysis_id)),
             ).fetchone()
         return row_to_record(row) if row is not None else None
 
     def purge_expired(self, *, now: datetime | None = None) -> tuple[int, int]:
+        """Clear cached reports and compact old rows without deleting replay protection."""
         timestamp = _utc(now)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -356,19 +474,23 @@ class AiCallRepository:
                 """,
                 (_iso(timestamp), _iso(timestamp)),
             ).rowcount
-            deleted = connection.execute(
-                "DELETE FROM ai_analysis_calls WHERE record_expires_at <= ?",
-                (_iso(timestamp),),
+            compacted = connection.execute(
+                """
+                UPDATE ai_analysis_calls
+                SET response_json = NULL, cache_expires_at = NULL,
+                    prompt_tokens = NULL, completion_tokens = NULL,
+                    total_tokens = NULL, model = NULL, compacted_at = ?, updated_at = ?
+                WHERE record_expires_at IS NOT NULL AND record_expires_at <= ?
+                  AND compacted_at IS NULL AND state != 'in_progress'
+                """,
+                (_iso(timestamp), _iso(timestamp), _iso(timestamp)),
             ).rowcount
-        return cleared, deleted
+        return cleared, compacted
 
     @staticmethod
     def _select(connection: sqlite3.Connection, user_id: UUID, analysis_id: UUID) -> sqlite3.Row:
         row = connection.execute(
-            """
-            SELECT * FROM ai_analysis_calls
-            WHERE user_id = ? AND analysis_id = ?
-            """,
+            "SELECT * FROM ai_analysis_calls WHERE user_id = ? AND analysis_id = ?",
             (str(user_id), str(analysis_id)),
         ).fetchone()
         if row is None:
@@ -376,13 +498,43 @@ class AiCallRepository:
         return row
 
 
+class AiCallCleanupWorker:
+    """Prototype scheduler; it is not attached to the application lifespan yet."""
+
+    def __init__(
+        self,
+        repository: AiCallRepository,
+        *,
+        interval_seconds: float = 3600,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        if interval_seconds <= 0:
+            raise ValueError("cleanup interval must be positive")
+        self.repository = repository
+        self.interval_seconds = interval_seconds
+        self.clock = clock or (lambda: datetime.now(UTC))
+
+    async def run(self, stop: asyncio.Event) -> None:
+        while True:
+            self.repository.purge_expired(now=self.clock())
+            if stop.is_set():
+                return
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=self.interval_seconds)
+            except TimeoutError:
+                continue
+
+
 def canonical_sanitized_payload(payload: dict[str, object]) -> dict[str, object]:
-    """Return a fixed v1 whitelist; volatile created_at and list order are excluded."""
+    """Return the fixed v2 whitelist with bound time and order-independent lists."""
     context = _mapping(payload.get("report_context"))
     analysis_input = _mapping(payload.get("analysis_input"))
     return {
-        "normalization_version": 1,
-        "report_context": {"analysis_id": context.get("analysis_id")},
+        "normalization_version": 2,
+        "report_context": {
+            "analysis_id": context.get("analysis_id"),
+            "created_at": normalize_report_created_at(context.get("created_at")),
+        },
         "analysis_input": {
             "claims_text": analysis_input.get("claims_text"),
             "targets": _sorted_objects(analysis_input.get("targets")),
@@ -393,11 +545,51 @@ def canonical_sanitized_payload(payload: dict[str, object]) -> dict[str, object]
     }
 
 
+def payload_binding(payload: dict[str, object]) -> tuple[UUID, datetime]:
+    context = _mapping(payload.get("report_context"))
+    return UUID(str(context.get("analysis_id"))), datetime.fromisoformat(
+        normalize_report_created_at(context.get("created_at")).replace("Z", "+00:00")
+    )
+
+
+def normalize_report_created_at(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("report_context.created_at is required")
+    return _iso(_utc(datetime.fromisoformat(value.replace("Z", "+00:00"))))
+
+
+def assert_cache_safe(value: object, *, path: tuple[str, ...] = ()) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized = str(key).lower()
+            if normalized in SENSITIVE_CACHE_KEYS:
+                raise UnsafeCacheResponseError(f"sensitive cache field at {'.'.join(path + (key,))}")
+            assert_cache_safe(child, path=path + (str(key),))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            assert_cache_safe(child, path=path + (str(index),))
+    elif isinstance(value, str) and any(pattern.search(value) for pattern in SENSITIVE_CACHE_VALUES):
+        raise UnsafeCacheResponseError(f"sensitive cache value at {'.'.join(path)}")
+
+
 def row_to_record(row: sqlite3.Row) -> AiCallRecord:
+    report_created_at = _datetime(row["report_created_at"])
+    created_at = _datetime(row["created_at"])
+    updated_at = _datetime(row["updated_at"])
+    record_expires_at = _datetime(row["record_expires_at"])
+    if (
+        report_created_at is None
+        or created_at is None
+        or updated_at is None
+        or record_expires_at is None
+    ):
+        raise ValueError("AI call record has invalid timestamps")
     return AiCallRecord(
         user_id=UUID(row["user_id"]),
         analysis_id=UUID(row["analysis_id"]),
+        report_created_at=report_created_at,
         input_digest=row["input_digest"],
+        digest_key_version=int(row["digest_key_version"]),
         state=AiCallState(row["state"]),
         usage_status=UsageStatus(row["usage_status"]),
         attempt_id=UUID(row["attempt_id"]),
@@ -410,10 +602,11 @@ def row_to_record(row: sqlite3.Row) -> AiCallRecord:
         completion_tokens=row["completion_tokens"],
         total_tokens=row["total_tokens"],
         model=row["model"],
-        created_at=_datetime(row["created_at"]),
-        updated_at=_datetime(row["updated_at"]),
+        created_at=created_at,
+        updated_at=updated_at,
         cache_expires_at=_datetime(row["cache_expires_at"]),
-        record_expires_at=_datetime(row["record_expires_at"]),
+        record_expires_at=record_expires_at,
+        compacted_at=_datetime(row["compacted_at"]),
     )
 
 

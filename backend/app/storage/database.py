@@ -62,7 +62,9 @@ class Database:
                 CREATE TABLE IF NOT EXISTS ai_analysis_calls (
                     user_id TEXT NOT NULL,
                     analysis_id TEXT NOT NULL,
+                    report_created_at TEXT NOT NULL,
                     input_digest TEXT NOT NULL,
+                    digest_key_version INTEGER NOT NULL CHECK (digest_key_version >= 1),
                     state TEXT NOT NULL CHECK (
                         state IN (
                             'in_progress',
@@ -91,6 +93,7 @@ class Database:
                     updated_at TEXT NOT NULL,
                     cache_expires_at TEXT,
                     record_expires_at TEXT NOT NULL,
+                    compacted_at TEXT,
                     PRIMARY KEY (user_id, analysis_id),
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 );
@@ -102,6 +105,26 @@ class Database:
                     ON ai_analysis_calls(cache_expires_at);
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(ai_analysis_calls)").fetchall()
+            }
+            if "report_created_at" not in columns:
+                connection.execute(
+                    "ALTER TABLE ai_analysis_calls ADD COLUMN report_created_at TEXT"
+                )
+                connection.execute(
+                    "UPDATE ai_analysis_calls SET report_created_at = created_at"
+                )
+            if "digest_key_version" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE ai_analysis_calls
+                    ADD COLUMN digest_key_version INTEGER NOT NULL DEFAULT 1
+                    """
+                )
+            if "compacted_at" not in columns:
+                connection.execute("ALTER TABLE ai_analysis_calls ADD COLUMN compacted_at TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
