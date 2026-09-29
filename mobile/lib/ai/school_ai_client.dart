@@ -41,12 +41,27 @@ class SchoolAiPreflightResult {
 }
 
 class SchoolAiClient {
-  static final Uri defaultEndpoint = Uri.parse(
+  static final Uri defaultApiBaseUrl = Uri.parse(
     const String.fromEnvironment(
-      'TAPLENS_SCHOOL_AI_ENDPOINT',
-      defaultValue: 'http://39.107.253.138/api/v1/ai/analyze',
+      'TAPLENS_API_BASE_URL',
+      defaultValue: 'http://39.107.253.138/api/v1',
     ),
   );
+  static final Uri defaultEndpoint = endpointForApiBase(defaultApiBaseUrl);
+
+  static Uri endpointForApiBase(Uri apiBase) {
+    if (!{'http', 'https'}.contains(apiBase.scheme.toLowerCase()) ||
+        apiBase.host.isEmpty ||
+        apiBase.userInfo.isNotEmpty ||
+        apiBase.hasQuery ||
+        apiBase.hasFragment) {
+      throw ArgumentError.value(apiBase, 'apiBase', 'Invalid API base URL');
+    }
+    final baseSegments = apiBase.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    return apiBase.replace(pathSegments: [...baseSegments, 'ai', 'analyze']);
+  }
 
   final Uri endpoint;
   final http.Client _client;
@@ -58,7 +73,7 @@ class SchoolAiClient {
     Uri? endpoint,
     http.Client? client,
     this.timeout = const Duration(seconds: 60),
-    this.defaultModelName = 'deepseek-flash',
+    this.defaultModelName = 'cuc/deepseek',
   })  : endpoint = endpoint ?? defaultEndpoint,
         _client = client ?? http.Client(),
         _ownsClient = client == null;

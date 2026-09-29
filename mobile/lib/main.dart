@@ -14,8 +14,9 @@ Future<void> main() async {
 
 class TapLensApp extends StatelessWidget {
   final AnalysisReport report;
+  final ThemeData? theme;
 
-  TapLensApp({super.key, AnalysisReport? report})
+  TapLensApp({super.key, AnalysisReport? report, this.theme})
       : report = report ?? demoReport;
 
   @override
@@ -23,7 +24,7 @@ class TapLensApp extends StatelessWidget {
     return MaterialApp(
       title: '触镜 TapLens',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
+      theme: theme ?? AppTheme.light(),
       home: HomePage(report: report),
     );
   }

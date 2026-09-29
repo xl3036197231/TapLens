@@ -555,7 +555,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       localEvidence: _localEvidence,
     );
     final token = _accessToken;
-    final schoolClient = SchoolAiClient();
+    final schoolClient = SchoolAiClient(
+      endpoint: SchoolAiClient.endpointForApiBase(_backendUri()),
+    );
     final result = await const AiReportService().analyzeRequestOrFallback(
       request: () {
         if (token == null || token.isEmpty) {
@@ -569,7 +571,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       availableEvidenceIds: availableEvidenceIds,
       ruleReport: ruleJson,
       hardRiskLevel: ruleReport.riskLevel == RiskLevel.high ? 'high' : null,
-      modelName: 'deepseek-flash',
+      modelName: 'cuc/deepseek',
     );
     schoolClient.close();
     return AiReportExecution(

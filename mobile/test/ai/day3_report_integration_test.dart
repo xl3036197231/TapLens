@@ -29,6 +29,7 @@ void main() {
       .map((item) => (item as Map<String, dynamic>)['id'] as String)
       .toSet();
   final ruleReport = AnalysisReport.fromCloudEvidence(cloud);
+  final testTheme = ThemeData(splashFactory: InkRipple.splashFactory);
 
   test('A cloud rule report matches the formal schema and B C01-C04', () {
     final generated = CloudAiReportInput.buildRuleReport(ruleReport);
@@ -272,6 +273,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: AnalysisReport.fromJson(verified),
           aiRunner: (key, _) async {
@@ -340,6 +342,7 @@ void main() {
     final report = AnalysisReport.fromJson(verifiedAi);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: AnalysisReport.fromJson(
             CloudAiReportInput.buildRuleReport(
@@ -399,6 +402,7 @@ void main() {
     final fallback = CloudAiReportInput.buildRuleReport(ruleReport);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: AnalysisReport.fromJson(fallback),
           aiRunner: (key, _) async {
@@ -465,6 +469,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: base,
           mockSuccessRunner: () async => AiReportExecution(

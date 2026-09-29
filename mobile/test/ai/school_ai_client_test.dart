@@ -14,7 +14,26 @@ Map<String, dynamic> _fixture(String path) =>
 void main() {
   test('default endpoint targets the authenticated school model API', () {
     expect(
+      SchoolAiClient.defaultApiBaseUrl.toString(),
+      'http://39.107.253.138/api/v1',
+    );
+    expect(
       SchoolAiClient.defaultEndpoint.toString(),
+      'http://39.107.253.138/api/v1/ai/analyze',
+    );
+  });
+
+  test('appends the school model path to the configured API base', () {
+    expect(
+      SchoolAiClient.endpointForApiBase(
+        Uri.parse('http://39.107.253.138/api/v1'),
+      ).toString(),
+      'http://39.107.253.138/api/v1/ai/analyze',
+    );
+    expect(
+      SchoolAiClient.endpointForApiBase(
+        Uri.parse('http://39.107.253.138/api/v1/'),
+      ).toString(),
       'http://39.107.253.138/api/v1/ai/analyze',
     );
   });

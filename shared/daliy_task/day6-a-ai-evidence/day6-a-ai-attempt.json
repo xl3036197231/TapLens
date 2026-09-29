@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-29",
+  "event": "single school-model call from Android app",
+  "branch": "feat/a-mobile-function",
+  "source_commit": "3e56981b52996a8754d8e9d96fd3d358457f388a",
+  "apk_sha256": "73f5f38281a6c56500a48173cd9d9bd7b02ed01c0b26a6510f76761dc77369f7",
+  "device": {
+    "emulator": "emulator-5554",
+    "avd": "TapLens_API35",
+    "android": "15",
+    "api_level": 35
+  },
+  "api_base_url": "http://39.107.253.138/api/v1",
+  "endpoint": "http://39.107.253.138/api/v1/ai/analyze",
+  "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+  "task_id": "e454f7ea-5b9c-4626-83d3-d17d43496f40",
+  "new_cloud_task_created": false,
+  "confirmed_at_local": "2026-09-29 12:04:09 +08:00",
+  "observed_fallback_by_local": "2026-09-29 12:06:24 +08:00",
+  "school_model_call_count_in_this_run": 1,
+  "retry_count": 0,
+  "mock_used": false,
+  "ui_result": "rule_report_fallback; school_model_action_locked_after_call",
+  "report_sources_ai": false,
+  "client_fallback_token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  },
+  "http_status": null,
+  "backend_error_code": null,
+  "attempt_id": null,
+  "elapsed_ms": null,
+  "provider_invoked": null,
+  "provider_token_usage": null,
+  "final_ai_report_exported": false,
+  "notes": [
+    "The UI did not expose or persist the HTTP status, backend error code, attempt_id, or elapsed_ms.",
+    "The client fallback's zero token fields do not prove that the server provider was not invoked.",
+    "B must correlate ECS/Nginx/API/Worker records read-only using the analysis_id and the 2026-09-29 12:04-12:06 +08:00 window.",
+    "Do not replay the request or create a replacement cloud task."
+  ],
+  "screenshots": [
+    "school-model-before.png",
+    "school-model-confirmation.png",
+    "school-model-after-wait.png",
+    "school-model-failure.png"
+  ],
+  "source_tree_clean_at_attempt": false,
+  "prior_known_a_attempt": {
+    "confirmed_at_local": "2026-09-29 10:01:13.966 +08:00",
+    "record": "shared/daliy_task/day6-a-evidence/day6-a-call-record.json"
+  },
+  "post_attempt_build": {
+    "built_after_ai_attempt": true,
+    "apk_sha256": "BAE698970589370889D1BAAC1CE176ED4153BF69F76A17793D9EF81CEFC7E37B",
+    "device_install_hash_matches": true,
+    "flutter_test": "66 passed",
+    "flutter_analyze": "no issues",
+    "flutter_build": "succeeded with kotlin.incremental=false",
+    "school_ai_called_again": false,
+    "apk_path": "mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "command": "flutter build apk --debug --no-pub --android-project-arg=kotlin.incremental=false"
+  }
+}

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -160,7 +161,7 @@ Future<void> main() async {
     unavailableClient.close();
   }
 
-  print('$assertions school AI client smoke assertions passed');
+  stdout.writeln('$assertions school AI client smoke assertions passed');
 }
 
 Map<String, dynamic> _payload() => {

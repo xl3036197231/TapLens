@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+  "created_at": "2026-09-29T01:38:15.759569Z",
+  "risk_level": "high",
+  "consistency": "unknown",
+  "title": "云端深度分析报告",
+  "target": {
+    "type": "url",
+    "display": "http://39.107.253.138/controlled/campus-login.html",
+    "redacted": true
+  },
+  "summary": "云端页面包含敏感表单字段，且未执行提交动作。",
+  "claim": {
+    "summary": "用户确认的链接",
+    "subject": "待确认页面",
+    "purpose": "检查链接真实行为",
+    "requested_data": [],
+    "intended_target": "用户确认的链接目标"
+  },
+  "observed_behavior": {
+    "summary": "最终地址：http://39.107.253.138/controlled/campus-login.html；Example Campus LEARNING PORTAL Training environment Controlled training fixture This is a fictional TapLens test page. Never enter a real password or personal information. STUDENT SERVICES / 2026 Everything you need for campus life. Access your timetable, learning resources and student services from one calm, secure place. One account Student services Secure access WELCOME BACK Sign in to continue Use the fictional demo account to open the community hub. Student ID Use the fictional value provided for this fixture. Password Training value only; submission is blocked locally. Enter demo hub → TapLens training fixture · fields are never sent anywhere Example Campus is a fictional brand used only for local security testing.；跳转：http://39.107.253.138/controlled/go/campus → http://39.107.253.138/controlled/campus-login.html；表单字段：student_id（敏感）；表单字段：password（敏感）",
+    "subjects": [],
+    "purposes": [],
+    "collected_data": [],
+    "destinations": [],
+    "actions": [],
+    "evidence_ids": [
+      "C01",
+      "C02",
+      "C03",
+      "C04",
+      "L01"
+    ]
+  },
+  "differences": [
+    {
+      "id": "D01",
+      "dimension": "target",
+      "severity": "critical",
+      "description": "初始地址发生跳转，最终地址为 http://39.107.253.138/controlled/campus-login.html。",
+      "evidence_ids": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "L01"
+      ]
+    },
+    {
+      "id": "D02",
+      "dimension": "data",
+      "severity": "critical",
+      "description": "页面表单包含敏感字段，云端分析未提交表单。",
+      "evidence_ids": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "L01"
+      ]
+    }
+  ],
+  "recommendations": [
+    "不要填写身份证号、手机号或其他敏感信息。",
+    "通过官方渠道核对最终页面地址。"
+  ],
+  "evidence": [
+    {
+      "id": "C01",
+      "source": "cloud",
+      "title": "云端跳转链",
+      "detail": "观察到1次HTTP跳转。"
+    },
+    {
+      "id": "C02",
+      "source": "cloud",
+      "title": "敏感表单字段",
+      "detail": "页面表单包含2个敏感输入字段。"
+    },
+    {
+      "id": "C03",
+      "source": "cloud",
+      "title": "云端页面摘要",
+      "detail": "页面标题：Example Campus single sign-on"
+    },
+    {
+      "id": "C04",
+      "source": "cloud",
+      "title": "云端页面截图",
+      "detail": "已生成受鉴权与过期时间保护的页面截图。"
+    },
+    {
+      "id": "L01",
+      "source": "local",
+      "title": "静态目标",
+      "detail": "http 39.107.253.138 /controlled/go/campus"
+    }
+  ],
+  "uncertainty": {
+    "status": "known",
+    "summary": "当前证据来自云端沙箱。",
+    "reasons": [],
+    "missing_evidence": []
+  },
+  "sources": {
+    "local": true,
+    "cloud": true,
+    "ai": false
+  },
+  "token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  }
+}

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taplens_mobile/main.dart';
 import 'package:taplens_mobile/screens/cloud_analysis_page.dart';
+import 'package:taplens_mobile/theme/app_theme.dart';
 
 void main() {
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
@@ -34,7 +35,13 @@ void main() {
     tester.view.physicalSize = const Size(800, 1200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(TapLensApp());
+    await tester.pumpWidget(
+      TapLensApp(
+        theme: AppTheme.light().copyWith(
+          splashFactory: InkRipple.splashFactory,
+        ),
+      ),
+    );
 
     final paste = find.text('粘贴链接');
     expect(paste, findsOneWidget);
@@ -71,7 +78,8 @@ void main() {
 
   testWidgets('云端分析页面能在缺少凭据时给出明确提示', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
         home: CloudAnalysisPage(initialUrl: 'https://example.test'),
       ),
     );
@@ -85,7 +93,8 @@ void main() {
 
   testWidgets('填写已有任务 ID 后显示只查询任务的操作', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
         home: CloudAnalysisPage(
           initialUrl: 'https://example.test/go/campus',
           analysisId: 'aa4e3f03-6141-4799-a229-04c879d3bb02',
