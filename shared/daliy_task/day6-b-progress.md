@@ -141,3 +141,31 @@ B 在 TTL 前只读导出完整脱敏云证据并复制 PNG 到：
 3. C 核对新 bundle 仍对应正式 URL 和 L01；
 4. D 重新审计新 task ID、A bundle、B 云证据和 PNG；
 5. 学校模型调用仍需单独明确授权，本次新任务不等于学校 AI 报告完成。
+
+## 9. 2026-09-29 官方 VPN 接入与学校模型恢复
+
+经用户明确授权，B 在 ECS 上按学校官方 Linux 客户端方式部署 EasyConnect
+7.6.7.3，并通过统一身份认证和短信二次验证建立会话。账号、密码、短信验证码、
+VPN Cookie 和模型 API Key 均未写入 Git、命令行或聊天记录。
+
+部署结果：
+
+- EasyConnect 运行在独立 Docker 容器中，具有独立 `/dev/net/tun` 和
+  `NET_ADMIN`，没有修改 ECS 宿主机默认路由；
+- VPN 会话建立后获得 `tun0`，地址为 `10.10.0.47/24`；
+- noVNC 只绑定 ECS `127.0.0.1:6080`，需通过 SSH 本地端口转发访问；
+- 官方客户端 home 与会话配置使用独立命名卷持久化；
+- 内部 CONNECT 代理只允许专用 Docker 网络 `192.168.250.0/24` 访问，
+  只允许连接目标端口 443，没有宿主机或公网端口映射；
+- API 通过 `TAPLENS_LLM_PROXY_URL=http://192.168.250.2:8888` 访问学校模型；
+- 学校模型地址由 VPN 前的 Wengine 302 变为 OneAPI JSON 响应；
+- 真实 `cuc/deepseek` 调用成功，`sources.ai=true`，用量为
+  `prompt_tokens=3327`、`completion_tokens=2274`、`total_tokens=5601`；
+- API、Worker、Nginx 均为 healthy，SQLite 检查通过，Worker 数量为 1。
+
+实现提交：`e15895a`。VPN 镜像固定校验官方 DEB 的 SHA-256，部署定义位于
+`deploy/vpn/`。本次验证只输出状态、模型名和 Token 统计，没有输出模型 Key、
+提示词或完整报告正文。
+
+B 当前状态为 **READY**。A 可以使用最新 APP 对 `/api/v1/ai/analyze` 发起一次
+正式学校模型调用并导出完整报告；D 再对 A 的完整报告、截图和调用证据进行最终审计。
