@@ -54,6 +54,10 @@ python -m unittest discover -s mobile/test/ai -p 'test_*.py'
 
 完整学校 AI 终验的复测门槛：已合法保存的**本次**真实完整响应 + 同一 `analysis_id` 的报告 Schema/证据守卫结果 + 同 APK 设备展示；缺任一项继续 BLOCKED，任何新模型调用或新云任务均需另行明确授权。
 
+## B 幂等原型后续复审（`dabf47f`）
+
+D 已在 B 固定快照复跑后端 **118/118** 测试，核对 SQLite 唯一约束、dispatch 标记、租约/未知结果、24 小时缓存、30 天墓碑和 HMAC 用户隔离。它们是**未接路由的本地原型**，ECS 行为未变。正式接入仍为 **NEEDS_CHANGES**：缓存摘要忽略 `created_at` 而报告守卫要求相同、30 天墓碑删除后旧 ID 可重新预留、成功缓存缺强制守卫边界；清理/备份与客户端四种 409 语义也需落实。逐项依据和放行门槛见 `day7-d-idempotency-prototype-review.md`。这些后续测试不能把本候选的 AI 手机报告或 C04 PNG 改成 PASS。
+
 ## 统一交接
 
 成员与分支：D / `feat/d-ai`（提交号以推送后的本分支 HEAD 为准）。
