@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Day 7 offline-only, synthetic cases derived from public platform/standards behavior; not observed attacks",
+  "execution_policy": "Decode or parse fixture text only. Never navigate, launch an app, download an APK, send a message, or connect Wi-Fi.",
+  "cases": [
+    {
+      "id": "D7-QR-01",
+      "type": "qr",
+      "scene": "社团票务卡片承诺在 TapLens 中查看，二维码却指定其他包名并留有网页 fallback",
+      "existing_fixture": "shared/datasets/qr/manifest.json#QR02",
+      "payload": "intent://scan/#Intent;scheme=taplens;package=com.example.otherapp;S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end",
+      "source_urls": ["https://developer.chrome.com/docs/android/intents", "https://datatracker.ietf.org/doc/html/rfc6761"],
+      "source_behavior": "Chrome documents intent package and browser_fallback_url syntax; the .test domain is reserved for testing.",
+      "expected_taplens": "Preview the decoded intent, declared package and fallback. Flag the mismatch with expected com.taplens.app; do not infer installed-app identity.",
+      "offline_reproduction": "Open existing qr02-intent-package-mismatch.png in TapLens gallery preview or parse the payload as text; never confirm an external action.",
+      "provenance": "Team-authored fiction; platform syntax paraphrased, no vendor artwork or exploit copied.",
+      "license_use": "Chrome Developers page text: CC BY 4.0; no text/code copied. RFC 6761: IETF Trust terms; only the reserved-domain rule is referenced.",
+      "safe_for_demo": true
+    },
+    {
+      "id": "D7-URL-01",
+      "type": "url",
+      "scene": "卡片上最先看到校园字样，实际 URL host 却是另一虚构站点且路径指向 APK",
+      "existing_fixture": null,
+      "payload": "https://campus.example.test@download.example.test/tripnest/TripNest-BoardingPass.apk",
+      "source_urls": ["https://url.spec.whatwg.org/", "https://datatracker.ietf.org/doc/html/rfc6761"],
+      "source_behavior": "WHATWG URL syntax separates userinfo before @ from the host after @. A .test host does not represent a real download service.",
+      "expected_taplens": "Show the parsed host download.example.test or reject credential-bearing URLs; do not present campus.example.test as the destination. Flag an off-store APK path only as a static cue.",
+      "offline_reproduction": "Parse the literal URL in a local unit test or phone preview without opening it. No APK exists at the .test address.",
+      "provenance": "Team-authored synthetic URL, not copied from a real phishing campaign.",
+      "license_use": "WHATWG URL Standard: CC BY 4.0; no text/code copied. RFC 6761: IETF Trust terms; only the reserved-domain rule is referenced.",
+      "safe_for_demo": true
+    },
+    {
+      "id": "D7-DL-01",
+      "type": "deep_link",
+      "scene": "社团活动卡片承诺打开指定应用，未安装或无法唤起时却可能回退到另一虚构登录站",
+      "existing_fixture": "shared/datasets/constructed-fixtures/deep-link-fixtures.json#FIX-DL-004",
+      "payload": "intent://lecture/info#Intent;scheme=taplens-demo;package=org.example.campus;S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Flogin;end",
+      "source_urls": ["https://developer.chrome.com/docs/android/intents", "https://developer.android.com/training/app-links/verify-applinks"],
+      "source_behavior": "Chrome documents a fallback URL when an intent does not launch; Android App Links require association verification before claiming website-to-app identity.",
+      "expected_taplens": "Decode the package and fallback, mark handler identity and destination behavior unverified, and avoid claiming the fallback actually happened.",
+      "offline_reproduction": "Feed FIX-DL-004 literal URI to C's static parser; do not dispatch an Android intent or fetch the fallback.",
+      "provenance": "Team-authored fiction derived from public platform behavior, not a copied exploit.",
+      "license_use": "Google developer documentation page text: CC BY 4.0; no text/code copied.",
+      "safe_for_demo": true
+    }
+  ]
+}
