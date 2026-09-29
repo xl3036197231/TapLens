@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:taplens_mobile/main.dart';
 import 'package:taplens_mobile/screens/cloud_analysis_page.dart';
+import 'package:taplens_mobile/services/auth_session.dart';
 import 'package:taplens_mobile/theme/app_theme.dart';
 
 void main() {
@@ -76,7 +79,7 @@ void main() {
     expect(find.text('证据范围'), findsOneWidget);
   });
 
-  testWidgets('云端分析页面能在缺少凭据时给出明确提示', (tester) async {
+  testWidgets('云端分析页面提示先从账号入口登录', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(splashFactory: InkRipple.splashFactory),
@@ -88,7 +91,141 @@ void main() {
     await tester.tap(find.text('开始云端分析'));
     await tester.pumpAndSettle();
 
-    expect(find.text('请填写链接、用户名和密码。'), findsOneWidget);
+    expect(find.text('请先登录 TapLens 账号，再进行云端分析。'), findsOneWidget);
+  });
+
+  testWidgets('云端额度和创建任务复用已登录 JWT，不再次登录', (tester) async {
+    final store = MemoryTapLensSessionStore()
+      ..value =
+          '{"access_token":"jwt-test","expires_at":"2099-09-29T01:00:00Z","user_id":"user-1","username":"demo_user","api_base_url":"http://test/api/v1"}';
+    final controller = AuthSessionController(store: store);
+    await controller.restore();
+    final requests = <http.Request>[];
+    final httpClient = MockClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/health')) {
+        return http.Response('{"status":"ok"}', 200);
+      }
+      if (request.url.path.endsWith('/quota')) {
+        return http.Response(
+          '{"daily_limit":10,"used":0,"remaining":10}',
+          200,
+        );
+      }
+      if (request.url.path.endsWith('/deep-scans')) {
+        return http.Response(
+          '{"task_id":"task-1","analysis_id":"analysis-1","status":"succeeded","cloud_evidence":{"schema_version":"1.0","status":"succeeded"}}',
+          202,
+        );
+      }
+      throw StateError('Unexpected request path: ${request.url.path}');
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
+        home: CloudAnalysisPage(
+          initialUrl: 'https://example.test/go',
+          analysisId: 'analysis-1',
+          sessionController: controller,
+          httpClient: httpClient,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('开始云端分析'));
+    await tester.pumpAndSettle();
+
+    expect(requests.map((request) => request.url.path), [
+      '/api/v1/health',
+      '/api/v1/quota',
+      '/api/v1/deep-scans',
+    ]);
+    expect(requests[1].headers['authorization'], 'Bearer jwt-test');
+    expect(requests[2].headers['authorization'], 'Bearer jwt-test');
+    expect(
+        requests.where((request) => request.url.path.endsWith('/auth/login')),
+        isEmpty);
+  });
+
+  testWidgets('JWT 过期后清除本机会话并提示重新登录，不自动重试', (tester) async {
+    final store = MemoryTapLensSessionStore()
+      ..value =
+          '{"access_token":"expired-jwt","expires_at":"2099-09-29T01:00:00Z","user_id":"user-1","username":"demo_user","api_base_url":"http://test/api/v1"}';
+    final controller = AuthSessionController(store: store);
+    await controller.restore();
+    final requests = <http.Request>[];
+    final httpClient = MockClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/health')) {
+        return http.Response('{"status":"ok"}', 200);
+      }
+      return http.Response(
+        '{"error":{"code":"AUTH_TOKEN_EXPIRED","message":"expired","retryable":false,"details":null}}',
+        401,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(splashFactory: InkRipple.splashFactory),
+        home: CloudAnalysisPage(
+          initialUrl: 'https://example.test/go',
+          sessionController: controller,
+          httpClient: httpClient,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('开始云端分析'));
+    await tester.pumpAndSettle();
+
+    expect(requests.map((request) => request.url.path), [
+      '/api/v1/health',
+      '/api/v1/quota',
+    ]);
+    expect(requests.last.headers['authorization'], 'Bearer expired-jwt');
+    expect(store.value, isNull);
+    expect(find.text('登录状态已失效，请重新登录后再试。'), findsOneWidget);
+  });
+
+  testWidgets('按系统返回键会询问是否退出，取消后留在首页', (tester) async {
+    final session = AuthSessionController(store: MemoryTapLensSessionStore());
+    await tester.pumpWidget(
+      TapLensApp(
+        sessionController: session,
+        theme:
+            AppTheme.light().copyWith(splashFactory: InkRipple.splashFactory),
+      ),
+    );
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('退出 TapLens？'), findsOneWidget);
+    await tester.tap(find.text('继续使用'));
+    await tester.pumpAndSettle();
+    expect(find.text('退出 TapLens？'), findsNothing);
+    expect(find.text('开始检查'), findsOneWidget);
+  });
+
+  testWidgets('首页账号入口显示登录和注册选项', (tester) async {
+    final session = AuthSessionController(store: MemoryTapLensSessionStore());
+    await tester.pumpWidget(
+      TapLensApp(
+        sessionController: session,
+        theme:
+            AppTheme.light().copyWith(splashFactory: InkRipple.splashFactory),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('账号与登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('TapLens 账号'), findsOneWidget);
+    expect(find.text('登录'), findsOneWidget);
+    expect(find.text('注册并登录'), findsOneWidget);
+    expect(find.text('后端基地址'), findsOneWidget);
+    expect(find.textContaining('账号密码、JWT 和分析请求在网络中未加密'), findsOneWidget);
   });
 
   testWidgets('填写已有任务 ID 后显示只查询任务的操作', (tester) async {

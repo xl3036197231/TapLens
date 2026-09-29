@@ -435,6 +435,46 @@ void main() {
     expect(find.textContaining('敏感'), findsWidgets);
   });
 
+  testWidgets('学校模型回退显示服务端用量待核实，而不是宣称未调用', (
+    tester,
+  ) async {
+    var attempts = 0;
+    final ruleJson = CloudAiReportInput.buildRuleReport(ruleReport);
+    final fallback = AnalysisReport.fromJson(ruleJson);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme,
+        home: ReportPage(
+          report: fallback,
+          schoolAiRunner: () async {
+            attempts++;
+            return AiReportExecution(
+              report: fallback,
+              usedFallback: true,
+              message: '服务端结果待核实。',
+            );
+          },
+        ),
+      ),
+    );
+
+    final button = find.text('AI 深度研判（一次调用）');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认并分析'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 1);
+    expect(find.text('AI 调用已尝试，未取得 AI 报告'), findsOneWidget);
+    expect(
+      find.textContaining('服务端调用状态和实际 Token 用量待核实'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Token 用量：0'), findsNothing);
+    expect(find.text('高风险'), findsOneWidget);
+  });
+
   testWidgets('offline demo actions do not read or save an API key', (
     tester,
   ) async {

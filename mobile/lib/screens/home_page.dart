@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/analysis_report.dart';
+import '../services/auth_session.dart';
+import 'account_page.dart';
 import 'qr_code_scanner_page.dart';
 import 'local_check_page.dart';
 import 'qr_payload_review_page.dart';
@@ -10,91 +15,137 @@ const _day4AnalysisId = String.fromEnvironment('TAPLENS_ANALYSIS_ID');
 const _day4ApiBaseUrl = String.fromEnvironment('TAPLENS_API_BASE_URL');
 const _day4TargetUrl = String.fromEnvironment('TAPLENS_TARGET_URL');
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final AnalysisReport report;
 
   const HomePage({super.key, required this.report});
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+  State<HomePage> createState() => _HomePageState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('触镜 TapLens'),
+class _HomePageState extends State<HomePage> {
+  bool _exitDialogOpen = false;
+
+  Future<void> _confirmExit() async {
+    if (_exitDialogOpen || !mounted) return;
+    _exitDialogOpen = true;
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('退出 TapLens？'),
+        content: const Text('当前页面会关闭。'),
         actions: [
-          IconButton(
-            tooltip: '设置',
-            onPressed: () {},
-            icon: const Icon(Icons.tune_rounded),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('继续使用'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('退出应用'),
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _HeroCard(colors: colors),
-              const SizedBox(height: 24),
-              Text(
-                '开始检查',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+    );
+    _exitDialogOpen = false;
+    if (shouldExit == true && mounted) await SystemNavigator.pop();
+  }
+
+  void _openAccount() {
+    final controller = TapLensSessionScope.of(context);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AccountPage(controller: controller),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_confirmExit());
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('触镜 TapLens'),
+          actions: [
+            IconButton(
+              tooltip: '账号与登录',
+              onPressed: _openAccount,
+              icon: const Icon(Icons.account_circle_outlined),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _HeroCard(colors: colors),
+                const SizedBox(height: 24),
+                Text(
+                  '开始检查',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.55,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _EntryCard(
+                      icon: Icons.qr_code_scanner_rounded,
+                      label: '扫码检查',
+                      onTap: () => _openQrScanner(context),
                     ),
-              ),
-              const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.55,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _EntryCard(
-                    icon: Icons.qr_code_scanner_rounded,
-                    label: '扫码检查',
-                    onTap: () => _openQrScanner(context),
-                  ),
-                  _EntryCard(
-                    icon: Icons.photo_library_outlined,
-                    label: '导入海报',
-                    onTap: () => _openQrScanner(context, galleryOnly: true),
-                  ),
-                  _EntryCard(
-                    icon: Icons.content_paste_rounded,
-                    label: '粘贴链接',
-                    onTap: () => _openLocalCheck(context),
-                  ),
-                  _EntryCard(
-                    icon: Icons.ios_share_rounded,
-                    label: '分享给触镜',
-                    onTap: () => _openLocalCheck(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '最近一次分析',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  TextButton(
-                    onPressed: () => _openReport(context),
-                    child: const Text('查看报告'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _RecentReportCard(
-                  report: report, onTap: () => _openReport(context)),
-            ],
+                    _EntryCard(
+                      icon: Icons.photo_library_outlined,
+                      label: '导入海报',
+                      onTap: () => _openQrScanner(context, galleryOnly: true),
+                    ),
+                    _EntryCard(
+                      icon: Icons.content_paste_rounded,
+                      label: '粘贴链接',
+                      onTap: () => _openLocalCheck(context),
+                    ),
+                    _EntryCard(
+                      icon: Icons.ios_share_rounded,
+                      label: '分享给触镜',
+                      onTap: () => _openLocalCheck(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '最近一次分析',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    TextButton(
+                      onPressed: () => _openReport(context),
+                      child: const Text('查看报告'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _RecentReportCard(
+                    report: widget.report, onTap: () => _openReport(context)),
+              ],
+            ),
           ),
         ),
       ),
@@ -137,7 +188,7 @@ class HomePage extends StatelessWidget {
   void _openReport(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ReportPage(report: report),
+        builder: (_) => ReportPage(report: widget.report),
       ),
     );
   }
