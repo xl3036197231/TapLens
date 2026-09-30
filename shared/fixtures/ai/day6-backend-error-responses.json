@@ -1,0 +1,84 @@
+{
+  "fixture_version": "1.0",
+  "endpoint": "POST /api/v1/ai/analyze",
+  "contains_secrets": false,
+  "examples": [
+    {
+      "name": "missing_taplens_jwt",
+      "source": "ecs-observed",
+      "http_status": 401,
+      "provider_invoked": false,
+      "body": {
+        "error": {
+          "code": "AUTH_TOKEN_MISSING",
+          "message": "请先登录",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "invalid_request_field",
+      "source": "ecs-observed",
+      "http_status": 422,
+      "provider_invoked": false,
+      "body": {
+        "error": {
+          "code": "AI_REQUEST_INVALID",
+          "message": "请求字段无效",
+          "retryable": false,
+          "details": {
+            "fields": [
+              {
+                "path": "body.deepseek_key",
+                "type": "extra_forbidden"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "school_model_timeout",
+      "source": "contract-mock",
+      "http_status": 504,
+      "body": {
+        "error": {
+          "code": "AI_PROVIDER_TIMEOUT",
+          "message": "学校模型响应超时",
+          "retryable": true,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "school_model_unavailable",
+      "source": "contract-mock",
+      "http_status": 503,
+      "body": {
+        "error": {
+          "code": "AI_PROVIDER_UNAVAILABLE",
+          "message": "暂时无法连接学校模型",
+          "retryable": true,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "report_guard_rejected",
+      "source": "contract-mock",
+      "http_status": 502,
+      "body": {
+        "error": {
+          "code": "AI_REPORT_REJECTED",
+          "message": "模型报告不符合 Schema：['schema_version']",
+          "retryable": false,
+          "details": {
+            "validator": "const",
+            "schema_message": "'1.0' was expected"
+          }
+        }
+      }
+    }
+  ]
+}

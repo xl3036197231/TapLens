@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "checked_at": "2026-09-27T11:06:29.755410Z",
+  "mode": "read_only_export",
+  "runtime": {
+    "api": "healthy",
+    "worker": "healthy",
+    "nginx": "healthy",
+    "worker_count": 1,
+    "healthz_status": "ready",
+    "database_check": "ok",
+    "artifacts_check": "ok"
+  },
+  "target": {
+    "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+    "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54"
+  },
+  "sqlite": {
+    "quick_check": "ok",
+    "task_found": true,
+    "task": {
+      "id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+      "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+      "status": "succeeded",
+      "target_url": null,
+      "error_code": null,
+      "created_at": "2026-09-27T10:57:59.017073+00:00",
+      "started_at": "2026-09-27T10:57:59.074921+00:00",
+      "completed_at": "2026-09-27T10:57:59.786849+00:00",
+      "expires_at": "2026-09-27T11:27:59.786849+00:00",
+      "duration_ms": 707
+    }
+  },
+  "artifact": {
+    "file": "f1858539-4595-4297-acfe-5bf81a91bc54.png",
+    "found_on_server": true,
+    "size_bytes": 436619,
+    "sha256": "8b111619bb7864bd285d48aad60819a1fa1c9bbe7cb9fce6640b557a8146e719",
+    "png_signature_valid": true,
+    "width": 1280,
+    "height": 956
+  },
+  "evidence_checks": {
+    "initial_url": "http://39.107.253.138/controlled/go/campus",
+    "final_url": "http://39.107.253.138/controlled/campus-login.html",
+    "page_title": "Example Campus single sign-on",
+    "request_methods": [
+      "GET"
+    ],
+    "post_request_observed": false,
+    "cloud_evidence_ids": [
+      "C01",
+      "C02",
+      "C03",
+      "C04"
+    ],
+    "cloud_evidence_kinds": {
+      "C01": "redirect",
+      "C02": "form",
+      "C03": "page",
+      "C04": "screenshot"
+    },
+    "artifact_id_matches_task_id": true,
+    "a_bundle_cloud_snapshot_exact_match": true,
+    "cloud_evidence_contains_ai_output": false,
+    "sensitive_form_values_absent": true,
+    "target_url_cleared_from_task_row_after_completion": true
+  },
+  "task_creation": {
+    "created_by_b_during_export": false,
+    "replacement_task_created": false
+  }
+}

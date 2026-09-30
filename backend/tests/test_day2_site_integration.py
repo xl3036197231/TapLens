@@ -143,7 +143,7 @@ def test_fictional_cloud_fixture_maps_to_controlled_site_and_marks_simulation(tm
         generated_at=now,
         expires_at=now + timedelta(minutes=30),
         duration_ms=100,
-        public_base_url="http://127.0.0.1:8000",
+        public_base_url="https://taplens.example.test",
     )
     schema = json.loads(CLOUD_SCHEMA.read_text(encoding="utf-8"))
     common_schema = json.loads(COMMON_SCHEMA.read_text(encoding="utf-8"))

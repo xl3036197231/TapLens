@@ -79,9 +79,12 @@ flowchart TD
     I --> K[合并本地与云端证据]
     J --> K
     K --> L{用户是否点击 AI 深度研判}
-    L -->|是| M[手机使用用户 Key 直连 DeepSeek]
+    L -->|是| M{模型模式}
+    M -->|默认| Q[后端调用学校模型]
+    M -->|自定义| R[手机使用用户 Key 直连模型]
     L -->|否| N[规则与模板报告]
-    M --> O[校验 JSON 与证据引用]
+    Q --> O[校验 JSON 与证据引用]
+    R --> O
     N --> P[最终结果页]
     O --> P
 ```
@@ -111,18 +114,24 @@ flowchart LR
         AUTH[账号与 JWT]
         QUOTA[每日额度]
         API[FastAPI]
+        SAI[学校模型代理]
         PW[Playwright 深度沙箱]
         META[任务元数据]
         AUTH --> API
         QUOTA --> API --> PW --> META
+        API --> SAI
     end
 
     subgraph Provider[模型服务]
-        DS[DeepSeek deepseek-flash]
+        CUC[中传 DeepSeek-V4.1-Flash]
+        DS[用户自定义模型]
     end
 
     UI -->|账号令牌 / 脱敏目标| API
     PW -->|云端证据 JSON| RULE
+    RULE -->|默认模式：脱敏证据| SAI
+    SAI -->|服务端学校 Key| CUC
+    CUC -->|报告 JSON 与 Token 用量| SAI
     AI -->|用户 Key 与脱敏证据| DS
     DS -->|报告 JSON 与 Token 用量| AI
 ```
@@ -131,14 +140,14 @@ flowchart LR
 
 ## 隐私与 API Key
 
-触镜采用 BYOK（Bring Your Own Key）方式使用模型服务：
+触镜提供学校模型默认模式和 BYOK（Bring Your Own Key）自定义模式：
 
-1. 用户在手机中填写自己的 DeepSeek API Key；
-2. APP 先发送最小测试请求验证 Key；
-3. Key 由 Android Keystore 保护，只保存在当前手机；
-4. 用户主动点击“AI 深度研判”后，手机直接请求 DeepSeek；
-5. 触镜服务器不接收、不保存、也不转发用户的模型 Key；
-6. 每次分析最多发起一次模型请求，并显示接口返回的 Token 用量。
+1. 默认模式由后端使用仅存在 ECS 环境变量中的学校模型 Key；
+2. APP 只向后端发送白名单内的脱敏证据，不上传用户模型 Key；
+3. 自定义模式继续允许用户在手机中填写自己的模型 Key，由 Android Keystore 保护；
+4. 自定义 Key 只保存在当前手机，手机直接请求用户指定模型；
+5. 触镜服务器拒绝接收、保存或转发用户上传的模型 Key；
+6. 两种模式都执行报告 Schema、证据编号和硬风险守卫，并显示接口返回的 Token 用量。
 
 完整检测报告只保存在手机。服务器只保存账号、额度、任务状态和必要的脱敏元数据，不保存完整报告。
 
@@ -233,10 +242,11 @@ TapLens/
 | `/api/v1/deep-scans` | `POST` | 创建 Playwright 深度分析任务 |
 | `/api/v1/deep-scans/{id}` | `GET` | 查询任务状态和云端证据 |
 | `/api/v1/deep-scans/{id}` | `DELETE` | 删除任务和临时截图 |
+| `/api/v1/ai/analyze` | `POST` | 使用学校模型分析脱敏证据，不接收客户端 Key |
 | `/api/v1/task-metadata` | `POST` | 保存不含 URL 和报告的任务元数据 |
 | `/api/v1/health` | `GET` | 服务健康检查 |
 
-后端不提供模型调用接口，也不接收 DeepSeek API Key。
+后端默认模型接口只使用服务端学校凭证，并继续拒绝任何客户端上传的模型 Key。
 
 ## 四人分工
 
