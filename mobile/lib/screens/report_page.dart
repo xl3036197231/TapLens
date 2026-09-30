@@ -39,6 +39,8 @@ class ReportPage extends StatefulWidget {
   final SchoolAiReportRunner? schoolAiRunner;
   final AiReportDemoRunner? mockSuccessRunner;
   final AiReportDemoRunner? mockFailureRunner;
+  final AiReportExecution? initialAiExecution;
+  final bool aiCallAttempted;
 
   const ReportPage({
     super.key,
@@ -47,6 +49,8 @@ class ReportPage extends StatefulWidget {
     this.schoolAiRunner,
     this.mockSuccessRunner,
     this.mockFailureRunner,
+    this.initialAiExecution,
+    this.aiCallAttempted = false,
   });
 
   @override
@@ -66,6 +70,18 @@ class _ReportPageState extends State<ReportPage> {
   void initState() {
     super.initState();
     _report = widget.report;
+    final initial = widget.initialAiExecution;
+    _reportJson = initial?.reportJson;
+    _schoolCallAttempted = widget.aiCallAttempted;
+    _aiDiagnostic = initial?.error?.toSafeDiagnosticJson(
+          pageStateUpdate: 'completed',
+        ) ??
+        (initial?.httpStatus == null
+            ? null
+            : {
+                'http_status': initial!.httpStatus,
+                'page_state_update': 'completed',
+              });
     _modelMode = widget.schoolAiRunner != null
         ? _AiModelMode.school
         : _AiModelMode.custom;
@@ -383,6 +399,12 @@ class _ReportPageState extends State<ReportPage> {
                           '错误码：${_aiDiagnostic!['error_code'] ?? '未知'}'
                           '${_aiDiagnostic!['http_status'] == null ? '' : ' · HTTP ${_aiDiagnostic!['http_status']}'}',
                         ),
+                        if (_aiDiagnostic!['guard_reason'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                                '本机校验原因：${_aiDiagnostic!['guard_reason']}'),
+                          ),
                         if (_aiDiagnostic!['page_state_update'] != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
@@ -470,28 +492,28 @@ class _ReportPageState extends State<ReportPage> {
                             : 'AI 深度研判（一次调用）'),
                   ),
                 ),
-                if (kDebugMode && _reportJson != null) ...[
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      final reportJson = _reportJson;
-                      if (reportJson == null) return;
-                      await Clipboard.setData(
-                        ClipboardData(
-                          text: const JsonEncoder.withIndent('  ')
-                              .convert(reportJson),
-                        ),
-                      );
-                      if (!mounted) return;
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('最终报告 JSON 已复制。')),
-                      );
-                    },
-                    icon: const Icon(Icons.data_object_outlined),
-                    label: const Text('复制最终报告 JSON'),
-                  ),
-                ],
+              ],
+              if (kDebugMode && _reportJson != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final reportJson = _reportJson;
+                    if (reportJson == null) return;
+                    await Clipboard.setData(
+                      ClipboardData(
+                        text: const JsonEncoder.withIndent('  ')
+                            .convert(reportJson),
+                      ),
+                    );
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('最终报告 JSON 已复制。')),
+                    );
+                  },
+                  icon: const Icon(Icons.data_object_outlined),
+                  label: const Text('复制最终报告 JSON'),
+                ),
               ],
               if (widget.mockSuccessRunner != null ||
                   widget.mockFailureRunner != null) ...[

@@ -82,6 +82,32 @@ class AiClientException implements Exception {
   /// Only emits safe diagnostic fields. Never include response or request text.
   Map<String, Object?> toSafeDiagnosticJson({String? pageStateUpdate}) {
     final safeBackendCode = backendCode;
+    const localGuardReasons = {
+      'Report does not match the analysis-report shape',
+      'Report analysis_id does not match the current evidence',
+      'Invalid risk_level',
+      'Invalid uncertainty',
+      'Invalid uncertainty.status',
+      'risk_level and uncertainty.status disagree',
+      'Invalid token or source object',
+      'request_count must be 0 or 1',
+      'sources.ai=false requires request_count=0',
+      'Zero requests require zero usage and null model',
+      'A model name is required for an AI report',
+      'evidence must be an array',
+      'Invalid evidence item',
+      'Invalid or duplicate evidence id',
+      'Evidence source does not match id',
+      'Evidence id is not available',
+      'Invalid observed_behavior',
+      'Invalid observed behavior reference',
+      'differences must be an array',
+      'Invalid difference',
+      'Invalid or duplicate difference id',
+      'Invalid difference reference',
+      'A report reference is missing from evidence',
+      'AI result downgraded a rule-confirmed high risk',
+    };
     return {
       'failure_stage': failureStage?.diagnosticName ?? 'unclassified',
       'error_code': code.name,
@@ -90,6 +116,9 @@ class AiClientException implements Exception {
           RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(safeBackendCode))
         'backend_code': safeBackendCode,
       if (retryable != null) 'retryable': retryable,
+      if (failureStage == AiFailureStage.localReportGuard &&
+          localGuardReasons.contains(message))
+        'guard_reason': message,
       if (pageStateUpdate != null) 'page_state_update': pageStateUpdate,
     };
   }
