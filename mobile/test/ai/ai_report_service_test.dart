@@ -115,6 +115,7 @@ void main() {
         'failure_stage': 'local_report_guard',
         'error_code': 'invalidEvidenceId',
         'http_status': 200,
+        'guard_reason': 'Evidence id is not available',
         'page_state_update': 'completed',
       },
     );

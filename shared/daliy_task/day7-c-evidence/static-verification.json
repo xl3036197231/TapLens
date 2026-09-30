@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-09-29T16:25:38+08:00",
+  "member": "C",
+  "branch": "feat/c-day2-device-validation",
+  "baseline": {
+    "main_commit": "0921e203a183af1756f88669379236501f116586",
+    "a_commit": "84cc1de68fd3502549c2b73b36d1116472b68d90",
+    "a_merge_commit": "378393ae458d61c94de6d9c4f2fad9f2242d430e",
+    "b_commit": "3bf8657ce188716daa7a83471c3d751a92de65e0",
+    "b_merge_commit": "d4d8a7b7fe1f22f3a3a19e261d2a2b34491f1005"
+  },
+  "device": {
+    "adb_devices": [],
+    "physical_android_15_verified": false,
+    "reason": "No Android device was connected when adb devices -l was recorded. Emulator or workstation results are not reported as physical-device evidence."
+  },
+  "apk": {
+    "path": "mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "package_name": "com.taplens.app",
+    "version_name": "0.1.0",
+    "version_code": 1,
+    "min_sdk": 24,
+    "target_sdk": 36,
+    "size_bytes": 171680541,
+    "sha256": "78FAEA7999AAEC848E7C9D924FD87157B399925964F8532A70865465EFA336DF",
+    "api_base_url": "http://39.107.253.138/api/v1",
+    "controlled_target_url": "http://39.107.253.138/controlled/go/campus"
+  },
+  "manifest": {
+    "permissions": [
+      "android.permission.INTERNET",
+      "android.permission.CAMERA",
+      "android.permission.ACCESS_NETWORK_STATE"
+    ],
+    "network_security_config": "@xml/debug_network_security_config",
+    "cleartext_default": false,
+    "cleartext_allowed_hosts": [
+      "39.107.253.138"
+    ]
+  },
+  "tests": {
+    "flutter_analyze": "passed",
+    "flutter_tests": {
+      "passed": 77,
+      "failed": 0
+    },
+    "android_native_tests": {
+      "passed": 12,
+      "failed": 0,
+      "suites": {
+        "DeepLinkAnalyzerTest": 6,
+        "LocalEvidenceBuilderTest": 6
+      }
+    }
+  },
+  "candidate_l01": {
+    "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+    "task_id": "e454f7ea-5b9c-4626-83d3-d17d43496f40",
+    "evidence_id": "L01",
+    "target": "http://39.107.253.138/controlled/go/campus",
+    "launched_external_app": false,
+    "network_accessed": false,
+    "preflight_status": "not_started",
+    "review_type": "read_only"
+  },
+  "workstation_health_check": {
+    "url": "http://39.107.253.138/healthz",
+    "http_status": 200,
+    "body": {
+      "status": "ready",
+      "service": "taplens-backend",
+      "checks": {
+        "database": "ok",
+        "artifacts": "ok"
+      }
+    },
+    "limitation": "This is a workstation-only observation. B confirmed the read-only window separately, but a physical-phone network check is still required."
+  },
+  "b_read_only_window": {
+    "source_commit": "3bf8657ce188716daa7a83471c3d751a92de65e0",
+    "checked_at": "2026-09-29T16:09:02+08:00",
+    "health_url": "http://39.107.253.138/healthz",
+    "api_base_url": "http://39.107.253.138/api/v1",
+    "http_status": 200,
+    "database": "ok",
+    "artifacts": "ok",
+    "window_available": true
+  },
+  "school_model_audit": {
+    "request_at": "2026-09-29T12:04:09+08:00",
+    "provider": "cuc/deepseek",
+    "provider_status": 200,
+    "backend_report_guard": "passed",
+    "prompt_tokens": 3331,
+    "completion_tokens": 1872,
+    "total_tokens": 5203,
+    "mobile_result": "rule_report_fallback_sources_ai_false",
+    "mobile_end_to_end_status": "BLOCKED",
+    "source": "shared/daliy_task/day7-b-evidence/ai-call-audit.json"
+  },
+  "safety_boundary": {
+    "cloud_task_created": false,
+    "school_model_called": false,
+    "target_page_visited_for_l01": false,
+    "external_app_launched": false,
+    "wifi_connected": false,
+    "sms_sent": false
+  },
+  "status": "PARTIAL"
+}

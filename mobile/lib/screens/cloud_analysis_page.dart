@@ -20,8 +20,11 @@ import '../services/auth_session.dart';
 import '../services/cloud_scan_client.dart';
 import '../services/local_safety_service.dart';
 import '../services/local_target_matcher.dart';
+import '../services/secure_ai_key_store.dart';
 import 'account_page.dart';
 import 'report_page.dart';
+
+enum _CloudAiMode { school, custom }
 
 class CloudAnalysisPage extends StatefulWidget {
   final String initialUrl;
@@ -30,6 +33,8 @@ class CloudAnalysisPage extends StatefulWidget {
   final String? initialBaseUrl;
   final AuthSessionController? sessionController;
   final http.Client? httpClient;
+  final SchoolAiReportRunner? schoolAiRunnerOverride;
+  final AiReportRunner? customAiRunnerOverride;
 
   const CloudAnalysisPage({
     super.key,
@@ -39,6 +44,8 @@ class CloudAnalysisPage extends StatefulWidget {
     this.initialBaseUrl,
     this.sessionController,
     this.httpClient,
+    this.schoolAiRunnerOverride,
+    this.customAiRunnerOverride,
   });
 
   @override
@@ -59,6 +66,16 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   late final TextEditingController _urlController;
   late final TextEditingController _baseUrlController;
   final _taskIdController = TextEditingController();
+  final _customModelController = TextEditingController(text: 'deepseek-flash');
+  final _customKeyController = TextEditingController();
+  _CloudAiMode _aiMode = _CloudAiMode.school;
+  String? _loadingStage;
+  final _completedReports = <String, AiReportExecution>{};
+  final _aiAttemptedTaskIds = <String>{};
+  final _newTaskIds = <String>{};
+  _CloudAiMode? _pendingAiMode;
+  String? _pendingCustomKey;
+  String? _pendingCustomModel;
 
   QuotaSnapshot? _quota;
   DeepScanTask? _task;
@@ -88,6 +105,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     _urlController.dispose();
     _baseUrlController.dispose();
     _taskIdController.dispose();
+    _customModelController.dispose();
+    _customKeyController.dispose();
     super.dispose();
   }
 
@@ -109,9 +128,113 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   AuthSessionController? get _sessionController =>
       widget.sessionController ?? TapLensSessionScope.maybeOf(context);
 
+  Future<void> _selectAiMode(_CloudAiMode mode) async {
+    if (_loading) return;
+    setState(() => _aiMode = mode);
+    if (mode != _CloudAiMode.custom || _customKeyController.text.isNotEmpty) {
+      return;
+    }
+    try {
+      final stored = await const SecureAiKeyStore().read();
+      if (mounted && stored != null && _customKeyController.text.isEmpty) {
+        _customKeyController.text = stored;
+      }
+    } on Exception {
+      // The user can still enter a key for this session.
+    }
+  }
+
+  Future<void> _openCompletedReport(DeepScanTask task) async {
+    final cloudEvidence = task.cloudEvidence;
+    if (cloudEvidence == null) {
+      setState(() => _error = '云端任务没有返回证据，无法生成报告。');
+      return;
+    }
+    final cloudRuleReport = AnalysisReport.fromCloudEvidence(
+      cloudEvidence,
+      fallbackTarget: _urlController.text.trim(),
+    );
+    final ruleReport = AnalysisReport.fromJson(
+      CloudAiReportInput.buildRuleReport(
+        cloudRuleReport,
+        localEvidence: _localEvidence,
+      ),
+    );
+    final result = _completedReports[task.taskId];
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ReportPage(
+          report: result?.report ?? ruleReport,
+          initialAiExecution: result,
+          aiCallAttempted: result != null,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _autoAnalyzeCompletedTask(
+    DeepScanTask task, {
+    required bool newlyCreated,
+    required _CloudAiMode mode,
+    String? customKey,
+    String? customModel,
+  }) async {
+    if (task.status != 'succeeded' || !newlyCreated) return;
+    if (!_aiAttemptedTaskIds.add(task.taskId)) return;
+    final cloudEvidence = task.cloudEvidence;
+    if (cloudEvidence == null) return;
+    final cloudRuleReport = AnalysisReport.fromCloudEvidence(
+      cloudEvidence,
+      fallbackTarget: _urlController.text.trim(),
+    );
+    final ruleReport = AnalysisReport.fromJson(
+      CloudAiReportInput.buildRuleReport(
+        cloudRuleReport,
+        localEvidence: _localEvidence,
+      ),
+    );
+    if (mounted) setState(() => _loadingStage = '云端完成，AI 研判中…');
+    late final AiReportExecution result;
+    try {
+      result = mode == _CloudAiMode.school
+          ? await (widget.schoolAiRunnerOverride?.call() ??
+              _runSchoolAiAnalysis(
+                cloudEvidence: cloudEvidence,
+                ruleReport: ruleReport,
+              ))
+          : await (widget.customAiRunnerOverride
+                  ?.call(customKey!, customModel!) ??
+              _runAiAnalysis(
+                apiKey: customKey!,
+                modelName: customModel!,
+                cloudEvidence: cloudEvidence,
+                ruleReport: ruleReport,
+              ));
+    } on Object {
+      result = AiReportExecution(
+        report: ruleReport,
+        usedFallback: true,
+        message: 'AI 处理未完成，已保留云端规则报告；请勿立即重复调用。',
+        error: const AiClientException(
+          AiClientErrorCode.processingFailed,
+          'AI response processing failed',
+          failureStage: AiFailureStage.unknownProcessing,
+        ),
+      );
+    }
+    _completedReports[task.taskId] = result;
+    _pendingCustomKey = null;
+    if (mounted) await _openCompletedReport(task);
+  }
+
   Future<void> _runCloudScan() async {
+    if (_loading) return;
     final url = _urlController.text.trim();
     final existingTaskId = _taskIdController.text.trim();
+    final mode = _aiMode;
+    String? customKey;
+    String? customModel;
     final controller = _sessionController;
     if (url.isEmpty) {
       setState(() => _error = '请填写链接。');
@@ -129,12 +252,30 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       setState(() => _error = '已有任务 ID 格式不正确，请粘贴完整 UUID。');
       return;
     }
+    if (existingTaskId.isEmpty && mode == _CloudAiMode.custom) {
+      customKey = _customKeyController.text.trim();
+      customModel = _customModelController.text.trim();
+      if (customKey.isEmpty ||
+          !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$')
+              .hasMatch(customModel)) {
+        setState(() => _error = '请填写有效的自定义模型名称和 API Key。');
+        return;
+      }
+      try {
+        await const SecureAiKeyStore().save(customKey);
+      } on Exception {
+        if (mounted) setState(() => _error = 'API Key 无法保存到本机安全存储。');
+        return;
+      }
+      if (!mounted) return;
+    }
     final localAnalysisId = widget.localEvidence?['analysis_id'];
     final analysisId = widget.analysisId ??
         (localAnalysisId is String ? localAnalysisId : demoReport.analysisId);
 
     setState(() {
       _loading = true;
+      _loadingStage = existingTaskId.isEmpty ? '云端沙箱分析中…' : '查询任务中…';
       _error = null;
       _task = null;
       _accessToken = controller.activeLogin!.accessToken;
@@ -172,6 +313,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           analysisId: analysisId,
           url: url,
         );
+        _newTaskIds.add(task.taskId);
+        _pendingAiMode = mode;
+        _pendingCustomKey = customKey;
+        _pendingCustomModel = customModel;
       } else {
         task = await _recoverTask(
           api: api,
@@ -188,12 +333,22 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           : await api.waitForCompletion(
               accessToken: accessToken,
               taskId: task.taskId,
+              maxWait: existingTaskId.isEmpty
+                  ? const Duration(minutes: 3)
+                  : const Duration(seconds: 20),
             );
       if (!mounted) return;
       setState(() {
         _task = finished;
         _error = _taskStatusMessage(finished);
       });
+      await _autoAnalyzeCompletedTask(
+        finished,
+        newlyCreated: _newTaskIds.contains(finished.taskId),
+        mode: mode,
+        customKey: customKey,
+        customModel: customModel,
+      );
     } on TapLensApiException catch (error) {
       _setRequestError(error);
     } on FormatException catch (error) {
@@ -205,7 +360,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     } catch (_) {
       _setRequestError(null);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingStage = null;
+        });
+      }
     }
   }
 
@@ -368,6 +528,13 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
         _task = result;
         _error = _taskStatusMessage(result);
       });
+      await _autoAnalyzeCompletedTask(
+        result,
+        newlyCreated: _newTaskIds.contains(result.taskId),
+        mode: _pendingAiMode ?? _aiMode,
+        customKey: _pendingCustomKey,
+        customModel: _pendingCustomModel,
+      );
     } on TapLensApiException catch (error) {
       _setRequestError(error);
     } on TimeoutException catch (error) {
@@ -770,8 +937,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
         : '尚未登录 TapLens 账号';
     final recoveringTask = _taskIdController.text.trim().isNotEmpty;
     final actionLabel = _loading
-        ? (recoveringTask ? '查询中…' : '分析中…')
-        : (recoveringTask ? '查询已有任务' : '开始云端分析');
+        ? (_loadingStage ?? '分析中…')
+        : (recoveringTask ? '查询已有任务' : '开始云端及 AI 分析');
     return Scaffold(
       appBar: AppBar(title: const Text('云端深度分析')),
       body: SafeArea(
@@ -825,11 +992,63 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: '已有云任务 ID（可选）',
-                helperText:
-                    '只查询并轮询该任务；APP 会按任务 ID 对应的 analysis_id 重做本地静态解析，不创建云任务、不扣额度。',
+                helperText: '只查询并轮询该任务；不会重新调用 AI。APP 会按任务 ID 重做本地静态解析。',
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 16),
+            Text('AI 研判模型', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SegmentedButton<_CloudAiMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _CloudAiMode.school,
+                  label: Text('学校模型'),
+                  icon: Icon(Icons.school_outlined),
+                ),
+                ButtonSegment(
+                  value: _CloudAiMode.custom,
+                  label: Text('自定义模型'),
+                  icon: Icon(Icons.key_outlined),
+                ),
+              ],
+              selected: {_aiMode},
+              onSelectionChanged: _loading
+                  ? null
+                  : (selection) => _selectAiMode(selection.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              recoveringTask
+                  ? '已有任务仅查看云端规则报告，不会重复消耗 AI 额度。'
+                  : _aiMode == _CloudAiMode.school
+                      ? '云端沙箱完成后自动调用一次学校模型，可能消耗模型 Token。学校 Key 不进入手机；当前 HTTP 服务只适合受控测试网络。'
+                      : '云端沙箱完成后，手机直接调用你选择的 DeepSeek 模型一次。自定义 Key 只保存在本机，不发送给 TapLens 后端。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (_aiMode == _CloudAiMode.custom && !recoveringTask) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _customModelController,
+                enabled: !_loading,
+                decoration: const InputDecoration(
+                  labelText: 'DeepSeek 模型名称',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _customKeyController,
+                enabled: !_loading,
+                obscureText: true,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: '自定义 API Key',
+                  helperText: '仅保存在本机安全存储',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Semantics(
               button: true,
@@ -905,50 +1124,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: FilledButton.tonalIcon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) {
-                            final cloudEvidence =
-                                task.cloudEvidence ?? const <String, dynamic>{};
-                            final cloudRuleReport =
-                                AnalysisReport.fromCloudEvidence(
-                              cloudEvidence,
-                              fallbackTarget: _urlController.text.trim(),
-                            );
-                            final ruleReport = AnalysisReport.fromJson(
-                              CloudAiReportInput.buildRuleReport(
-                                cloudRuleReport,
-                                localEvidence: _localEvidence,
-                              ),
-                            );
-                            return ReportPage(
-                              report: ruleReport,
-                              aiRunner: (apiKey, modelName) => _runAiAnalysis(
-                                apiKey: apiKey,
-                                modelName: modelName,
-                                cloudEvidence: cloudEvidence,
-                                ruleReport: ruleReport,
-                              ),
-                              schoolAiRunner: () => _runSchoolAiAnalysis(
-                                cloudEvidence: cloudEvidence,
-                                ruleReport: ruleReport,
-                              ),
-                              mockSuccessRunner: () => _runOfflineMock(
-                                simulateFailure: false,
-                                cloudEvidence: cloudEvidence,
-                                ruleReport: ruleReport,
-                              ),
-                              mockFailureRunner: () => _runOfflineMock(
-                                simulateFailure: true,
-                                cloudEvidence: cloudEvidence,
-                                ruleReport: ruleReport,
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
+                    onPressed:
+                        _loading ? null : () => _openCompletedReport(task),
                     icon: const Icon(Icons.description_outlined),
                     label: const Text('打开报告页面'),
                   ),

@@ -6,3 +6,4 @@ backend/data/
 *.db-shm
 *.db-wal
 .DS_Store
+/dist/*.apk
