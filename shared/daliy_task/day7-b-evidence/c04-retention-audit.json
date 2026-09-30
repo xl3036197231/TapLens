@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "audited_at": "2026-09-29",
+  "task_id": "e454f7ea-5b9c-4626-83d3-d17d43496f40",
+  "analysis_id": "3def1166-1bff-49c0-a601-62ef37cfe503",
+  "current_database": {
+    "task_found": true,
+    "status": "expired",
+    "completed_at": "2026-09-29T01:38:15.759569+00:00",
+    "expires_at": "2026-09-29T02:08:15.759569+00:00",
+    "evidence_json_bytes": 0
+  },
+  "backups": [
+    {
+      "name": "taplens-backup-20260929T023954Z.tar.gz",
+      "task_found": true,
+      "status": "expired",
+      "evidence_json_bytes": 0,
+      "artifact_files": 0
+    },
+    {
+      "name": "taplens-backup-20260929T034046Z.tar.gz",
+      "task_found": true,
+      "status": "expired",
+      "evidence_json_bytes": 0,
+      "artifact_files": 0
+    }
+  ],
+  "persistent_volume_matching_task_files": 0,
+  "c04_reference_metadata": "available_in_candidate_bundle",
+  "c04_png_binary": "unavailable",
+  "sha256": "无法确认",
+  "dimensions": "无法确认",
+  "pixel_review": "BLOCKED",
+  "recovery_result": "cannot_recover_from_current_ecs_or_existing_backups",
+  "cloud_task_created": false,
+  "target_page_visited": false,
+  "provider_called": false
+}

@@ -34,6 +34,19 @@ try:
     with sqlite3.connect(database) as source, sqlite3.connect(database_copy) as target:
         source.backup(target)
     with sqlite3.connect(database_copy) as check:
+        check.execute("PRAGMA secure_delete = ON")
+        has_ai_calls = check.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_analysis_calls'"
+        ).fetchone()
+        removed_ai_response_cache = 0
+        if has_ai_calls:
+            removed_ai_response_cache = check.execute(
+                """
+                UPDATE ai_analysis_calls
+                SET response_json = NULL, cache_expires_at = NULL
+                WHERE response_json IS NOT NULL
+                """
+            ).rowcount
         result = check.execute("PRAGMA quick_check").fetchone()[0]
         if result != "ok":
             raise RuntimeError(f"SQLite quick_check failed: {result}")
@@ -43,6 +56,8 @@ try:
         "created_at": datetime.now(UTC).isoformat(),
         "database": "taplens.db",
         "artifacts": "artifacts",
+        "ai_response_cache_included": False,
+        "ai_response_cache_rows_removed": removed_ai_response_cache,
     }
     (work / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",

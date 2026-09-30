@@ -142,7 +142,10 @@ deploy/scripts/backup.sh
 
 The archive is written under the ignored `backups/` directory with mode `0600`
 and a SHA-256 checksum. It contains a SQLite online-backup snapshot, its
-`quick_check` result, a format manifest, and current screenshot artifacts. It
+`quick_check` result, a format manifest, and current screenshot artifacts. The
+backup copy always clears `ai_analysis_calls.response_json` and its cache expiry
+before archiving, so a backup cannot extend the 24-hour guarded AI-report cache.
+Restore applies the same clearing rule to older archives before installation. It
 does not contain `deploy/.env` or the JWT secret. Pass a directory as the first
 argument to store the archive elsewhere.
 

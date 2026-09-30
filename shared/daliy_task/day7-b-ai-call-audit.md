@@ -86,4 +86,16 @@ A 的交接实际包含两次请求，因此分开记录，不将其合并成“
 - D：可将 12:04 后端调用标记为 Provider PASS、后端报告守卫 PASS；端到端学校 AI 仍为 BLOCKED，直到 A 能用已保存的真实报告或安全的本地回归证明正确展示。
 - 10:01 与 12:04 不是同一次请求，不得共用 Token 统计或错误状态。
 
+## C04 原始截图追查
+
+B 于 2026-09-29 对 ECS 当前持久卷和两份相关备份做了只读检查：
+
+- 当前 SQLite 中该任务为 `expired`，`evidence_json` 长度为 0；
+- 任务完成时间为 `2026-09-29T01:38:15.759569Z`，过期时间为 `02:08:15.759569Z`；
+- `taplens-backup-20260929T023954Z.tar.gz` 和 `taplens-backup-20260929T034046Z.tar.gz` 中的同一任务均已过期，`evidence_json` 同样为 0；
+- 两份备份均只含空 `artifacts/` 目录，未包含 PNG；
+- ECS 持久卷中没有以该 task_id 命名或可关联的截图文件。
+
+结论：该候选任务的 C04 PNG 原件已随 TTL 清理，无法从当前 ECS 或现有备份恢复。C04 引用/元数据可保持 PASS，PNG 二进制、SHA-256、尺寸和像素验证必须保持 BLOCKED。不得用旧任务 PNG 或新建任务冒充。
+
 机器可读摘要见 `shared/daliy_task/day7-b-evidence/ai-call-audit.json`。
