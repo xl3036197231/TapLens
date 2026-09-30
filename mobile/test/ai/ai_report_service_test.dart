@@ -87,17 +87,75 @@ void main() {
         File('../shared/fixtures/ai/mock-success-report.json')
             .readAsStringSync()) as Map<String, dynamic>;
     (fixture['evidence'] as List).first['id'] = 'C99';
-    final service =
-        AiReportService(MockAiClient(responseJson: jsonEncode(fixture)));
-    final result = await service.analyzeOrFallback(
-      apiKey: 'TEST_ONLY',
-      sanitizedPayload: const {},
+    final service = const AiReportService();
+    final result = await service.analyzeRequestOrFallback(
+      request: () async => AiClientResponse(
+        rawReportJson: jsonEncode(fixture),
+        usage: const AiUsage(
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+        ),
+        modelName: 'cuc/deepseek',
+        httpStatus: 200,
+      ),
       availableEvidenceIds: {'C01', 'C02'},
       ruleReport: ruleReport,
       hardRiskLevel: 'high',
+      modelName: 'cuc/deepseek',
     );
     expect(result.usedFallback, isTrue);
     expect(result.report['risk_level'], 'high');
     expect(result.error?.code, AiClientErrorCode.invalidEvidenceId);
+    expect(result.error?.failureStage, AiFailureStage.localReportGuard);
+    expect(result.httpStatus, 200);
+    expect(
+      result.error?.toSafeDiagnosticJson(pageStateUpdate: 'completed'),
+      {
+        'failure_stage': 'local_report_guard',
+        'error_code': 'invalidEvidenceId',
+        'http_status': 200,
+        'page_state_update': 'completed',
+      },
+    );
+  });
+
+  test('HTTP 200 bad local report JSON is classified separately from HTTP JSON',
+      () async {
+    final result = await const AiReportService().analyzeRequestOrFallback(
+      request: () async => const AiClientResponse(
+        rawReportJson: '{invalid local report JSON',
+        usage: AiUsage.empty(),
+        httpStatus: 200,
+      ),
+      availableEvidenceIds: {'C01'},
+      ruleReport: ruleReport,
+      modelName: 'cuc/deepseek',
+    );
+
+    expect(result.usedFallback, isTrue);
+    expect(result.error?.code, AiClientErrorCode.invalidJson);
+    expect(result.error?.failureStage, AiFailureStage.localReportJsonParsing);
+    expect(result.error?.httpStatus, 200);
+  });
+
+  test('page state update failures have their own diagnostic stage and code',
+      () {
+    const error = AiClientException(
+      AiClientErrorCode.pageStateUpdateFailed,
+      'PRIVATE_RESPONSE_SECRET',
+      httpStatus: 200,
+      backendCode: 'PRIVATE_BACKEND_CODE=secret',
+      failureStage: AiFailureStage.pageStateUpdate,
+    );
+
+    final diagnostic = error.toSafeDiagnosticJson(pageStateUpdate: 'failed');
+    expect(diagnostic, {
+      'failure_stage': 'page_state_update',
+      'error_code': 'pageStateUpdateFailed',
+      'http_status': 200,
+      'page_state_update': 'failed',
+    });
+    expect(jsonEncode(diagnostic), isNot(contains('PRIVATE_')));
   });
 }

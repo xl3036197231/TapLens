@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../ai/ai_client.dart';
 import '../models/analysis_report.dart';
 import '../services/secure_ai_key_store.dart';
 
@@ -12,12 +13,16 @@ class AiReportExecution {
   final bool usedFallback;
   final String? message;
   final Map<String, dynamic>? reportJson;
+  final AiClientException? error;
+  final int? httpStatus;
 
   const AiReportExecution({
     required this.report,
     required this.usedFallback,
     this.message,
     this.reportJson,
+    this.error,
+    this.httpStatus,
   });
 }
 
@@ -55,6 +60,7 @@ class _ReportPageState extends State<ReportPage> {
   String _customModelName = 'deepseek-flash';
   bool _schoolCallAttempted = false;
   bool _aiLoading = false;
+  Map<String, Object?>? _aiDiagnostic;
 
   @override
   void initState() {
@@ -138,25 +144,65 @@ class _ReportPageState extends State<ReportPage> {
 
   Future<void> _executeAi(Future<AiReportExecution> Function() run) async {
     setState(() => _aiLoading = true);
+    late final AiReportExecution result;
     try {
-      final result = await run();
-      if (!mounted) return;
+      result = await run();
+    } on AiClientException catch (error) {
+      result = AiReportExecution(
+        report: _report,
+        usedFallback: true,
+        error: error.failureStage == null
+            ? error.withFailureStage(AiFailureStage.request)
+            : error,
+      );
+    } on Object {
+      result = AiReportExecution(
+        report: _report,
+        usedFallback: true,
+        error: const AiClientException(
+          AiClientErrorCode.processingFailed,
+          'The AI report could not be prepared for display',
+          failureStage: AiFailureStage.unknownProcessing,
+        ),
+      );
+    }
+    if (!mounted) return;
+    try {
       setState(() {
         _report = result.report;
         _reportJson = result.reportJson;
+        _aiDiagnostic = result.error?.toSafeDiagnosticJson(
+              pageStateUpdate: 'completed',
+            ) ??
+            (result.httpStatus == null
+                ? null
+                : {
+                    'http_status': result.httpStatus,
+                    'page_state_update': 'completed',
+                  });
         _aiLoading = false;
       });
-      final message = result.message ??
-          (result.usedFallback ? 'AI 未返回可用结论，已保留规则报告。' : 'AI 报告已通过证据和风险守卫。');
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-    } on Exception {
-      if (!mounted) return;
-      setState(() => _aiLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('AI 请求失败，已保留当前规则报告。')),
+    } on Object {
+      final error = AiClientException(
+        AiClientErrorCode.pageStateUpdateFailed,
+        'The AI report was received but the page could not update',
+        httpStatus: result.httpStatus ?? result.error?.httpStatus,
+        failureStage: AiFailureStage.pageStateUpdate,
       );
+      _aiDiagnostic = error.toSafeDiagnosticJson(
+        pageStateUpdate: 'failed',
+      );
+      debugPrint('[TapLens AI diagnostic] ${jsonEncode(_aiDiagnostic)}');
+      _aiLoading = false;
+      return;
     }
+    if (result.error != null) {
+      debugPrint('[TapLens AI diagnostic] ${jsonEncode(_aiDiagnostic)}');
+    }
+    final message = result.message ??
+        (result.usedFallback ? 'AI 未返回可用结论，已保留规则报告。' : 'AI 报告已通过证据和风险守卫。');
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _runOfflineDemo(AiReportDemoRunner? runner) async {
@@ -178,6 +224,20 @@ class _ReportPageState extends State<ReportPage> {
       setState(() => _aiLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('离线演示执行失败，当前规则报告仍可查看。')),
+      );
+    }
+  }
+
+  Future<void> _copyAiDiagnostic() async {
+    final diagnostic = _aiDiagnostic;
+    if (diagnostic == null) return;
+    await Clipboard.setData(
+      ClipboardData(
+          text: const JsonEncoder.withIndent('  ').convert(diagnostic)),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已复制脱敏诊断信息。')),
       );
     }
   }
@@ -303,6 +363,46 @@ class _ReportPageState extends State<ReportPage> {
                   ],
                 ),
               ),
+              if (_aiDiagnostic != null &&
+                  (_aiDiagnostic!.containsKey('failure_stage') ||
+                      _aiDiagnostic!.containsKey('error_code')))
+                Card(
+                  margin: const EdgeInsets.only(top: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI 客户端诊断',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '阶段：${_aiDiagnostic!['failure_stage'] ?? '未知'} · '
+                          '错误码：${_aiDiagnostic!['error_code'] ?? '未知'}'
+                          '${_aiDiagnostic!['http_status'] == null ? '' : ' · HTTP ${_aiDiagnostic!['http_status']}'}',
+                        ),
+                        if (_aiDiagnostic!['page_state_update'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              '页面状态更新：${_aiDiagnostic!['page_state_update']}',
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _copyAiDiagnostic,
+                            icon: const Icon(Icons.copy_rounded),
+                            label: const Text('复制脱敏诊断 JSON'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               if (report.aiSource &&
                   (report.modelName != null || tokenCount != null))
                 Padding(

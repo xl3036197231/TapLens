@@ -107,6 +107,64 @@ void main() {
     },
   );
 
+  test('HTTP 200 malformed JSON reports a safe response parsing diagnostic',
+      () async {
+    const responseBody = '{"private":"PRIVATE_RESPONSE_SECRET"';
+    final client = SchoolAiClient(
+      client: MockClient(
+        (_) async => http.Response(responseBody, 200),
+      ),
+    );
+
+    await expectLater(
+      client.analyze(accessToken: 'TEST_TOKEN', payload: _payload()),
+      throwsA(
+        isA<AiClientException>()
+            .having(
+                (error) => error.code, 'code', AiClientErrorCode.invalidJson)
+            .having((error) => error.httpStatus, 'HTTP status', 200)
+            .having(
+              (error) => error.failureStage,
+              'failure stage',
+              AiFailureStage.responseJsonParsing,
+            )
+            .having(
+              (error) => jsonEncode(error.toSafeDiagnosticJson()),
+              'safe diagnostic',
+              allOf(
+                contains('response_json_parse'),
+                contains('invalidJson'),
+                isNot(contains('PRIVATE_RESPONSE_SECRET')),
+              ),
+            ),
+      ),
+    );
+  });
+
+  test('HTTP 200 JSON without a report has a distinct extraction stage',
+      () async {
+    final client = SchoolAiClient(
+      client: MockClient(
+        (_) async => http.Response('{"success":true,"data":{}}', 200),
+      ),
+    );
+
+    await expectLater(
+      client.analyze(accessToken: 'TEST_TOKEN', payload: _payload()),
+      throwsA(
+        isA<AiClientException>()
+            .having(
+                (error) => error.code, 'code', AiClientErrorCode.invalidJson)
+            .having((error) => error.httpStatus, 'HTTP status', 200)
+            .having(
+              (error) => error.failureStage,
+              'failure stage',
+              AiFailureStage.reportExtraction,
+            ),
+      ),
+    );
+  });
+
   test('maps auth, unavailable, request validation and guard errors', () async {
     for (final scenario in <(int, String, AiClientErrorCode)>[
       (401, '{}', AiClientErrorCode.authRequired),

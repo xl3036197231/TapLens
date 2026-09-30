@@ -4,20 +4,22 @@ import 'package:taplens_mobile/services/qr_payload_inspector.dart';
 void main() {
   const inspector = QrPayloadInspector();
 
-  test('虚构 HTTPS QR 会脱敏敏感参数，并限制为本机演示', () {
+  test('虚构 HTTPS QR 会脱敏敏感参数，并允许用户选择云端测试', () {
     final result = inspector.inspect(
       'https://alice:secret@campus.example.test/login?token=abc123&source=poster',
     );
 
     expect(result.kind, QrPayloadKind.webLink);
     expect(result.canInspectLocally, isTrue);
-    expect(result.canSubmitToCloud, isFalse);
+    expect(result.canSubmitToCloud, isTrue);
     expect(result.safePreview, contains('campus.example.test'));
     expect(result.safePreview, contains('source=poster'));
     expect(result.safePreview, isNot(contains('alice')));
     expect(result.safePreview, isNot(contains('secret')));
     expect(result.safePreview, isNot(contains('abc123')));
     expect(result.localCheckValue, result.safePreview);
+    expect(result.advice, contains('映射到受控样例页'));
+    expect(result.advice, contains('标注为模拟证据'));
   });
 
   test('普通 HTTPS QR 可以在本地预检后由用户选择云分析', () {
@@ -26,6 +28,20 @@ void main() {
     expect(result.kind, QrPayloadKind.webLink);
     expect(result.canInspectLocally, isTrue);
     expect(result.canSubmitToCloud, isTrue);
+  });
+
+  test('本机和内部主机名不提供云端入口', () {
+    for (final value in [
+      'http://localhost/login',
+      'http://printer.local/login',
+      'http://backend.internal/login',
+    ]) {
+      expect(
+        inspector.inspect(value).canSubmitToCloud,
+        isFalse,
+        reason: value,
+      );
+    }
   });
 
   test('Intent QR 仅允许脱敏后的本地预检，不泄露敏感参数', () {
@@ -72,7 +88,11 @@ void main() {
       final result = inspector.inspect(entry.key);
       expect(result.kind, entry.value, reason: entry.key);
       expect(result.canInspectLocally, isFalse, reason: entry.key);
-      expect(result.canSubmitToCloud, isFalse, reason: entry.key);
+      expect(
+        result.canSubmitToCloud,
+        result.kind == QrPayloadKind.webLink,
+        reason: entry.key,
+      );
     }
 
     expect(
@@ -105,7 +125,11 @@ void main() {
     for (final entry in cases.entries) {
       final result = inspector.inspect(entry.key);
       expect(result.kind, entry.value, reason: entry.key);
-      expect(result.canSubmitToCloud, isFalse, reason: entry.key);
+      expect(
+        result.canSubmitToCloud,
+        result.kind == QrPayloadKind.webLink,
+        reason: entry.key,
+      );
       if (result.kind != QrPayloadKind.webLink &&
           result.kind != QrPayloadKind.deepLink) {
         expect(result.canInspectLocally, isFalse, reason: entry.key);

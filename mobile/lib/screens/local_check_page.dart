@@ -160,6 +160,19 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('查看固定演示报告'),
               ),
+              if (result.inputType == 'url' &&
+                  isFictionalOrReservedHttpUrl(result.safeValue)) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 和安全规则处理。',
+                    ),
+                  ),
+                ),
+              ],
               if (_canSubmitToCloud(result)) ...[
                 const SizedBox(height: 12),
                 FilledButton.icon(
@@ -191,7 +204,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
     final uri = Uri.tryParse(result.safeValue);
     return uri != null &&
         !uri.path.toLowerCase().endsWith('.apk') &&
-        isCloudEligibleHttpUrl(result.safeValue);
+        canOfferCloudAnalysis(result.safeValue);
   }
 }
 
