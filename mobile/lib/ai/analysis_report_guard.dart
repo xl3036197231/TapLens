@@ -267,11 +267,14 @@ class AnalysisReportGuard {
     }
 
     final target = report['target'];
+    // The shared schema defines redacted as a boolean. It may be false when
+    // there were no sensitive parameters to remove; request sanitization is
+    // enforced separately before sending the URL to the model.
     if (target is! Map<String, dynamic> ||
         !_exactKeys(target, {'type', 'display', 'redacted'}) ||
         !{'url', 'deep_link', 'qr_payload'}.contains(target['type']) ||
         !_isText(target['display'], 4096) ||
-        target['redacted'] != true) {
+        target['redacted'] is! bool) {
       return false;
     }
 
