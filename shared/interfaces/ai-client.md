@@ -28,6 +28,26 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/
 
 学校模式错误提示：`401/403` 映射为登录状态失效；`408/504` 映射为学校模型超时；`5xx/429/404` 映射为模型服务不可用；`422` 或 `REPORT_*` 映射为后端报告守卫拒绝；连接异常提示网络不可用。请求不会自动重试。
 
+## Day 8 客户端幂等与状态查询合同
+
+同一 `analysis_id` 的首次请求使用云端证据中的 `generated_at` 原始 RFC 3339 文本作为 `report_context.created_at`。手机客户端先将 `analysis_id`、`created_at`、TapLens 用户 ID 和状态写入 Android Keystore 加密的最小元数据记录，再发送第一次 POST。记录不保存 JWT、URL、请求正文、模型报告或 Key；最多保存 250 条，达到上限或记录损坏时拒绝新的学校模型 POST，不删除旧记录来腾位置。
+
+一旦存在该用户和 `analysis_id` 的本地记录，后续启动只调用只读 GET，不再 POST。状态接口路径为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带同一个 TapLens JWT。预期成功响应：
+
+```json
+{"analysis_id":"<uuid>","status":"in_progress","retry_after_seconds":2}
+```
+
+```json
+{"analysis_id":"<uuid>","status":"succeeded","result":{"report":{},"model":"cuc/deepseek","usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}}
+```
+
+`status` 也可为 `outcome_unknown`、`result_expired` 或 `not_found`。`in_progress` 和 `outcome_unknown` 只继续 GET 轮询；`not_found`、网络失败或轮询停止均保持“待核实”，不得据此重新 POST。状态请求最多等待约一分钟，离开页面后停止后续轮询。此客户端合同由 Mock 验证；在 B 接入并部署之前，不代表线上已有状态路由。
+
+POST 返回四种 409 时按 `error.code` 分开处理：`AI_REQUEST_IN_PROGRESS` 开始 GET 轮询；`AI_ANALYSIS_INPUT_CONFLICT` 提示保留当前上下文并由用户新建/确认上下文；`AI_OUTCOME_UNKNOWN` 只查状态；`AI_RESULT_EXPIRED` 保留规则报告并禁止重新计费调用。四种响应都不触发客户端 POST 重试。
+
+精确映射的 `.test` 仓库受控页面会在报告标题、摘要、证据范围和 AI 输入中显示“受控模拟证据”，并说明结果不代表原始 `.test` 域名的真实网页行为。
+
 自定义模式保留手机直连 DeepSeek 的路径。用户填写模型名称与自己的 API Key，Key 仍由 Android Keystore 保存，绝不传给 TapLens 后端。
 
 ## 请求边界

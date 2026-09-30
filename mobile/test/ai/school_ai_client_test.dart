@@ -12,6 +12,31 @@ Map<String, dynamic> _fixture(String path) =>
         as Map<String, dynamic>;
 
 void main() {
+  for (final item in <(String, AiClientErrorCode)>[
+    ('AI_REQUEST_IN_PROGRESS', AiClientErrorCode.requestInProgress),
+    ('AI_ANALYSIS_INPUT_CONFLICT', AiClientErrorCode.analysisInputConflict),
+    ('AI_OUTCOME_UNKNOWN', AiClientErrorCode.outcomeUnknown),
+    ('AI_RESULT_EXPIRED', AiClientErrorCode.resultExpired),
+  ]) {
+    test('maps ${item.$1} to its own non-retryable client state', () async {
+      final client = SchoolAiClient(
+        client: MockClient((_) async => http.Response(
+              jsonEncode({
+                'error': {'code': item.$1, 'retryable': false},
+              }),
+              409,
+            )),
+      );
+      await expectLater(
+        client.analyze(accessToken: 'TEST_JWT', payload: _payload()),
+        throwsA(isA<AiClientException>()
+            .having((error) => error.code, 'client state', item.$2)
+            .having((error) => error.backendCode, 'backend code', item.$1)
+            .having((error) => error.retryable, 'retryable', isFalse)),
+      );
+    });
+  }
+
   test('default endpoint targets the authenticated school model API', () {
     expect(
       SchoolAiClient.defaultApiBaseUrl.toString(),
@@ -36,6 +61,45 @@ void main() {
       ).toString(),
       'http://39.107.253.138/api/v1/ai/analyze',
     );
+  });
+
+  test('status lookup is an authenticated GET for the same analysis ID',
+      () async {
+    http.Request? captured;
+    final report = _fixture('reports/high-risk.json');
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'analysis_id': '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+            'status': 'succeeded',
+            'report': report,
+            'model': 'cuc/deepseek',
+            'usage': {
+              'prompt_tokens': 10,
+              'completion_tokens': 5,
+              'total_tokens': 15,
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final status = await client.getStatus(
+      accessToken: 'TEST_JWT',
+      analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+    );
+
+    expect(captured!.method, 'GET');
+    expect(captured!.url.path,
+        '/api/v1/ai/analyses/0bab7eba-ff50-42f8-a264-543596b2c9bf/status');
+    expect(captured!.headers['authorization'], 'Bearer TEST_JWT');
+    expect(status.state, SchoolAiStatusState.succeeded);
+    expect(status.response?.usage.totalTokens, 15);
   });
 
   test(

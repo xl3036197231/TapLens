@@ -60,6 +60,68 @@ void main() {
     expect(encoded, isNot(contains('password=TEST_ONLY')));
     expect(encoded, contains('C01'));
     expect(encoded, contains('C02'));
+    expect(
+      (safe['report_context'] as Map)['created_at'],
+      cloud['generated_at'],
+    );
+  });
+
+  test('controlled .test fixture is explicitly marked as simulation', () {
+    final simulated = {
+      ...cloud,
+      'limitations': [
+        '模拟云端证据：虚构测试 URL 已映射到 TapLens 仓库内置受控页面；未访问原始域名。',
+      ],
+      'generated_at': '2026-09-27T10:57:59.786849+00:00',
+    };
+    final simulatedReport = AnalysisReport.fromCloudEvidence(simulated);
+    final rule = CloudAiReportInput.buildRuleReport(simulatedReport);
+    final payload = CloudAiReportInput.buildPayload(
+      url: 'https://scholarship.example.test/apply?source=poster',
+      cloudEvidence: simulated,
+      ruleReport: simulatedReport,
+    );
+    final aiLikeReport = Map<String, dynamic>.from(rule)
+      ..['sources'] = {'local': false, 'cloud': true, 'ai': true}
+      ..['token_usage'] = {
+        'request_count': 1,
+        'prompt_tokens': 1,
+        'completion_tokens': 1,
+        'total_tokens': 2,
+        'model': 'cuc/deepseek',
+      };
+    final labeledAiReport = CloudAiReportInput.labelControlledSimulationReport(
+      aiLikeReport,
+      simulated,
+    );
+    final simulatedIds = (simulated['evidence'] as List)
+        .map((item) => (item as Map<String, dynamic>)['id'] as String)
+        .toSet();
+    final guarded = AnalysisReportGuard.validate(
+      jsonEncode(labeledAiReport),
+      availableEvidenceIds: simulatedIds,
+      expectedAnalysisId: simulated['analysis_id'] as String,
+      hardRiskLevel: 'high',
+    );
+
+    expect(simulatedReport.title, contains('受控模拟证据'));
+    expect(simulatedReport.summary, contains('受控模拟证据'));
+    expect(rule['summary'], contains('受控模拟证据'));
+    expect(
+      (payload['analysis_input'] as Map)['claims_text'],
+      contains('不代表原始 .test 域名的真实网页行为'),
+    );
+    expect(
+      (payload['report_context'] as Map)['created_at'],
+      '2026-09-27T10:57:59.786849+00:00',
+    );
+    expect(
+      (payload['hard_risk_findings'] as List).single['message'],
+      contains('不代表原始 .test 域名的真实行为'),
+    );
+    expect(guarded.isValid, isTrue, reason: guarded.error?.message);
+    expect(labeledAiReport['title'], contains('受控模拟证据'));
+    expect(labeledAiReport['summary'], contains('受控模拟证据'));
   });
 
   test(

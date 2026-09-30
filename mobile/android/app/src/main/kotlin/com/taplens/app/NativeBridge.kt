@@ -59,6 +59,25 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     SecureKeyStore.clearSession(applicationContext)
                     result.success(null)
                 }
+                "saveAiAttempts" -> {
+                    val value = call.argument<String>("attempts")
+                    if (value == null || value.length > 65536) {
+                        result.error("AI_ATTEMPTS_INVALID", "AI attempt metadata is invalid", null)
+                    } else {
+                        runCatching { SecureKeyStore.saveAiAttempts(applicationContext, value) }
+                            .onSuccess { result.success(null) }
+                            .onFailure { result.error("AI_ATTEMPTS_STORAGE_ERROR", "Unable to save AI attempt metadata", null) }
+                    }
+                }
+                "readAiAttempts" -> {
+                    runCatching { SecureKeyStore.readAiAttempts(applicationContext) }
+                        .onSuccess(result::success)
+                        .onFailure { result.error("AI_ATTEMPTS_STORAGE_ERROR", "Unable to read AI attempt metadata", null) }
+                }
+                "clearAiAttempts" -> {
+                    SecureKeyStore.clearAiAttempts(applicationContext)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

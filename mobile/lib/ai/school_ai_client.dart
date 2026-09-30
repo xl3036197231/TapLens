@@ -40,6 +40,28 @@ class SchoolAiPreflightResult {
       };
 }
 
+enum SchoolAiStatusState {
+  inProgress,
+  succeeded,
+  outcomeUnknown,
+  resultExpired,
+  notFound,
+}
+
+class SchoolAiStatus {
+  final String analysisId;
+  final SchoolAiStatusState state;
+  final AiClientResponse? response;
+  final Duration retryAfter;
+
+  const SchoolAiStatus({
+    required this.analysisId,
+    required this.state,
+    this.response,
+    this.retryAfter = const Duration(seconds: 2),
+  });
+}
+
 class SchoolAiClient {
   static final Uri defaultApiBaseUrl = Uri.parse(
     const String.fromEnvironment(
@@ -136,6 +158,15 @@ class SchoolAiClient {
           backendCode: diagnostics.code,
           retryable: diagnostics.retryable,
         );
+      }
+      if (response.statusCode == 409 || response.statusCode == 410) {
+        final diagnostics = _errorDiagnostics(response.body);
+        final conflict = _conflictException(
+          diagnostics.code,
+          statusCode: response.statusCode,
+          retryable: diagnostics.retryable,
+        );
+        if (conflict != null) throw conflict;
       }
       if (response.statusCode == 422) {
         final diagnostics = _errorDiagnostics(response.body);
@@ -321,6 +352,246 @@ class SchoolAiClient {
         'The school model response was not valid JSON',
       );
     }
+  }
+
+  /// Reads the durable result of a previous attempt. This method is GET-only;
+  /// callers must never use an unknown or missing result as a reason to POST.
+  Future<SchoolAiStatus> getStatus({
+    required String accessToken,
+    required String analysisId,
+  }) async {
+    final token = accessToken.trim();
+    if (token.isEmpty) {
+      throw const AiClientException(
+        AiClientErrorCode.authRequired,
+        'A TapLens login token is required',
+      );
+    }
+    if (!RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(analysisId)) {
+      throw const AiClientException(
+        AiClientErrorCode.unsafePayload,
+        'A valid analysis ID is required for status lookup',
+      );
+    }
+    final segments =
+        endpoint.pathSegments.where((part) => part.isNotEmpty).toList();
+    if (segments.length < 2 ||
+        segments.last != 'analyze' ||
+        segments[segments.length - 2] != 'ai') {
+      throw const AiClientException(
+        AiClientErrorCode.invalidRequest,
+        'The school AI endpoint cannot be converted to a status endpoint',
+      );
+    }
+    final statusUri = endpoint.replace(
+      pathSegments: [
+        ...segments.take(segments.length - 2),
+        'ai',
+        'analyses',
+        analysisId,
+        'status',
+      ],
+      query: null,
+      fragment: null,
+    );
+
+    try {
+      final response = await _client.get(
+        statusUri,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(timeout);
+      if (response.statusCode == 404) {
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.notFound,
+        );
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        final diagnostics = _errorDiagnostics(response.body);
+        throw AiClientException(
+          AiClientErrorCode.authRequired,
+          'The TapLens login session was rejected',
+          httpStatus: response.statusCode,
+          backendCode: diagnostics.code,
+          retryable: diagnostics.retryable,
+        );
+      }
+      if (response.statusCode == 409 || response.statusCode == 410) {
+        final diagnostics = _errorDiagnostics(response.body);
+        final conflict = _conflictException(
+          diagnostics.code,
+          statusCode: response.statusCode,
+          retryable: diagnostics.retryable,
+        );
+        if (conflict?.code == AiClientErrorCode.requestInProgress) {
+          return SchoolAiStatus(
+            analysisId: analysisId,
+            state: SchoolAiStatusState.inProgress,
+          );
+        }
+        if (conflict?.code == AiClientErrorCode.outcomeUnknown) {
+          return SchoolAiStatus(
+            analysisId: analysisId,
+            state: SchoolAiStatusState.outcomeUnknown,
+          );
+        }
+        if (conflict?.code == AiClientErrorCode.resultExpired) {
+          return SchoolAiStatus(
+            analysisId: analysisId,
+            state: SchoolAiStatusState.resultExpired,
+          );
+        }
+        if (conflict != null) throw conflict;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final diagnostics = _errorDiagnostics(response.body);
+        throw AiClientException(
+          response.statusCode == 408 || response.statusCode == 504
+              ? AiClientErrorCode.timeout
+              : AiClientErrorCode.serviceUnavailable,
+          'The school AI status could not be checked',
+          httpStatus: response.statusCode,
+          backendCode: diagnostics.code,
+          retryable: diagnostics.retryable,
+        );
+      }
+      late final Map<String, dynamic> root;
+      try {
+        root = _decodeObject(response.body);
+      } on FormatException {
+        throw AiClientException(
+          AiClientErrorCode.invalidJson,
+          'The AI status response was not a JSON object',
+          httpStatus: response.statusCode,
+        );
+      }
+      final returnedId = root['analysis_id'];
+      if (returnedId is String && returnedId != analysisId) {
+        throw AiClientException(
+          AiClientErrorCode.analysisInputConflict,
+          'The status response belongs to another analysis',
+          httpStatus: response.statusCode,
+          backendCode: 'AI_ANALYSIS_INPUT_CONFLICT',
+        );
+      }
+      final status = root['status'];
+      if (status == 'in_progress') {
+        final seconds = root['retry_after_seconds'];
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.inProgress,
+          retryAfter: Duration(
+            seconds:
+                seconds is int && seconds >= 1 && seconds <= 10 ? seconds : 2,
+          ),
+        );
+      }
+      if (status == 'outcome_unknown') {
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.outcomeUnknown,
+        );
+      }
+      if (status == 'result_expired') {
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.resultExpired,
+        );
+      }
+      if (status == 'not_found') {
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.notFound,
+        );
+      }
+      if (status == 'succeeded') {
+        final wrapper = _map(root['result']) ?? _map(root['data']) ?? root;
+        final report = _reportObject(wrapper) ?? _reportObject(root);
+        if (report == null) {
+          throw AiClientException(
+            AiClientErrorCode.invalidJson,
+            'The completed AI status did not contain a report',
+            httpStatus: response.statusCode,
+          );
+        }
+        final usage = _map(wrapper['usage']) ??
+            _map(root['usage']) ??
+            _map(report['token_usage']);
+        final modelName = _modelName(wrapper) ??
+            _modelName(root) ??
+            _modelName(usage) ??
+            defaultModelName;
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.succeeded,
+          response: AiClientResponse(
+            rawReportJson: jsonEncode(report),
+            usage: _usage(usage),
+            modelName: modelName,
+            httpStatus: response.statusCode,
+          ),
+        );
+      }
+      throw AiClientException(
+        AiClientErrorCode.invalidJson,
+        'The AI status response contained an unknown state',
+        httpStatus: response.statusCode,
+      );
+    } on TimeoutException {
+      throw const AiClientException(
+        AiClientErrorCode.timeout,
+        'The school AI status request timed out',
+      );
+    } on SocketException {
+      throw const AiClientException(
+        AiClientErrorCode.network,
+        'The device could not connect to the AI status endpoint',
+      );
+    } on http.ClientException {
+      throw const AiClientException(
+        AiClientErrorCode.network,
+        'The device could not connect to the AI status endpoint',
+      );
+    }
+  }
+
+  AiClientException? _conflictException(
+    String? code, {
+    required int statusCode,
+    bool? retryable,
+  }) {
+    final mapping = switch (code) {
+      'AI_REQUEST_IN_PROGRESS' => (
+          AiClientErrorCode.requestInProgress,
+          'The previous AI request is still in progress',
+        ),
+      'AI_ANALYSIS_INPUT_CONFLICT' => (
+          AiClientErrorCode.analysisInputConflict,
+          'The analysis ID is already bound to different input',
+        ),
+      'AI_OUTCOME_UNKNOWN' => (
+          AiClientErrorCode.outcomeUnknown,
+          'The previous AI request outcome is unknown',
+        ),
+      'AI_RESULT_EXPIRED' => (
+          AiClientErrorCode.resultExpired,
+          'The cached AI result has expired',
+        ),
+      _ => null,
+    };
+    if (mapping == null) return null;
+    return AiClientException(
+      mapping.$1,
+      mapping.$2,
+      httpStatus: statusCode,
+      backendCode: code,
+      retryable: retryable,
+    );
   }
 
   /// Sends the same sanitized JSON as [analyze] without an Authorization header.

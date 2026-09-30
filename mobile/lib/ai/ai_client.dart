@@ -18,6 +18,10 @@ enum AiClientErrorCode {
   processingFailed,
   reportMappingFailed,
   pageStateUpdateFailed,
+  requestInProgress,
+  analysisInputConflict,
+  outcomeUnknown,
+  resultExpired,
 }
 
 enum AiFailureStage {
