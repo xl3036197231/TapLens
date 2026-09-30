@@ -1,13 +1,15 @@
 {
   "schema_version": "1.0",
-  "recorded_at": "2026-09-30T08:32:33+08:00",
+  "recorded_at": "2026-09-30T09:15:41+08:00",
   "stage": "day7-closeout-day8-admission",
   "member": "C",
   "branch": "feat/c-day2-device-validation",
   "baseline": {
     "main_commit": "57d8010a1135b7d5cbe9b3fd847e22db569c2f12",
     "a_commit_contained_by_main": "eb3b959d5f3be936197cf471fcc1863f072b57c9",
-    "main_merge_commit": "a5c91b54e346909b4b8657f9c318b7293a507334"
+    "main_merge_commit": "a5c91b54e346909b4b8657f9c318b7293a507334",
+    "a_latest_commit": "cb3f7ee",
+    "a_latest_merge_commit": "404a429d19da89f3740158af90091cee4292382f"
   },
   "device": {
     "adb_devices": [],
@@ -22,9 +24,9 @@
     "version_code": 1,
     "min_sdk": 24,
     "target_sdk": 36,
-    "size_bytes": 187469508,
-    "sha256_first_build": "F9735CCF01E1D1CB10FCA68BF5A5D0E32ECE44D6E480D5C17AE6D58ABD93F04C",
-    "sha256_second_build": "F9735CCF01E1D1CB10FCA68BF5A5D0E32ECE44D6E480D5C17AE6D58ABD93F04C",
+    "size_bytes": 187476368,
+    "sha256_first_build": "A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7",
+    "sha256_second_build": "A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7",
     "repeat_build_hash_match": true,
     "api_base_url": "http://39.107.253.138/api/v1",
     "initial_target_url": "https://scholarship.example.test/apply"
@@ -43,7 +45,7 @@
   "checks": {
     "flutter_analyze": "passed",
     "flutter_tests": {
-      "passed": 83,
+      "passed": 84,
       "failed": 0
     },
     "fictional_mapping_source_review": "passed",

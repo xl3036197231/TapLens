@@ -6,9 +6,11 @@
 >
 > main 基线：`57d8010`
 >
-> A 基线：`eb3b959`（已包含在 main）
+> A 基线：`cb3f7ee`（`eb3b959` 已包含在 main，最新提交另行合入）
 >
 > main 合并提交：`a5c91b5`
+>
+> A 最新合并提交：`404a429`
 >
 > 状态：**PARTIAL**。最新 APK 和离线准入检查已完成；实体 Android 15 真机项目仍受设备连接限制。
 
@@ -17,7 +19,7 @@
 ## 已完成
 
 1. 将远端 `main=57d8010` 快进到本地 main，并合入当前 C 分支。
-2. 确认 A 最新提交 `eb3b959` 已经包含在 main，无需重复合并。
+2. 确认 A 的 `eb3b959` 已包含在 main，并另行合入之后新增的 `cb3f7ee`（云扫描成功后运行用户此前选定的 AI 流程）。
 3. 解决 `shared/interfaces/ai-client.md` 的单一合并冲突，保留当前更完整的学校模型、BYOK、请求白名单、错误映射和报告守卫说明。
 4. 静态复核虚构域名流程：`scholarship.example.test/apply` 可在本地预检后由用户主动选择云端分析；后端只把固定虚构输入映射到受控 campus fixture。默认行为仍是本地预检，不自动创建任务。
 5. 使用相同参数连续构建两次 Debug APK，两次 SHA-256 完全一致。
@@ -29,12 +31,13 @@
 ## 测试与构建
 
 - `flutter analyze --no-pub`：PASS，无问题。
-- `flutter test --no-pub`：PASS，83 / 83。
+- `flutter test --no-pub`：PASS，84 / 84。
 - 新增覆盖包括：
   - 虚构 `.test` URL 完成本地预检后可由用户主动进入云端分析；
   - 默认仍只做本地预检；
   - 短信二维码只显示遮盖预览，不提供继续执行入口；
   - HTTP 200 后的本地报告 JSON 失败和页面状态失败具有独立诊断阶段。
+  - 用户主动创建的云扫描成功后，按其已选择的模型进入一次 AI 流程；测试确认自定义 Key 不进入云任务请求。
 
 构建参数：
 
@@ -52,9 +55,9 @@ APK 信息：
 - 版本：`0.1.0+1`
 - minSdk：24
 - targetSdk / compileSdk：36
-- 大小：187,469,508 bytes
-- 第一次构建 SHA-256：`F9735CCF01E1D1CB10FCA68BF5A5D0E32ECE44D6E480D5C17AE6D58ABD93F04C`
-- 第二次构建 SHA-256：`F9735CCF01E1D1CB10FCA68BF5A5D0E32ECE44D6E480D5C17AE6D58ABD93F04C`
+- 大小：187,476,368 bytes
+- 第一次构建 SHA-256：`A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7`
+- 第二次构建 SHA-256：`A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7`
 
 两次哈希一致，说明相同代码和参数下本机构建产物一致。尚未连接实体手机，因此不能声称“手机已安装 APK 与本地 APK 同哈希”。
 
@@ -95,8 +98,8 @@ Debug 网络安全配置默认禁止明文 HTTP，只对白名单主机 `39.107.
 ## 交接
 
 ```text
-成员与分支：C，feat/c-day2-device-validation，main=57d8010，A=eb3b959
-我完成了：同步最新 main/A、离线复核虚构域名流程、83 项 Flutter 测试、连续两次同哈希 APK 构建、Manifest 与网络白名单检查。
+成员与分支：C，feat/c-day2-device-validation，main=57d8010，A=cb3f7ee
+我完成了：同步最新 main/A、离线复核虚构域名流程、84 项 Flutter 测试、连续两次同哈希 APK 构建、Manifest 与网络白名单检查。
 你可以这样复现：使用本文构建命令运行两次并计算 SHA-256；查看 day8-c-evidence/static-admission.json。
 实际结果：APK 两次哈希一致；ADB 无设备；2026-09-30 08:32 的电脑 healthz 探测未连接成功。
 目前还缺：Android 15 实体手机安装哈希、扫码、相册、固定 payload、浏览器 healthz 和 APP 网络路径。
