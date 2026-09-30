@@ -17,7 +17,7 @@ import 'package:taplens_mobile/services/auth_session.dart';
 import 'package:taplens_mobile/theme/app_theme.dart';
 
 void main() {
-  testWidgets('虚构 .test 目标完成本地预检后可手动进入云端分析', (tester) async {
+  testWidgets('本地预检后先选择是否进入云端，并把模型选择带到下一页', (tester) async {
     const channel = MethodChannel('com.taplens.app/local_safety');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
@@ -60,17 +60,39 @@ void main() {
     );
     expect(testDomainNotice, findsOneWidget);
 
-    final cloudButton = find.text('提交云端深度分析');
+    final localOnly = find.text('只看本地结果');
+    await tester.scrollUntilVisible(
+      localOnly,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('当前只显示手机上的静态解析，不创建云任务，也不调用模型。'), findsOneWidget);
+    expect(find.text('前往云端分析'), findsNothing);
+
+    await tester.ensureVisible(find.text('继续云端分析'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('继续云端分析'));
+    await tester.pumpAndSettle();
+    expect(find.text('选择 AI 模型'), findsOneWidget);
+    await tester.ensureVisible(find.text('自定义模型'));
+    await tester.tap(find.text('自定义模型'));
+    await tester.pumpAndSettle();
+    final cloudButton = find.text('前往云端分析');
     await tester.scrollUntilVisible(
       cloudButton,
       240,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(cloudButton, findsOneWidget);
     await tester.tap(cloudButton);
     await tester.pumpAndSettle();
 
     expect(find.text('云端深度分析'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('自定义 API Key'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('自定义 API Key'), findsOneWidget);
   });
 
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
@@ -128,7 +150,6 @@ void main() {
       findsOneWidget,
     );
     final reportButton = find.text('查看固定演示报告');
-    expect(reportButton, findsOneWidget);
     await tester.scrollUntilVisible(
       reportButton,
       300,

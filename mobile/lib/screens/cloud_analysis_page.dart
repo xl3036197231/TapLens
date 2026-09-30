@@ -24,13 +24,14 @@ import '../services/secure_ai_key_store.dart';
 import 'account_page.dart';
 import 'report_page.dart';
 
-enum _CloudAiMode { school, custom }
+enum CloudAiMode { school, custom }
 
 class CloudAnalysisPage extends StatefulWidget {
   final String initialUrl;
   final String? analysisId;
   final Map<String, dynamic>? localEvidence;
   final String? initialBaseUrl;
+  final CloudAiMode initialAiMode;
   final AuthSessionController? sessionController;
   final http.Client? httpClient;
   final SchoolAiReportRunner? schoolAiRunnerOverride;
@@ -42,6 +43,7 @@ class CloudAnalysisPage extends StatefulWidget {
     this.analysisId,
     this.localEvidence,
     this.initialBaseUrl,
+    this.initialAiMode = CloudAiMode.school,
     this.sessionController,
     this.httpClient,
     this.schoolAiRunnerOverride,
@@ -68,12 +70,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   final _taskIdController = TextEditingController();
   final _customModelController = TextEditingController(text: 'deepseek-flash');
   final _customKeyController = TextEditingController();
-  _CloudAiMode _aiMode = _CloudAiMode.school;
+  late CloudAiMode _aiMode;
   String? _loadingStage;
   final _completedReports = <String, AiReportExecution>{};
   final _aiAttemptedTaskIds = <String>{};
   final _newTaskIds = <String>{};
-  _CloudAiMode? _pendingAiMode;
+  CloudAiMode? _pendingAiMode;
   String? _pendingCustomKey;
   String? _pendingCustomModel;
 
@@ -87,6 +89,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   @override
   void initState() {
     super.initState();
+    _aiMode = widget.initialAiMode;
     _localEvidence = widget.localEvidence;
     _urlController = TextEditingController(text: widget.initialUrl);
     final configuredBaseUrl = const String.fromEnvironment(
@@ -128,10 +131,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   AuthSessionController? get _sessionController =>
       widget.sessionController ?? TapLensSessionScope.maybeOf(context);
 
-  Future<void> _selectAiMode(_CloudAiMode mode) async {
+  Future<void> _selectAiMode(CloudAiMode mode) async {
     if (_loading) return;
     setState(() => _aiMode = mode);
-    if (mode != _CloudAiMode.custom || _customKeyController.text.isNotEmpty) {
+    if (mode != CloudAiMode.custom || _customKeyController.text.isNotEmpty) {
       return;
     }
     try {
@@ -176,7 +179,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   Future<void> _autoAnalyzeCompletedTask(
     DeepScanTask task, {
     required bool newlyCreated,
-    required _CloudAiMode mode,
+    required CloudAiMode mode,
     String? customKey,
     String? customModel,
   }) async {
@@ -197,7 +200,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     if (mounted) setState(() => _loadingStage = '云端完成，AI 研判中…');
     late final AiReportExecution result;
     try {
-      result = mode == _CloudAiMode.school
+      result = mode == CloudAiMode.school
           ? await (widget.schoolAiRunnerOverride?.call() ??
               _runSchoolAiAnalysis(
                 cloudEvidence: cloudEvidence,
@@ -252,7 +255,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       setState(() => _error = '已有任务 ID 格式不正确，请粘贴完整 UUID。');
       return;
     }
-    if (existingTaskId.isEmpty && mode == _CloudAiMode.custom) {
+    if (existingTaskId.isEmpty && mode == CloudAiMode.custom) {
       customKey = _customKeyController.text.trim();
       customModel = _customModelController.text.trim();
       if (customKey.isEmpty ||
@@ -999,15 +1002,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             const SizedBox(height: 16),
             Text('AI 研判模型', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            SegmentedButton<_CloudAiMode>(
+            SegmentedButton<CloudAiMode>(
               segments: const [
                 ButtonSegment(
-                  value: _CloudAiMode.school,
+                  value: CloudAiMode.school,
                   label: Text('学校模型'),
                   icon: Icon(Icons.school_outlined),
                 ),
                 ButtonSegment(
-                  value: _CloudAiMode.custom,
+                  value: CloudAiMode.custom,
                   label: Text('自定义模型'),
                   icon: Icon(Icons.key_outlined),
                 ),
@@ -1021,12 +1024,12 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             Text(
               recoveringTask
                   ? '已有任务仅查看云端规则报告，不会重复消耗 AI 额度。'
-                  : _aiMode == _CloudAiMode.school
+                  : _aiMode == CloudAiMode.school
                       ? '云端沙箱完成后自动调用一次学校模型，可能消耗模型 Token。学校 Key 不进入手机；当前 HTTP 服务只适合受控测试网络。'
                       : '云端沙箱完成后，手机直接调用你选择的 DeepSeek 模型一次。自定义 Key 只保存在本机，不发送给 TapLens 后端。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (_aiMode == _CloudAiMode.custom && !recoveringTask) ...[
+            if (_aiMode == CloudAiMode.custom && !recoveringTask) ...[
               const SizedBox(height: 12),
               TextField(
                 controller: _customModelController,

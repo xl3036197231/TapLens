@@ -32,6 +32,8 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   LocalSafetyResult? _result;
   LocalEvidence? _evidence;
   bool _loading = false;
+  bool _continueToCloud = false;
+  CloudAiMode _selectedAiMode = CloudAiMode.school;
 
   @override
   void initState() {
@@ -66,6 +68,8 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
       _result = result;
       _evidence = evidence;
       _loading = false;
+      _continueToCloud = false;
+      _selectedAiMode = CloudAiMode.school;
     });
   }
 
@@ -142,6 +146,108 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
             if (result != null && evidence != null) ...[
               const SizedBox(height: 20),
               _ResultCard(result: result, evidence: evidence),
+              if (result.inputType == 'url' &&
+                  isFictionalOrReservedHttpUrl(result.safeValue)) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 和安全规则处理。',
+                    ),
+                  ),
+                ),
+              ],
+              if (_canSubmitToCloud(result)) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('下一步',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        const Text('本地预检已完成。是否继续让云端沙箱访问这个链接？'),
+                        const SizedBox(height: 12),
+                        SegmentedButton<bool>(
+                          segments: const [
+                            ButtonSegment(
+                              value: false,
+                              label: Text('只看本地结果'),
+                              icon: Icon(Icons.phonelink_lock_outlined),
+                            ),
+                            ButtonSegment(
+                              value: true,
+                              label: Text('继续云端分析'),
+                              icon: Icon(Icons.cloud_outlined),
+                            ),
+                          ],
+                          selected: {_continueToCloud},
+                          onSelectionChanged: (selection) => setState(
+                            () => _continueToCloud = selection.first,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (!_continueToCloud)
+                          const Text('当前只显示手机上的静态解析，不创建云任务，也不调用模型。'),
+                        if (_continueToCloud) ...[
+                          const SizedBox(height: 16),
+                          Text('选择 AI 模型',
+                              style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 8),
+                          SegmentedButton<CloudAiMode>(
+                            segments: const [
+                              ButtonSegment(
+                                value: CloudAiMode.school,
+                                label: Text('学校模型'),
+                                icon: Icon(Icons.school_outlined),
+                              ),
+                              ButtonSegment(
+                                value: CloudAiMode.custom,
+                                label: Text('自定义模型'),
+                                icon: Icon(Icons.key_outlined),
+                              ),
+                            ],
+                            selected: {_selectedAiMode},
+                            onSelectionChanged: (selection) => setState(
+                              () => _selectedAiMode = selection.first,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _selectedAiMode == CloudAiMode.school
+                                ? '云任务成功后将自动调用一次学校模型，可能消耗模型 Token。'
+                                : '云任务成功后手机会调用一次你的模型；API Key 只在手机端填写和保存。',
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => CloudAnalysisPage(
+                                    initialUrl: result.safeValue,
+                                    analysisId: evidence.analysisId,
+                                    localEvidence: evidence.toJson(),
+                                    initialBaseUrl: widget.initialApiBaseUrl,
+                                    initialAiMode: _selectedAiMode,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                            label: const Text('前往云端分析'),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('下一页确认账号与额度后再启动；现在不会联网或扣额度。'),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 onPressed: () {
@@ -160,38 +266,6 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                 icon: const Icon(Icons.description_outlined),
                 label: const Text('查看固定演示报告'),
               ),
-              if (result.inputType == 'url' &&
-                  isFictionalOrReservedHttpUrl(result.safeValue)) ...[
-                const SizedBox(height: 12),
-                Card(
-                  color: Theme.of(context).colorScheme.tertiaryContainer,
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 和安全规则处理。',
-                    ),
-                  ),
-                ),
-              ],
-              if (_canSubmitToCloud(result)) ...[
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => CloudAnalysisPage(
-                          initialUrl: result.safeValue,
-                          analysisId: evidence.analysisId,
-                          localEvidence: evidence.toJson(),
-                          initialBaseUrl: widget.initialApiBaseUrl,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.cloud_outlined),
-                  label: const Text('提交云端深度分析'),
-                ),
-              ],
             ],
           ],
         ),
