@@ -933,6 +933,7 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.analysisInputConflict => '分析 ID 对应的输入发生冲突',
       AiClientErrorCode.outcomeUnknown => 'AI 分析结果待核实',
       AiClientErrorCode.resultExpired => 'AI 缓存结果已过期',
+      AiClientErrorCode.serverAnalysisFailed => 'AI 分析失败',
     };
     return '$reason，已保留规则报告。';
   }
@@ -964,13 +965,39 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.outcomeUnknown =>
         '学校模型结果待核实。TapLens 只查询状态，不会重发请求；请稍后查看。',
       AiClientErrorCode.resultExpired =>
-        '学校模型缓存结果已清除。规则报告仍可查看，TapLens 不会重新计费调用。',
+        '学校模型缓存结果已清除（用量：${_usageStatusLabel(error.usageStatus)}）。规则报告仍可查看，TapLens 不会重新计费调用。',
+      AiClientErrorCode.serverAnalysisFailed => _schoolAiFailureMessage(error),
       AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
       AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
       AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
     };
     return '$base 规则报告仍可查看';
   }
+
+  String _schoolAiFailureMessage(AiClientException error) {
+    final stage = switch (error.serverFailureStage) {
+      'before_provider' => '模型调用前',
+      'after_provider' => '模型调用后',
+      _ => '阶段未知',
+    };
+    final usage = _usageStatusLabel(error.usageStatus);
+    final counts = error.usage == null
+        ? ''
+        : '（Prompt ${error.usage!.promptTokens}，Completion ${error.usage!.completionTokens}，合计 ${error.usage!.totalTokens} Token）';
+    final code = error.backendCode;
+    final safeCode =
+        code != null && RegExp(r'^AI_[A-Z0-9_]{1,64}$').hasMatch(code)
+            ? '，错误码 $code'
+            : '';
+    return '学校模型在$stage失败$safeCode。用量状态：$usage$counts；不会重复提交。';
+  }
+
+  String _usageStatusLabel(String? status) => switch (status) {
+        'known' => '已确认',
+        'unknown' => '未知',
+        'not_applicable' => '未调用模型',
+        _ => '未提供',
+      };
 
   String _schoolAiValidationMessage(AiClientException error) {
     final issues = error.validationIssues;

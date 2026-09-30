@@ -43,6 +43,7 @@ class SchoolAiPreflightResult {
 enum SchoolAiStatusState {
   inProgress,
   succeeded,
+  failed,
   outcomeUnknown,
   resultExpired,
   notFound,
@@ -52,13 +53,23 @@ class SchoolAiStatus {
   final String analysisId;
   final SchoolAiStatusState state;
   final AiClientResponse? response;
-  final Duration retryAfter;
+  final Duration pollAfter;
+  final String? failureStage;
+  final String? failureCode;
+  final bool? retryable;
+  final String? usageStatus;
+  final AiUsage? usage;
 
   const SchoolAiStatus({
     required this.analysisId,
     required this.state,
     this.response,
-    this.retryAfter = const Duration(seconds: 2),
+    this.pollAfter = const Duration(seconds: 2),
+    this.failureStage,
+    this.failureCode,
+    this.retryable,
+    this.usageStatus,
+    this.usage,
   });
 }
 
@@ -405,6 +416,8 @@ class SchoolAiClient {
           'Authorization': 'Bearer $token',
         },
       ).timeout(timeout);
+      // Older test servers used HTTP 404 for an absent per-user record. The
+      // frozen server contract returns HTTP 200 with status=not_found.
       if (response.statusCode == 404) {
         return SchoolAiStatus(
           analysisId: analysisId,
@@ -421,34 +434,7 @@ class SchoolAiClient {
           retryable: diagnostics.retryable,
         );
       }
-      if (response.statusCode == 409 || response.statusCode == 410) {
-        final diagnostics = _errorDiagnostics(response.body);
-        final conflict = _conflictException(
-          diagnostics.code,
-          statusCode: response.statusCode,
-          retryable: diagnostics.retryable,
-        );
-        if (conflict?.code == AiClientErrorCode.requestInProgress) {
-          return SchoolAiStatus(
-            analysisId: analysisId,
-            state: SchoolAiStatusState.inProgress,
-          );
-        }
-        if (conflict?.code == AiClientErrorCode.outcomeUnknown) {
-          return SchoolAiStatus(
-            analysisId: analysisId,
-            state: SchoolAiStatusState.outcomeUnknown,
-          );
-        }
-        if (conflict?.code == AiClientErrorCode.resultExpired) {
-          return SchoolAiStatus(
-            analysisId: analysisId,
-            state: SchoolAiStatusState.resultExpired,
-          );
-        }
-        if (conflict != null) throw conflict;
-      }
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode != 200) {
         final diagnostics = _errorDiagnostics(response.body);
         throw AiClientException(
           response.statusCode == 408 || response.statusCode == 504
@@ -470,62 +456,127 @@ class SchoolAiClient {
           httpStatus: response.statusCode,
         );
       }
-      final returnedId = root['analysis_id'];
-      if (returnedId is String && returnedId != analysisId) {
+      if (root['analysis_id'] is! String) {
+        throw _invalidStatus(
+          response.statusCode,
+          'The status response is missing its analysis ID',
+        );
+      }
+      if (root['analysis_id'] != analysisId) {
         throw AiClientException(
           AiClientErrorCode.analysisInputConflict,
-          'The status response belongs to another analysis',
+          'The status response is missing the requested analysis ID or belongs to another analysis',
           httpStatus: response.statusCode,
           backendCode: 'AI_ANALYSIS_INPUT_CONFLICT',
         );
       }
       final status = root['status'];
       if (status == 'in_progress') {
-        final seconds = root['retry_after_seconds'];
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status', 'poll_after_seconds'},
+          allowed: const {'analysis_id', 'status', 'poll_after_seconds'},
+          httpStatus: response.statusCode,
+        );
+        final seconds = root['poll_after_seconds'];
+        if (seconds is! int || seconds < 1 || seconds > 10) {
+          throw _invalidStatus(response.statusCode,
+              'The in-progress status has an invalid poll interval');
+        }
         return SchoolAiStatus(
           analysisId: analysisId,
           state: SchoolAiStatusState.inProgress,
-          retryAfter: Duration(
-            seconds:
-                seconds is int && seconds >= 1 && seconds <= 10 ? seconds : 2,
-          ),
+          pollAfter: Duration(seconds: seconds),
         );
       }
       if (status == 'outcome_unknown') {
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status', 'usage_status'},
+          allowed: const {'analysis_id', 'status', 'usage_status'},
+          httpStatus: response.statusCode,
+        );
+        if (root['usage_status'] != 'unknown') {
+          throw _invalidStatus(
+            response.statusCode,
+            'An unknown outcome must report unknown usage',
+          );
+        }
         return SchoolAiStatus(
           analysisId: analysisId,
           state: SchoolAiStatusState.outcomeUnknown,
+          usageStatus: 'unknown',
         );
       }
       if (status == 'result_expired') {
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status', 'usage_status'},
+          allowed: const {'analysis_id', 'status', 'usage_status'},
+          httpStatus: response.statusCode,
+        );
+        final usageStatus = root['usage_status'];
+        if (!const {'known', 'unknown', 'not_applicable'}
+            .contains(usageStatus)) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The expired result has an invalid usage status',
+          );
+        }
         return SchoolAiStatus(
           analysisId: analysisId,
           state: SchoolAiStatusState.resultExpired,
+          usageStatus: usageStatus as String,
         );
       }
       if (status == 'not_found') {
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status'},
+          allowed: const {'analysis_id', 'status'},
+          httpStatus: response.statusCode,
+        );
         return SchoolAiStatus(
           analysisId: analysisId,
           state: SchoolAiStatusState.notFound,
         );
       }
       if (status == 'succeeded') {
-        final wrapper = _map(root['result']) ?? _map(root['data']) ?? root;
-        final report = _reportObject(wrapper) ?? _reportObject(root);
-        if (report == null) {
-          throw AiClientException(
-            AiClientErrorCode.invalidJson,
-            'The completed AI status did not contain a report',
-            httpStatus: response.statusCode,
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status', 'result'},
+          allowed: const {'analysis_id', 'status', 'result'},
+          httpStatus: response.statusCode,
+        );
+        final result = _map(root['result']);
+        if (result == null) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The completed AI status has no result object',
           );
         }
-        final usage = _map(wrapper['usage']) ??
-            _map(root['usage']) ??
-            _map(report['token_usage']);
-        final modelName = _modelName(wrapper) ??
-            _modelName(root) ??
-            _modelName(usage) ??
-            defaultModelName;
+        _requireExactKeys(
+          result,
+          required: const {'report', 'model', 'usage'},
+          allowed: const {'report', 'model', 'usage'},
+          httpStatus: response.statusCode,
+        );
+        final report = _map(result['report']);
+        final usageMap = _map(result['usage']);
+        final modelName = result['model'];
+        if (report == null ||
+            modelName is! String ||
+            !_validStatusModel(modelName) ||
+            usageMap == null) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The completed AI status has invalid report or usage fields',
+          );
+        }
+        final usage = _parseStatusUsage(
+          usageMap,
+          httpStatus: response.statusCode,
+        );
         return SchoolAiStatus(
           analysisId: analysisId,
           state: SchoolAiStatusState.succeeded,
@@ -537,10 +588,86 @@ class SchoolAiClient {
           ),
         );
       }
-      throw AiClientException(
-        AiClientErrorCode.invalidJson,
+      if (status == 'failed') {
+        _requireExactKeys(
+          root,
+          required: const {'analysis_id', 'status', 'failure', 'usage_status'},
+          allowed: const {
+            'analysis_id',
+            'status',
+            'failure',
+            'usage_status',
+            'usage',
+          },
+          httpStatus: response.statusCode,
+        );
+        final failure = _map(root['failure']);
+        if (failure == null) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The failed AI status has no failure details',
+          );
+        }
+        _requireExactKeys(
+          failure,
+          required: const {'stage', 'code', 'retryable'},
+          allowed: const {'stage', 'code', 'retryable'},
+          httpStatus: response.statusCode,
+        );
+        final stage = failure['stage'];
+        final code = failure['code'];
+        final retryable = failure['retryable'];
+        final usageStatus = root['usage_status'];
+        if (!const {'before_provider', 'after_provider'}.contains(stage) ||
+            code is! String ||
+            !RegExp(r'^AI_[A-Z0-9_]{1,64}$').hasMatch(code) ||
+            retryable != false ||
+            !const {'known', 'unknown', 'not_applicable'}
+                .contains(usageStatus)) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The failed AI status has invalid failure or usage fields',
+          );
+        }
+        if ((stage == 'before_provider' && usageStatus != 'not_applicable') ||
+            (stage == 'after_provider' && usageStatus == 'not_applicable')) {
+          throw _invalidStatus(
+            response.statusCode,
+            'The failed AI status has conflicting failure and usage stages',
+          );
+        }
+        AiUsage? usage;
+        if (usageStatus == 'known') {
+          final usageMap = _map(root['usage']);
+          if (usageMap == null) {
+            throw _invalidStatus(
+              response.statusCode,
+              'Known usage must include the token counts',
+            );
+          }
+          usage = _usage(_parseStatusUsage(
+            usageMap,
+            httpStatus: response.statusCode,
+          ));
+        } else if (root.containsKey('usage')) {
+          throw _invalidStatus(
+            response.statusCode,
+            'Unknown or inapplicable usage must not include token counts',
+          );
+        }
+        return SchoolAiStatus(
+          analysisId: analysisId,
+          state: SchoolAiStatusState.failed,
+          failureStage: stage as String,
+          failureCode: code,
+          retryable: false,
+          usageStatus: usageStatus as String,
+          usage: usage,
+        );
+      }
+      throw _invalidStatus(
+        response.statusCode,
         'The AI status response contained an unknown state',
-        httpStatus: response.statusCode,
       );
     } on TimeoutException {
       throw const AiClientException(
@@ -592,6 +719,70 @@ class SchoolAiClient {
       backendCode: code,
       retryable: retryable,
     );
+  }
+
+  void _requireExactKeys(
+    Map<String, dynamic> value, {
+    required Set<String> required,
+    required Set<String> allowed,
+    required int httpStatus,
+  }) {
+    final keys = value.keys.toSet();
+    if (!keys.containsAll(required) || keys.difference(allowed).isNotEmpty) {
+      throw _invalidStatus(
+        httpStatus,
+        'The AI status response does not match the frozen schema',
+      );
+    }
+  }
+
+  AiClientException _invalidStatus(int httpStatus, String message) =>
+      AiClientException(
+        AiClientErrorCode.invalidJson,
+        message,
+        httpStatus: httpStatus,
+      );
+
+  bool _validStatusModel(String model) =>
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$').hasMatch(model);
+
+  Map<String, dynamic> _parseStatusUsage(
+    Map<String, dynamic> usage, {
+    required int httpStatus,
+  }) {
+    _requireExactKeys(
+      usage,
+      required: const {
+        'model',
+        'prompt_tokens',
+        'completion_tokens',
+        'total_tokens',
+      },
+      allowed: const {
+        'model',
+        'prompt_tokens',
+        'completion_tokens',
+        'total_tokens',
+      },
+      httpStatus: httpStatus,
+    );
+    final model = usage['model'];
+    final promptTokens = usage['prompt_tokens'];
+    final completionTokens = usage['completion_tokens'];
+    final totalTokens = usage['total_tokens'];
+    if (model is! String ||
+        !_validStatusModel(model) ||
+        promptTokens is! int ||
+        promptTokens < 0 ||
+        completionTokens is! int ||
+        completionTokens < 0 ||
+        totalTokens is! int ||
+        totalTokens < 0 ||
+        promptTokens + completionTokens != totalTokens) {
+      throw _invalidStatus(
+          httpStatus, 'The AI status usage fields are invalid');
+    }
+    return usage;
   }
 
   /// Sends the same sanitized JSON as [analyze] without an Authorization header.

@@ -22,6 +22,7 @@ enum AiClientErrorCode {
   analysisInputConflict,
   outcomeUnknown,
   resultExpired,
+  serverAnalysisFailed,
 }
 
 enum AiFailureStage {
@@ -58,6 +59,9 @@ class AiClientException implements Exception {
   final bool? retryable;
   final List<AiValidationIssue> validationIssues;
   final AiFailureStage? failureStage;
+  final String? serverFailureStage;
+  final String? usageStatus;
+  final AiUsage? usage;
 
   const AiClientException(
     this.code,
@@ -67,6 +71,9 @@ class AiClientException implements Exception {
     this.retryable,
     this.validationIssues = const [],
     this.failureStage,
+    this.serverFailureStage,
+    this.usageStatus,
+    this.usage,
   });
 
   AiClientException withFailureStage(
@@ -81,6 +88,9 @@ class AiClientException implements Exception {
         retryable: retryable,
         validationIssues: validationIssues,
         failureStage: stage,
+        serverFailureStage: serverFailureStage,
+        usageStatus: usageStatus,
+        usage: usage,
       );
 
   /// Only emits safe diagnostic fields. Never include response or request text.
@@ -120,6 +130,9 @@ class AiClientException implements Exception {
           RegExp(r'^[A-Za-z0-9_-]{1,80}$').hasMatch(safeBackendCode))
         'backend_code': safeBackendCode,
       if (retryable != null) 'retryable': retryable,
+      if (serverFailureStage != null)
+        'server_failure_stage': serverFailureStage,
+      if (usageStatus != null) 'usage_status': usageStatus,
       if (failureStage == AiFailureStage.localReportGuard &&
           localGuardReasons.contains(message))
         'guard_reason': message,

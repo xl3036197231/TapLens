@@ -4,6 +4,9 @@ import 'ai_analysis_attempt_store.dart';
 import 'ai_client.dart';
 import 'school_ai_client.dart';
 
+Future<void> _waitForAiStatus(Duration duration) =>
+    Future<void>.delayed(duration);
+
 /// Owns the one-POST rule for school AI. A durable attempt is written before
 /// POST; any later call, including after process restart, performs GET only.
 class SchoolAiCallCoordinator {
@@ -13,6 +16,7 @@ class SchoolAiCallCoordinator {
   final Duration pollInterval;
   final int maxPolls;
   final DateTime Function() clock;
+  final Future<void> Function(Duration) wait;
 
   const SchoolAiCallCoordinator({
     required this.client,
@@ -20,6 +24,7 @@ class SchoolAiCallCoordinator {
     this.pollInterval = const Duration(seconds: 2),
     this.maxPolls = 30,
     this.clock = DateTime.now,
+    this.wait = _waitForAiStatus,
   });
 
   Future<AiClientResponse> run({
@@ -44,6 +49,16 @@ class SchoolAiCallCoordinator {
       analysisId: analysisId,
       ownerId: ownerId,
     );
+    if (existing != null) {
+      _rejectExistingConflict(existing);
+      if (existing.createdAtText != currentCreatedAt) {
+        await store.save(existing.withState(
+          AiAnalysisAttemptState.inputConflict,
+          now: clock(),
+        ));
+        throw _inputConflict();
+      }
+    }
     if (existing == null && !mayStartPost) {
       throw const AiClientException(
         AiClientErrorCode.outcomeUnknown,
@@ -65,6 +80,14 @@ class SchoolAiCallCoordinator {
           'Another request may be starting; refusing to create a duplicate POST',
           backendCode: 'AI_OUTCOME_UNKNOWN',
         );
+      }
+      _rejectExistingConflict(saved);
+      if (saved.createdAtText != currentCreatedAt) {
+        await store.save(saved.withState(
+          AiAnalysisAttemptState.inputConflict,
+          now: clock(),
+        ));
+        throw _inputConflict();
       }
       return _poll(
         saved,
@@ -155,11 +178,13 @@ class SchoolAiCallCoordinator {
     required String accessToken,
     bool Function()? isCancelled,
   }) async {
+    String? lastUsageStatus;
     for (var attempt = 0; attempt < maxPolls; attempt++) {
       if (isCancelled?.call() == true) {
-        throw const AiClientException(
+        throw AiClientException(
           AiClientErrorCode.outcomeUnknown,
           'Status polling stopped after leaving the page; do not resend POST',
+          usageStatus: lastUsageStatus,
         );
       }
       final status = await client.getStatus(
@@ -180,28 +205,44 @@ class SchoolAiCallCoordinator {
             now: clock(),
           ));
           return response;
+        case SchoolAiStatusState.failed:
+          await store.save(record.withState(
+            AiAnalysisAttemptState.failed,
+            now: clock(),
+          ));
+          throw AiClientException(
+            AiClientErrorCode.serverAnalysisFailed,
+            'The school AI attempt reached a terminal failure state',
+            backendCode: status.failureCode,
+            retryable: status.retryable,
+            serverFailureStage: status.failureStage,
+            usageStatus: status.usageStatus,
+            usage: status.usage,
+          );
         case SchoolAiStatusState.resultExpired:
           await store.save(record.withState(
             AiAnalysisAttemptState.resultExpired,
             now: clock(),
           ));
-          throw const AiClientException(
+          throw AiClientException(
             AiClientErrorCode.resultExpired,
             'The cached AI result has expired; a new paid call was not made',
             backendCode: 'AI_RESULT_EXPIRED',
+            usageStatus: status.usageStatus,
           );
         case SchoolAiStatusState.inProgress:
           await store.save(record.withState(
             AiAnalysisAttemptState.inProgress,
             now: clock(),
           ));
-          await Future<void>.delayed(pollInterval);
+          await wait(status.pollAfter);
         case SchoolAiStatusState.outcomeUnknown:
+          lastUsageStatus = status.usageStatus;
           await store.save(record.withState(
             AiAnalysisAttemptState.outcomeUnknown,
             now: clock(),
           ));
-          await Future<void>.delayed(pollInterval);
+          await wait(pollInterval);
         case SchoolAiStatusState.notFound:
           await store.save(record.withState(
             AiAnalysisAttemptState.outcomeUnknown,
@@ -218,10 +259,11 @@ class SchoolAiCallCoordinator {
       AiAnalysisAttemptState.outcomeUnknown,
       now: clock(),
     ));
-    throw const AiClientException(
+    throw AiClientException(
       AiClientErrorCode.outcomeUnknown,
       'The AI result is still being verified; refusing to resend POST',
       backendCode: 'AI_OUTCOME_UNKNOWN',
+      usageStatus: lastUsageStatus,
     );
   }
 
@@ -235,4 +277,17 @@ class SchoolAiCallCoordinator {
     copy['report_context'] = context;
     return copy;
   }
+
+  void _rejectExistingConflict(AiAnalysisAttemptRecord record) {
+    if (record.state == AiAnalysisAttemptState.inputConflict) {
+      throw _inputConflict();
+    }
+  }
+
+  AiClientException _inputConflict() => const AiClientException(
+        AiClientErrorCode.analysisInputConflict,
+        'The saved analysis ID is bound to a different original created_at value; refusing status lookup or POST',
+        backendCode: 'AI_ANALYSIS_INPUT_CONFLICT',
+        retryable: false,
+      );
 }

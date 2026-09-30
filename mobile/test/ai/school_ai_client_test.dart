@@ -75,12 +75,15 @@ void main() {
           jsonEncode({
             'analysis_id': '0bab7eba-ff50-42f8-a264-543596b2c9bf',
             'status': 'succeeded',
-            'report': report,
-            'model': 'cuc/deepseek',
-            'usage': {
-              'prompt_tokens': 10,
-              'completion_tokens': 5,
-              'total_tokens': 15,
+            'result': {
+              'report': report,
+              'model': 'cuc/deepseek',
+              'usage': {
+                'model': 'cuc/deepseek',
+                'prompt_tokens': 10,
+                'completion_tokens': 5,
+                'total_tokens': 15,
+              },
             },
           }),
           200,
@@ -100,6 +103,170 @@ void main() {
     expect(captured!.headers['authorization'], 'Bearer TEST_JWT');
     expect(status.state, SchoolAiStatusState.succeeded);
     expect(status.response?.usage.totalTokens, 15);
+  });
+
+  test('status parser uses the frozen poll_after_seconds field', () async {
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((_) async => http.Response(
+            '{"analysis_id":"0bab7eba-ff50-42f8-a264-543596b2c9bf","status":"in_progress","poll_after_seconds":7}',
+            200,
+          )),
+    );
+
+    final status = await client.getStatus(
+      accessToken: 'TEST_JWT',
+      analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+    );
+
+    expect(status.state, SchoolAiStatusState.inProgress);
+    expect(status.pollAfter, const Duration(seconds: 7));
+  });
+
+  test('status parser rejects legacy polling fields and incomplete envelopes',
+      () async {
+    for (final body in [
+      '{"analysis_id":"0bab7eba-ff50-42f8-a264-543596b2c9bf","status":"in_progress","retry_after_seconds":1}',
+      '{"status":"in_progress","poll_after_seconds":1}',
+      '{"analysis_id":"0bab7eba-ff50-42f8-a264-543596b2c9bf","status":"in_progress"}',
+    ]) {
+      final client = SchoolAiClient(
+        endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+        client: MockClient((_) async => http.Response(body, 200)),
+      );
+
+      await expectLater(
+        client.getStatus(
+          accessToken: 'TEST_JWT',
+          analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+        ),
+        throwsA(isA<AiClientException>().having(
+          (error) => error.code,
+          'code',
+          AiClientErrorCode.invalidJson,
+        )),
+      );
+    }
+  });
+
+  test('failed status preserves stable failure and usage classification',
+      () async {
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((_) async => http.Response(
+            jsonEncode({
+              'analysis_id': '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+              'status': 'failed',
+              'failure': {
+                'stage': 'after_provider',
+                'code': 'AI_REPORT_GUARD_REJECTED',
+                'retryable': false,
+              },
+              'usage_status': 'known',
+              'usage': {
+                'model': 'cuc/deepseek',
+                'prompt_tokens': 10,
+                'completion_tokens': 5,
+                'total_tokens': 15,
+              },
+            }),
+            200,
+          )),
+    );
+
+    final status = await client.getStatus(
+      accessToken: 'TEST_JWT',
+      analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+    );
+
+    expect(status.state, SchoolAiStatusState.failed);
+    expect(status.failureStage, 'after_provider');
+    expect(status.failureCode, 'AI_REPORT_GUARD_REJECTED');
+    expect(status.retryable, isFalse);
+    expect(status.usageStatus, 'known');
+    expect(status.usage?.totalTokens, 15);
+  });
+
+  test('failed-before-provider status confirms no Provider usage', () async {
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((_) async => http.Response(
+            jsonEncode({
+              'analysis_id': '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+              'status': 'failed',
+              'failure': {
+                'stage': 'before_provider',
+                'code': 'AI_INPUT_REJECTED',
+                'retryable': false,
+              },
+              'usage_status': 'not_applicable',
+            }),
+            200,
+          )),
+    );
+
+    final status = await client.getStatus(
+      accessToken: 'TEST_JWT',
+      analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+    );
+
+    expect(status.state, SchoolAiStatusState.failed);
+    expect(status.failureStage, 'before_provider');
+    expect(status.usageStatus, 'not_applicable');
+    expect(status.usage, isNull);
+  });
+
+  for (final item in <(String, SchoolAiStatusState, String)>[
+    (
+      'outcome_unknown',
+      SchoolAiStatusState.outcomeUnknown,
+      '"usage_status":"unknown"'
+    ),
+    (
+      'result_expired',
+      SchoolAiStatusState.resultExpired,
+      '"usage_status":"unknown"'
+    ),
+    ('not_found', SchoolAiStatusState.notFound, ''),
+  ]) {
+    test('parses frozen ${item.$1} status envelope', () async {
+      final client = SchoolAiClient(
+        endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+        client: MockClient((_) async => http.Response(
+              '{"analysis_id":"0bab7eba-ff50-42f8-a264-543596b2c9bf","status":"${item.$1}"${item.$3.isEmpty ? '' : ',${item.$3}'}}',
+              200,
+            )),
+      );
+
+      final status = await client.getStatus(
+        accessToken: 'TEST_JWT',
+        analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+      );
+
+      expect(status.state, item.$2);
+    });
+  }
+
+  test('status response for another analysis ID fails closed', () async {
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((_) async => http.Response(
+            '{"analysis_id":"11111111-2222-3333-4444-555555555555","status":"not_found"}',
+            200,
+          )),
+    );
+
+    await expectLater(
+      client.getStatus(
+        accessToken: 'TEST_JWT',
+        analysisId: '0bab7eba-ff50-42f8-a264-543596b2c9bf',
+      ),
+      throwsA(isA<AiClientException>().having(
+        (error) => error.code,
+        'code',
+        AiClientErrorCode.analysisInputConflict,
+      )),
+    );
   });
 
   test(

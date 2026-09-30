@@ -7,6 +7,7 @@ enum AiAnalysisAttemptState {
   inProgress,
   outcomeUnknown,
   succeeded,
+  failed,
   inputConflict,
   resultExpired,
 }

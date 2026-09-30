@@ -16,10 +16,13 @@ Map<String, dynamic> _fixture() => jsonDecode(
       File('../shared/fixtures/reports/high-risk.json').readAsStringSync(),
     ) as Map<String, dynamic>;
 
-Map<String, dynamic> _payload() => {
+Map<String, dynamic> _payload({
+  String createdAtText = '2026-09-27T10:57:59.786849Z',
+}) =>
+    {
       'report_context': {
         'analysis_id': _analysisId,
-        'created_at': '2026-09-27T10:57:59.786849Z',
+        'created_at': createdAtText,
       },
       'analysis_input': {
         'claims_text': '用户确认的受控链接',
@@ -73,7 +76,7 @@ void main() {
         statusCount++;
         if (statusCount == 1) {
           return http.Response(
-            '{"analysis_id":"$_analysisId","status":"in_progress","retry_after_seconds":1}',
+            '{"analysis_id":"$_analysisId","status":"in_progress","poll_after_seconds":1}',
             200,
           );
         }
@@ -81,12 +84,15 @@ void main() {
           jsonEncode({
             'analysis_id': _analysisId,
             'status': 'succeeded',
-            'report': report,
-            'model': 'cuc/deepseek',
-            'usage': {
-              'prompt_tokens': 11,
-              'completion_tokens': 7,
-              'total_tokens': 18,
+            'result': {
+              'report': report,
+              'model': 'cuc/deepseek',
+              'usage': {
+                'model': 'cuc/deepseek',
+                'prompt_tokens': 11,
+                'completion_tokens': 7,
+                'total_tokens': 18,
+              },
             },
           }),
           200,
@@ -98,6 +104,9 @@ void main() {
       client: client,
       store: store,
       pollInterval: Duration.zero,
+      wait: (duration) async {
+        expect(duration, const Duration(seconds: 1));
+      },
       maxPolls: 3,
     );
 
@@ -148,6 +157,7 @@ void main() {
               'report': report,
               'model': 'cuc/deepseek',
               'usage': {
+                'model': 'cuc/deepseek',
                 'prompt_tokens': 11,
                 'completion_tokens': 7,
                 'total_tokens': 18,
@@ -167,7 +177,7 @@ void main() {
     ).run(
       accessToken: 'TEST_JWT',
       ownerId: 'user-1',
-      payload: _payload(),
+      payload: _payload(createdAtText: _firstCreatedAt),
       mayStartPost: false,
     );
 
@@ -176,6 +186,123 @@ void main() {
       (await store.find(analysisId: _analysisId, ownerId: 'user-1'))
           ?.createdAtText,
       _firstCreatedAt,
+    );
+  });
+
+  test('created_at text mismatch persists inputConflict and fails closed',
+      () async {
+    final store = MemoryAiAnalysisAttemptStore(records: [
+      AiAnalysisAttemptRecord(
+        analysisId: _analysisId,
+        createdAtText: _firstCreatedAt,
+        ownerId: 'user-1',
+        state: AiAnalysisAttemptState.outcomeUnknown,
+        updatedAtText: '2026-09-27T11:00:00Z',
+      ),
+    ]);
+    final methods = <String>[];
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((request) async {
+        methods.add(request.method);
+        return http.Response(
+            '{"analysis_id":"$_analysisId","status":"not_found"}', 200);
+      }),
+    );
+    final coordinator = SchoolAiCallCoordinator(
+      client: client,
+      store: store,
+      pollInterval: Duration.zero,
+    );
+
+    for (final payload in [
+      _payload(),
+      _payload(createdAtText: _firstCreatedAt),
+    ]) {
+      await expectLater(
+        coordinator.run(
+          accessToken: 'TEST_JWT',
+          ownerId: 'user-1',
+          payload: payload,
+          mayStartPost: true,
+        ),
+        throwsA(isA<AiClientException>().having(
+          (error) => error.code,
+          'code',
+          AiClientErrorCode.analysisInputConflict,
+        )),
+      );
+    }
+
+    expect(methods, isEmpty);
+    expect(
+      (await store.find(analysisId: _analysisId, ownerId: 'user-1'))?.state,
+      AiAnalysisAttemptState.inputConflict,
+    );
+  });
+
+  test('failed status is terminal and exposes usage without reposting',
+      () async {
+    final methods = <String>[];
+    final store = MemoryAiAnalysisAttemptStore();
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((request) async {
+        methods.add(request.method);
+        if (request.method == 'POST') {
+          return http.Response(
+            '{"error":{"code":"AI_REQUEST_IN_PROGRESS","retryable":false}}',
+            409,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'analysis_id': _analysisId,
+            'status': 'failed',
+            'failure': {
+              'stage': 'after_provider',
+              'code': 'AI_REPORT_GUARD_REJECTED',
+              'retryable': false,
+            },
+            'usage_status': 'known',
+            'usage': {
+              'model': 'cuc/deepseek',
+              'prompt_tokens': 11,
+              'completion_tokens': 7,
+              'total_tokens': 18,
+            },
+          }),
+          200,
+        );
+      }),
+    );
+
+    await expectLater(
+      SchoolAiCallCoordinator(
+        client: client,
+        store: store,
+        pollInterval: Duration.zero,
+      ).run(
+        accessToken: 'TEST_JWT',
+        ownerId: 'user-1',
+        payload: _payload(),
+        mayStartPost: true,
+      ),
+      throwsA(isA<AiClientException>()
+          .having((error) => error.code, 'code',
+              AiClientErrorCode.serverAnalysisFailed)
+          .having((error) => error.backendCode, 'backend code',
+              'AI_REPORT_GUARD_REJECTED')
+          .having((error) => error.serverFailureStage, 'failure stage',
+              'after_provider')
+          .having((error) => error.usageStatus, 'usage status', 'known')
+          .having((error) => error.usage?.totalTokens, 'total tokens', 18)),
+    );
+
+    expect(methods, ['POST', 'GET']);
+    expect(
+      (await store.find(analysisId: _analysisId, ownerId: 'user-1'))?.state,
+      AiAnalysisAttemptState.failed,
     );
   });
 
@@ -199,12 +326,15 @@ void main() {
           jsonEncode({
             'analysis_id': _analysisId,
             'status': 'succeeded',
-            'report': report,
-            'model': 'cuc/deepseek',
-            'usage': {
-              'prompt_tokens': 1,
-              'completion_tokens': 1,
-              'total_tokens': 2
+            'result': {
+              'report': report,
+              'model': 'cuc/deepseek',
+              'usage': {
+                'model': 'cuc/deepseek',
+                'prompt_tokens': 1,
+                'completion_tokens': 1,
+                'total_tokens': 2
+              },
             },
           }),
           200,
@@ -264,7 +394,7 @@ void main() {
       ).run(
         accessToken: 'TEST_JWT',
         ownerId: 'user-1',
-        payload: _payload(),
+        payload: _payload(createdAtText: _firstCreatedAt),
         mayStartPost: true,
       ),
       throwsA(isA<AiClientException>().having(
@@ -290,7 +420,7 @@ void main() {
           );
         }
         return http.Response(
-          '{"analysis_id":"$_analysisId","status":"outcome_unknown"}',
+          '{"analysis_id":"$_analysisId","status":"outcome_unknown","usage_status":"unknown"}',
           200,
         );
       }),
@@ -388,7 +518,7 @@ void main() {
       client: MockClient((request) async {
         gets++;
         return http.Response(
-          '{"analysis_id":"$_analysisId","status":"in_progress"}',
+          '{"analysis_id":"$_analysisId","status":"in_progress","poll_after_seconds":1}',
           200,
         );
       }),
@@ -398,10 +528,11 @@ void main() {
       store: store,
       pollInterval: const Duration(milliseconds: 1),
       maxPolls: 10,
+      wait: (_) => Future<void>.delayed(const Duration(milliseconds: 1)),
     ).run(
       accessToken: 'TEST_JWT',
       ownerId: 'user-1',
-      payload: _payload(),
+      payload: _payload(createdAtText: _firstCreatedAt),
       mayStartPost: false,
       isCancelled: () => cancelled,
     );
