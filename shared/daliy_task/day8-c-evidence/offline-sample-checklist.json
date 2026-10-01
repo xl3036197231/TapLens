@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "prepared_at": "2026-09-30",
+  "purpose": "Day 8 C physical-device offline sample checklist",
+  "execution_policy": "Preview and parse only. Never navigate, launch an app, join Wi-Fi, send SMS, create a cloud task, or call an AI provider.",
+  "cases": [
+    {
+      "id": "QR10",
+      "source": "shared/datasets/qr/png/qr10-plain-text.png",
+      "device_path": "camera",
+      "expected": "Show plain training text only; no external action and no network access."
+    },
+    {
+      "id": "QR02",
+      "source": "shared/datasets/qr/png/qr02-intent-package-mismatch.png",
+      "device_path": "gallery",
+      "expected": "Preview intent package and fallback; flag mismatch; do not launch an app or fetch fallback."
+    },
+    {
+      "id": "QR03",
+      "source": "shared/datasets/qr/png/qr03-wifi.png",
+      "device_path": "gallery-or-static-input",
+      "expected": "Preview fictional SSID and redact password; do not join Wi-Fi."
+    },
+    {
+      "id": "QR04",
+      "source": "shared/datasets/qr/png/qr04-sms.png",
+      "device_path": "gallery-or-static-input",
+      "expected": "Preview redacted destination and message summary; do not open SMS app or send."
+    },
+    {
+      "id": "D7-URL-01",
+      "source": "shared/datasets/day7-safe-case-list.json",
+      "device_path": "static-input",
+      "expected": "Parse download.example.test as host or reject credential-bearing URL; never navigate or download."
+    },
+    {
+      "id": "D7-DL-01",
+      "source": "shared/datasets/day7-safe-case-list.json",
+      "device_path": "static-input",
+      "expected": "Parse package and fallback as unverified; never dispatch intent or fetch fallback."
+    }
+  ]
+}
