@@ -48,7 +48,7 @@
    GET /api/v1/ai/analyses/{analysis_id}/status
    ```
 
-   Day 8 阶段使用 Mock 响应测试客户端；B 尚未接入正式 GET 路由时，不要把 Mock 说成线上接口已可用。轮询只请求 GET，停止条件、超时和页面离开后的取消行为要有测试。
+   状态 JSON 以 `shared/contracts/ai-analysis-status.schema.json` 为唯一合同：状态值包括 `in_progress`、`succeeded`、`failed`、`outcome_unknown`、`result_expired` 和 `not_found`；进行中间隔字段统一为 `poll_after_seconds`；终态 `failed` 必须能展示失败阶段、稳定错误码和用量状态。响应中的 `analysis_id` 必须与当前请求一致，缺字段、未知字段或不一致 ID 都要 fail-closed。Day 8 阶段使用 Mock 响应测试客户端；B 尚未接入正式 GET 路由时，不要把 Mock 说成线上接口已可用。轮询只请求 GET，使用服务端建议间隔，停止条件、超时和页面离开后的取消行为要有测试。
 
 3. 同一个 `analysis_id` 必须复用第一次生成的完整 `created_at` 字符串。保存并原样传回该字符串，不可先解析成 `DateTime` 再格式化；关闭并重开 APP 后仍要保持一致。
 
@@ -79,6 +79,7 @@ A 提交实现、测试和进度记录后，D 固定 A 的待审提交并逐项�
 
 - 四种 409 是否按 `error.code` 分开处理，是否停止重复 POST；
 - `GET /api/v1/ai/analyses/{analysis_id}/status` 是否用于进行中和结果待核实状态；
+- GET 是否逐项符合冻结 Schema，包括 `failed` 失败分类/用量状态、`poll_after_seconds` 和 `analysis_id` 严格匹配；
 - 缓存命中、结果过期、页面退出和 APP 重启时是否会意外重新 POST；
 - `analysis_id` 相同的请求是否原样复用完整 `created_at` 文本；
 - `.test` 样例是否清楚标注“受控模拟证据”；
@@ -93,7 +94,7 @@ D 将固定提交、逐项证据和结论写入 `shared/daliy_task/day8-d-client
 D 对 A 给出 PASS 后，B 才开始以下实现。全部自动化测试使用假 Provider：
 
 1. 将 `AiCallRepository` 接入正式 `POST /api/v1/ai/analyze`，确保请求先持久化 dispatch 状态，再发 Provider 请求。
-2. 增加只读状态接口 `GET /api/v1/ai/analyses/{analysis_id}/status`。GET 不得启动任务、预留新 attempt 或调用 Provider；按用户身份隔离结果。
+2. 增加只读状态接口 `GET /api/v1/ai/analyses/{analysis_id}/status`。成功状态统一返回 HTTP 200，并符合 `shared/contracts/ai-analysis-status.schema.json`。GET 不得启动任务、预留新 attempt 或调用 Provider；按用户身份隔离结果。
 3. 将 `AiCallCleanupWorker` 接入 FastAPI lifespan，并测试应用启动、关闭和 worker 停止。
 4. 按已审核合同实现并覆盖：
 
@@ -102,6 +103,7 @@ D 对 A 给出 PASS 后，B 才开始以下实现。全部自动化测试使用�
    - 在途请求返回 `AI_REQUEST_IN_PROGRESS`；
    - 已开始 dispatch 但结果不确定时返回 `AI_OUTCOME_UNKNOWN`，后续请求不得再次 dispatch；
    - 响应缓存命中、过期和 `AI_RESULT_EXPIRED`；
+   - `failed_before_provider` / `failed_after_provider` 在 GET 中映射为 `status=failed`，附失败阶段、稳定错误码、`retryable=false` 和正确的 `usage_status`；
    - Provider 超时、进程重启、迟到成功/失败和报告守卫拒绝；
    - 用户之间相互隔离；GET 只读，绝不调用 Provider。
 

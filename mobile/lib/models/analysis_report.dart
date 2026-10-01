@@ -246,6 +246,9 @@ class AnalysisReport {
     }
 
     final limitations = _texts(json['limitations']);
+    final controlledSimulation = limitations.any(
+      (item) => item.contains('模拟云端证据') || item.contains('受控样例页'),
+    );
     final failed = status == 'failed';
     final riskLevel = failed
         ? RiskLevel.insufficientEvidence
@@ -283,11 +286,11 @@ class AnalysisReport {
         json['analysis_id'],
         '6b368c4b-4d97-4a87-bd62-b3d8c2d50001',
       ),
-      title: '云端深度分析报告',
+      title: controlledSimulation ? '受控模拟证据 · 云端深度分析报告' : '云端深度分析报告',
       target: finalUrl,
       riskLevel: riskLevel,
       consistency: Consistency.unknown,
-      summary: summary,
+      summary: controlledSimulation ? '受控模拟证据：$summary' : summary,
       commitments: const [],
       observedBehaviors: observed,
       differences: differences,
@@ -297,7 +300,10 @@ class AnalysisReport {
           DateTime.fromMillisecondsSinceEpoch(0),
       uncertaintySummary: limitations.isEmpty
           ? (failed ? '云端任务失败，无法确认完整页面行为。' : '当前证据来自云端沙箱。')
-          : limitations.join('；'),
+          : [
+              if (controlledSimulation) '受控模拟证据',
+              ...limitations,
+            ].join('；'),
       localSource: false,
       cloudSource: true,
       aiSource: false,

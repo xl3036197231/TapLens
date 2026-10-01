@@ -8,12 +8,14 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../ai/ai_client.dart';
+import '../ai/ai_analysis_attempt_store.dart';
 import '../ai/ai_report_service.dart';
 import '../ai/audit_evidence_bundle.dart';
 import '../ai/cloud_ai_report_input.dart';
 import '../ai/deepseek_ai_client.dart';
 import '../ai/offline_ai_report_demo.dart';
 import '../ai/school_ai_client.dart';
+import '../ai/school_ai_call_coordinator.dart';
 import '../data/demo_report.dart';
 import '../models/analysis_report.dart';
 import '../services/auth_session.dart';
@@ -34,6 +36,7 @@ class CloudAnalysisPage extends StatefulWidget {
   final CloudAiMode initialAiMode;
   final AuthSessionController? sessionController;
   final http.Client? httpClient;
+  final AiAnalysisAttemptStore? aiAttemptStore;
   final SchoolAiReportRunner? schoolAiRunnerOverride;
   final AiReportRunner? customAiRunnerOverride;
 
@@ -46,6 +49,7 @@ class CloudAnalysisPage extends StatefulWidget {
     this.initialAiMode = CloudAiMode.school,
     this.sessionController,
     this.httpClient,
+    this.aiAttemptStore,
     this.schoolAiRunnerOverride,
     this.customAiRunnerOverride,
   });
@@ -85,6 +89,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   String? _accessToken;
   String? _error;
   bool _loading = false;
+
+  AiAnalysisAttemptStore get _aiAttemptStore =>
+      widget.aiAttemptStore ?? const MethodChannelAiAnalysisAttemptStore();
 
   @override
   void initState() {
@@ -183,7 +190,17 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     String? customKey,
     String? customModel,
   }) async {
-    if (task.status != 'succeeded' || !newlyCreated) return;
+    if (task.status != 'succeeded') return;
+    final isSchoolMode = mode == CloudAiMode.school;
+    final ownerId = _sessionController?.activeLogin?.userId;
+    final savedAttempt =
+        isSchoolMode && ownerId != null && widget.schoolAiRunnerOverride == null
+            ? await _aiAttemptStore.find(
+                analysisId: task.analysisId,
+                ownerId: ownerId,
+              )
+            : null;
+    if (!newlyCreated && savedAttempt == null) return;
     if (!_aiAttemptedTaskIds.add(task.taskId)) return;
     final cloudEvidence = task.cloudEvidence;
     if (cloudEvidence == null) return;
@@ -205,6 +222,8 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               _runSchoolAiAnalysis(
                 cloudEvidence: cloudEvidence,
                 ruleReport: ruleReport,
+                mayStartPost: newlyCreated,
+                isCancelled: () => !mounted,
               ))
           : await (widget.customAiRunnerOverride
                   ?.call(customKey!, customModel!) ??
@@ -750,12 +769,17 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   Future<AiReportExecution> _runSchoolAiAnalysis({
     required Map<String, dynamic> cloudEvidence,
     required AnalysisReport ruleReport,
+    bool mayStartPost = true,
+    bool Function()? isCancelled,
   }) async {
     final payload = CloudAiReportInput.buildPayload(
       url: _urlController.text.trim(),
       cloudEvidence: cloudEvidence,
       ruleReport: ruleReport,
       localEvidence: _localEvidence,
+      createdAtText: cloudEvidence['generated_at'] is String
+          ? cloudEvidence['generated_at'] as String
+          : null,
     );
     final availableEvidenceIds = <String>{
       ..._evidenceIds(cloudEvidence),
@@ -768,8 +792,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final token = _sessionController?.isAuthenticated == true
         ? _sessionController?.activeLogin?.accessToken
         : null;
+    final ownerId = _sessionController?.activeLogin?.userId;
     final schoolClient = SchoolAiClient(
       endpoint: SchoolAiClient.endpointForApiBase(_backendUri()),
+      client: widget.httpClient,
     );
     late final AiReportResult result;
     try {
@@ -781,7 +807,22 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               'A TapLens login token is required',
             );
           }
-          return schoolClient.analyze(accessToken: token, payload: payload);
+          if (ownerId == null || ownerId.isEmpty) {
+            throw const AiClientException(
+              AiClientErrorCode.authRequired,
+              'A TapLens user identity is required for idempotency',
+            );
+          }
+          return SchoolAiCallCoordinator(
+            client: schoolClient,
+            store: _aiAttemptStore,
+          ).run(
+            accessToken: token,
+            ownerId: ownerId,
+            payload: payload,
+            mayStartPost: mayStartPost,
+            isCancelled: isCancelled,
+          );
         },
         availableEvidenceIds: availableEvidenceIds,
         ruleReport: ruleJson,
@@ -797,12 +838,16 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       if (controller != null) await controller.expireSession();
     }
     try {
+      final displayReport = CloudAiReportInput.labelControlledSimulationReport(
+        result.report,
+        cloudEvidence,
+      );
       return AiReportExecution(
-        report: AnalysisReport.fromJson(result.report),
+        report: AnalysisReport.fromJson(displayReport),
         usedFallback: result.usedFallback,
         message:
             result.error == null ? null : _schoolAiErrorMessage(result.error!),
-        reportJson: result.report,
+        reportJson: displayReport,
         error: result.error,
         httpStatus: result.httpStatus,
       );
@@ -884,6 +929,11 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.processingFailed => 'AI 响应处理失败',
       AiClientErrorCode.reportMappingFailed => 'AI 报告转换失败',
       AiClientErrorCode.pageStateUpdateFailed => 'AI 报告页面更新失败',
+      AiClientErrorCode.requestInProgress => 'AI 分析仍在进行',
+      AiClientErrorCode.analysisInputConflict => '分析 ID 对应的输入发生冲突',
+      AiClientErrorCode.outcomeUnknown => 'AI 分析结果待核实',
+      AiClientErrorCode.resultExpired => 'AI 缓存结果已过期',
+      AiClientErrorCode.serverAnalysisFailed => 'AI 分析失败',
     };
     return '$reason，已保留规则报告。';
   }
@@ -891,12 +941,13 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
   String _schoolAiErrorMessage(AiClientException error) {
     final base = switch (error.code) {
       AiClientErrorCode.authRequired => 'TapLens 登录状态已失效或未登录，请重新登录。',
-      AiClientErrorCode.timeout => '学校模型请求超时。请求可能仍在服务器处理中，确认服务端调用状态后再重试。',
-      AiClientErrorCode.serviceUnavailable => '学校模型服务暂时不可用，服务端调用状态待核实；先不要立即重试。',
+      AiClientErrorCode.timeout => '学校模型状态查询超时，结果待核实；TapLens 不会重新提交 POST。',
+      AiClientErrorCode.serviceUnavailable =>
+        '学校模型状态暂时无法核实；TapLens 不会重新提交 POST。',
       AiClientErrorCode.guardRejected =>
         '后端报告守卫拒绝了模型结果；模型可能已经运行。重试前请先核对服务端调用记录。',
       AiClientErrorCode.invalidRequest => _schoolAiValidationMessage(error),
-      AiClientErrorCode.network => '设备网络不可用；服务端结果待核实，先不要立即重试。',
+      AiClientErrorCode.network => '设备网络不可用，服务端结果待核实；TapLens 不会重新提交 POST。',
       AiClientErrorCode.unsafePayload => '发现未脱敏内容，已取消学校模型请求。',
       AiClientErrorCode.invalidEvidenceId => '模型引用了不存在的证据，已保留规则报告。',
       AiClientErrorCode.hardRiskDowngraded => '模型试图降低硬风险，已保留规则报告。',
@@ -907,12 +958,46 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
       AiClientErrorCode.reportMappingFailed => '报告通过响应处理后无法转换为页面数据；请复制客户端诊断信息。',
       AiClientErrorCode.pageStateUpdateFailed =>
         '学校模型报告已收到，但页面状态未能更新；请复制客户端诊断信息。',
+      AiClientErrorCode.requestInProgress =>
+        '学校模型分析仍在进行，TapLens 正在只读查询同一分析状态，不会再次提交请求。',
+      AiClientErrorCode.analysisInputConflict =>
+        '这个分析 ID 已绑定到不同输入。保留当前报告；如需重新分析，请新建分析上下文并由你确认。',
+      AiClientErrorCode.outcomeUnknown =>
+        '学校模型结果待核实。TapLens 只查询状态，不会重发请求；请稍后查看。',
+      AiClientErrorCode.resultExpired =>
+        '学校模型缓存结果已清除（用量：${_usageStatusLabel(error.usageStatus)}）。规则报告仍可查看，TapLens 不会重新计费调用。',
+      AiClientErrorCode.serverAnalysisFailed => _schoolAiFailureMessage(error),
       AiClientErrorCode.keyInvalid => '学校模型鉴权失败，请联系管理员检查服务配置。',
       AiClientErrorCode.insufficientBalance => '学校模型额度不足，请联系管理员。',
       AiClientErrorCode.rateLimited => '学校模型请求过于频繁，请稍后再试。',
     };
     return '$base 规则报告仍可查看';
   }
+
+  String _schoolAiFailureMessage(AiClientException error) {
+    final stage = switch (error.serverFailureStage) {
+      'before_provider' => '模型调用前',
+      'after_provider' => '模型调用后',
+      _ => '阶段未知',
+    };
+    final usage = _usageStatusLabel(error.usageStatus);
+    final counts = error.usage == null
+        ? ''
+        : '（Prompt ${error.usage!.promptTokens}，Completion ${error.usage!.completionTokens}，合计 ${error.usage!.totalTokens} Token）';
+    final code = error.backendCode;
+    final safeCode =
+        code != null && RegExp(r'^AI_[A-Z0-9_]{1,64}$').hasMatch(code)
+            ? '，错误码 $code'
+            : '';
+    return '学校模型在$stage失败$safeCode。用量状态：$usage$counts；不会重复提交。';
+  }
+
+  String _usageStatusLabel(String? status) => switch (status) {
+        'known' => '已确认',
+        'unknown' => '未知',
+        'not_applicable' => '未调用模型',
+        _ => '未提供',
+      };
 
   String _schoolAiValidationMessage(AiClientException error) {
     final issues = error.validationIssues;
