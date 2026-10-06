@@ -15,6 +15,8 @@
 | `cloud-evidence.example.json` | B | A、D |
 | `analysis-report.schema.json` | D | A、C；B确认云证据引用 |
 | `analysis-report.example.json` | D | A、C；B确认云证据引用 |
+| `ai-analysis-status.schema.json` | A | B、D；冻结学校模型幂等状态 GET 响应 |
+| `ai-analysis-status.example.json` | A | B、D；Provider 调用后失败且用量已知的终态示例 |
 
 ## 提交要求
 
@@ -55,6 +57,8 @@
 - `*.schema.json`：规定什么数据才合法，是正式接口规则；
 - `*.example.json`：对应Schema的一份最小标准示例；
 - `shared/fixtures/**/*.json`：用于不同案例和异常分支的多份联调数据。
+
+`ai-analysis-status.schema.json` 是 `GET /api/v1/ai/analyses/{analysis_id}/status` 的冻结 JSON 合同。状态统一使用 HTTP 200 JSON；`not_found` 也使用此 Schema，不用不同错误响应格式表示。所有响应必须包含与请求逐字一致的 `analysis_id`。`in_progress` 必须提供 `poll_after_seconds`；`failed` 必须提供稳定失败阶段、AI 错误码及 `usage_status`，已知用量时必须包含脱敏 Token 计数和模型名。客户端遇到缺字段、额外字段或不一致 ID 必须 fail-closed。
 
 实现代码不得把自己目录中的临时JSON当作正式契约。确需新增字段时，先修改本目录中的Schema并完成审核。
 

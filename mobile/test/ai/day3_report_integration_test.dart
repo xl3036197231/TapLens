@@ -29,6 +29,7 @@ void main() {
       .map((item) => (item as Map<String, dynamic>)['id'] as String)
       .toSet();
   final ruleReport = AnalysisReport.fromCloudEvidence(cloud);
+  final testTheme = ThemeData(splashFactory: InkRipple.splashFactory);
 
   test('A cloud rule report matches the formal schema and B C01-C04', () {
     final generated = CloudAiReportInput.buildRuleReport(ruleReport);
@@ -59,6 +60,68 @@ void main() {
     expect(encoded, isNot(contains('password=TEST_ONLY')));
     expect(encoded, contains('C01'));
     expect(encoded, contains('C02'));
+    expect(
+      (safe['report_context'] as Map)['created_at'],
+      cloud['generated_at'],
+    );
+  });
+
+  test('controlled .test fixture is explicitly marked as simulation', () {
+    final simulated = {
+      ...cloud,
+      'limitations': [
+        '模拟云端证据：虚构测试 URL 已映射到 TapLens 仓库内置受控页面；未访问原始域名。',
+      ],
+      'generated_at': '2026-09-27T10:57:59.786849+00:00',
+    };
+    final simulatedReport = AnalysisReport.fromCloudEvidence(simulated);
+    final rule = CloudAiReportInput.buildRuleReport(simulatedReport);
+    final payload = CloudAiReportInput.buildPayload(
+      url: 'https://scholarship.example.test/apply?source=poster',
+      cloudEvidence: simulated,
+      ruleReport: simulatedReport,
+    );
+    final aiLikeReport = Map<String, dynamic>.from(rule)
+      ..['sources'] = {'local': false, 'cloud': true, 'ai': true}
+      ..['token_usage'] = {
+        'request_count': 1,
+        'prompt_tokens': 1,
+        'completion_tokens': 1,
+        'total_tokens': 2,
+        'model': 'cuc/deepseek',
+      };
+    final labeledAiReport = CloudAiReportInput.labelControlledSimulationReport(
+      aiLikeReport,
+      simulated,
+    );
+    final simulatedIds = (simulated['evidence'] as List)
+        .map((item) => (item as Map<String, dynamic>)['id'] as String)
+        .toSet();
+    final guarded = AnalysisReportGuard.validate(
+      jsonEncode(labeledAiReport),
+      availableEvidenceIds: simulatedIds,
+      expectedAnalysisId: simulated['analysis_id'] as String,
+      hardRiskLevel: 'high',
+    );
+
+    expect(simulatedReport.title, contains('受控模拟证据'));
+    expect(simulatedReport.summary, contains('受控模拟证据'));
+    expect(rule['summary'], contains('受控模拟证据'));
+    expect(
+      (payload['analysis_input'] as Map)['claims_text'],
+      contains('不代表原始 .test 域名的真实网页行为'),
+    );
+    expect(
+      (payload['report_context'] as Map)['created_at'],
+      '2026-09-27T10:57:59.786849+00:00',
+    );
+    expect(
+      (payload['hard_risk_findings'] as List).single['message'],
+      contains('不代表原始 .test 域名的真实行为'),
+    );
+    expect(guarded.isValid, isTrue, reason: guarded.error?.message);
+    expect(labeledAiReport['title'], contains('受控模拟证据'));
+    expect(labeledAiReport['summary'], contains('受控模拟证据'));
   });
 
   test(
@@ -205,16 +268,15 @@ void main() {
 
     final wrongAnalysis = Map<String, dynamic>.from(verified)
       ..['analysis_id'] = '55555555-5555-4555-8555-555555555555';
-    final rejected =
-        await AiReportService(
-          MockAiClient(responseJson: jsonEncode(wrongAnalysis)),
-        ).analyzeOrFallback(
-          apiKey: 'TEST_ONLY',
-          sanitizedPayload: const {},
-          availableEvidenceIds: cloudIds,
-          ruleReport: ruleJson,
-          hardRiskLevel: 'high',
-        );
+    final rejected = await AiReportService(
+      MockAiClient(responseJson: jsonEncode(wrongAnalysis)),
+    ).analyzeOrFallback(
+      apiKey: 'TEST_ONLY',
+      sanitizedPayload: const {},
+      availableEvidenceIds: cloudIds,
+      ruleReport: ruleJson,
+      hardRiskLevel: 'high',
+    );
     expect(rejected.usedFallback, isTrue);
     expect(rejected.error?.code, AiClientErrorCode.reportSchemaInvalid);
   });
@@ -259,10 +321,10 @@ void main() {
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          calls.add(call.method);
-          if (call.method == 'readKey') return 'TEST_ONLY';
-          return null;
-        });
+      calls.add(call.method);
+      if (call.method == 'readKey') return 'TEST_ONLY';
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
@@ -273,25 +335,27 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: AnalysisReport.fromJson(verified),
-          aiRunner: (key) async {
-            final result =
-                await AiReportService(
-                  MockAiClient(
-                    responseJson: jsonEncode(verified),
-                    usage: _usage,
-                  ),
-                ).analyzeOrFallback(
-                  apiKey: key,
-                  sanitizedPayload: const {},
-                  availableEvidenceIds: cloudIds,
-                  ruleReport: verified,
-                  hardRiskLevel: 'high',
-                );
+          aiRunner: (key, _) async {
+            final result = await AiReportService(
+              MockAiClient(
+                responseJson: jsonEncode(verified),
+                usage: _usage,
+              ),
+            ).analyzeOrFallback(
+              apiKey: key,
+              sanitizedPayload: const {},
+              availableEvidenceIds: cloudIds,
+              ruleReport: verified,
+              hardRiskLevel: 'high',
+            );
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
+              error: result.error,
+              httpStatus: result.httpStatus,
             );
           },
         ),
@@ -306,19 +370,21 @@ void main() {
     await tester.tap(find.text('确认并分析'));
     await tester.pumpAndSettle();
     expect(find.text('AI 报告已通过证据和风险守卫。'), findsOneWidget);
-    expect(find.textContaining('30 tokens'), findsOneWidget);
+    expect(find.textContaining('Token 用量：30'), findsOneWidget);
     expect(calls, containsAllInOrder(['readKey', 'saveKey']));
   });
 
-  testWidgets('report page keeps the high-risk rule report after bad AI JSON', (
+  testWidgets(
+      'school model is selected by default and runs once without key access', (
     tester,
   ) async {
     const keyChannel = MethodChannel('com.taplens.app/secure_storage');
+    final keyStoreCalls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          if (call.method == 'readKey') return 'TEST_ONLY';
-          return null;
-        });
+      keyStoreCalls.add(call.method);
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
@@ -327,25 +393,109 @@ void main() {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    var schoolCalls = 0;
+    final verifiedAi = <String, dynamic>{
+      ...verified,
+      'sources': {...verified['sources'] as Map<String, dynamic>, 'ai': true},
+      'token_usage': {
+        ...(verified['token_usage'] as Map<String, dynamic>),
+        'request_count': 1,
+        'model': 'deepseek-flash',
+      },
+    };
+    final report = AnalysisReport.fromJson(verifiedAi);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme,
+        home: ReportPage(
+          report: AnalysisReport.fromJson(
+            CloudAiReportInput.buildRuleReport(
+              ruleReport,
+              localEvidence: localEvidence,
+            ),
+          ),
+          aiRunner: (key, model) async => AiReportExecution(
+            report: report,
+            usedFallback: false,
+          ),
+          schoolAiRunner: () async {
+            schoolCalls++;
+            return AiReportExecution(
+              report: report,
+              usedFallback: false,
+              reportJson: verifiedAi,
+            );
+          },
+        ),
+      ),
+    );
+
+    final button = find.text('AI 深度研判（一次调用）');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('使用学校模型'), findsOneWidget);
+    await tester.tap(find.text('确认并分析'));
+    await tester.pumpAndSettle();
+
+    expect(schoolCalls, 1);
+    expect(keyStoreCalls, isEmpty);
+    expect(find.text('学校模型已调用一次'), findsOneWidget);
+    expect(find.textContaining('sources.ai=true'), findsOneWidget);
+    expect(find.textContaining('模型：deepseek-flash'), findsOneWidget);
+    expect(find.text('复制最终报告 JSON'), findsOneWidget);
+  });
+
+  testWidgets('report page keeps the high-risk rule report after bad AI JSON', (
+    tester,
+  ) async {
+    const keyChannel = MethodChannel('com.taplens.app/secure_storage');
+    String? copiedDiagnostic;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(keyChannel, (call) async {
+      if (call.method == 'readKey') return 'TEST_ONLY';
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedDiagnostic = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(keyChannel, null);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null);
+      },
+    );
+
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final fallback = CloudAiReportInput.buildRuleReport(ruleReport);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: AnalysisReport.fromJson(fallback),
-          aiRunner: (key) async {
-            final result =
-                await AiReportService(
-                  const MockAiClient(responseJson: '{invalid'),
-                ).analyzeOrFallback(
-                  apiKey: key,
-                  sanitizedPayload: const {},
-                  availableEvidenceIds: cloudIds,
-                  ruleReport: fallback,
-                  hardRiskLevel: 'high',
-                );
+          aiRunner: (key, _) async {
+            final result = await AiReportService(
+              const MockAiClient(responseJson: '{invalid'),
+            ).analyzeOrFallback(
+              apiKey: key,
+              sanitizedPayload: const {},
+              availableEvidenceIds: cloudIds,
+              ruleReport: fallback,
+              hardRiskLevel: 'high',
+            );
             return AiReportExecution(
               report: AnalysisReport.fromJson(result.report),
               usedFallback: result.usedFallback,
+              error: result.error,
+              httpStatus: result.httpStatus,
             );
           },
         ),
@@ -361,6 +511,61 @@ void main() {
     expect(find.text('AI 未返回可用结论，已保留规则报告。'), findsOneWidget);
     expect(find.text('高风险'), findsOneWidget);
     expect(find.textContaining('敏感'), findsWidgets);
+    expect(find.text('AI 客户端诊断'), findsOneWidget);
+    expect(find.textContaining('local_report_json_parse'), findsOneWidget);
+    expect(find.textContaining('invalidJson'), findsOneWidget);
+    expect(find.textContaining('页面状态更新：completed'), findsOneWidget);
+    final copyButton = find.text('复制脱敏诊断 JSON');
+    expect(copyButton, findsOneWidget);
+    await tester.ensureVisible(copyButton);
+    await tester.tap(copyButton);
+    await tester.pumpAndSettle();
+    expect(copiedDiagnostic, isNotNull);
+    final copiedJson = jsonDecode(copiedDiagnostic!) as Map<String, dynamic>;
+    expect(copiedJson['failure_stage'], 'local_report_json_parse');
+    expect(copiedJson['error_code'], 'invalidJson');
+    expect(copiedJson['page_state_update'], 'completed');
+    expect(copiedDiagnostic, isNot(contains('PRIVATE_')));
+  });
+
+  testWidgets('学校模型回退显示服务端用量待核实，而不是宣称未调用', (
+    tester,
+  ) async {
+    var attempts = 0;
+    final ruleJson = CloudAiReportInput.buildRuleReport(ruleReport);
+    final fallback = AnalysisReport.fromJson(ruleJson);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme,
+        home: ReportPage(
+          report: fallback,
+          schoolAiRunner: () async {
+            attempts++;
+            return AiReportExecution(
+              report: fallback,
+              usedFallback: true,
+              message: '服务端结果待核实。',
+            );
+          },
+        ),
+      ),
+    );
+
+    final button = find.text('AI 深度研判（一次调用）');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认并分析'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 1);
+    expect(find.text('AI 调用已尝试，未取得 AI 报告'), findsOneWidget);
+    expect(
+      find.textContaining('服务端调用状态和实际 Token 用量待核实'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Token 用量：0'), findsNothing);
+    expect(find.text('高风险'), findsOneWidget);
   });
 
   testWidgets('offline demo actions do not read or save an API key', (
@@ -370,9 +575,9 @@ void main() {
     final calls = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(keyChannel, (call) async {
-          calls.add(call.method);
-          return null;
-        });
+      calls.add(call.method);
+      return null;
+    });
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(keyChannel, null),
@@ -397,6 +602,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
+        theme: testTheme,
         home: ReportPage(
           report: base,
           mockSuccessRunner: () async => AiReportExecution(

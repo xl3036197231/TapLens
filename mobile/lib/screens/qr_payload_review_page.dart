@@ -88,7 +88,7 @@ class QrPayloadReviewPage extends StatelessWidget {
             if (inspection.canSubmitToCloud) ...[
               const SizedBox(height: 10),
               Text(
-                '云端分析不会自动开始。只有完成本地预检后，再由你手动点击提交。',
+                '完成本地预检后，你可以选择提交云端；云端分析不会自动开始。',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -96,7 +96,7 @@ class QrPayloadReviewPage extends StatelessWidget {
               const SizedBox(height: 10),
               _LocalOnlyNotice(
                 message: inspection.canInspectLocally
-                    ? '此链接只允许本机静态预检，不会提交云端。'
+                    ? '此链接不支持云端网页分析；TapLens 只会在本机做静态预检。'
                     : '此类内容只在本机显示说明，不会发送到云端，也不会触发对应的系统操作。',
               ),
             ],

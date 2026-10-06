@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     daily_quota_limit: int = Field(default=10, ge=1, le=1000)
     quota_timezone: str = "Asia/Shanghai"
     test_allowed_origins: str = ""
+    llm_enabled: bool = False
+    llm_base_url: str = ""
+    llm_api_key: SecretStr = SecretStr("")
+    llm_model: str = ""
+    llm_protocol: Literal["openai_chat_completions"] = "openai_chat_completions"
+    llm_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
+    llm_proxy_url: str = ""
 
     @model_validator(mode="after")
     def require_production_jwt_secret(self) -> "Settings":
@@ -66,6 +73,32 @@ class Settings(BaseSettings):
             raise ValueError("staging and production forbid test_allowed_origins")
         self.public_base_url = self.public_base_url.rstrip("/")
         self.test_allowed_origins = ",".join(dict.fromkeys(normalized_test_origins))
+        if self.llm_enabled:
+            llm_url = urlsplit(self.llm_base_url)
+            if (
+                llm_url.scheme != "https"
+                or not llm_url.netloc
+                or llm_url.query
+                or llm_url.fragment
+                or not self.llm_api_key.get_secret_value()
+                or not self.llm_model.strip()
+            ):
+                raise ValueError("enabled LLM requires HTTPS base URL, API key and model")
+            self.llm_base_url = self.llm_base_url.rstrip("/")
+            self.llm_model = self.llm_model.strip()
+        if self.llm_proxy_url:
+            proxy_url = urlsplit(self.llm_proxy_url)
+            if (
+                proxy_url.scheme not in {"http", "https"}
+                or not proxy_url.netloc
+                or proxy_url.path not in {"", "/"}
+                or proxy_url.query
+                or proxy_url.fragment
+                or proxy_url.username is not None
+                or proxy_url.password is not None
+            ):
+                raise ValueError("llm_proxy_url must be an HTTP(S) origin without credentials")
+            self.llm_proxy_url = self.llm_proxy_url.rstrip("/")
         return self
 
     @property

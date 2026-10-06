@@ -58,6 +58,18 @@ try:
 
     restored_database = work / "taplens.db"
     with sqlite3.connect(restored_database) as check:
+        check.execute("PRAGMA secure_delete = ON")
+        has_ai_calls = check.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_analysis_calls'"
+        ).fetchone()
+        if has_ai_calls:
+            check.execute(
+                """
+                UPDATE ai_analysis_calls
+                SET response_json = NULL, cache_expires_at = NULL
+                WHERE response_json IS NOT NULL
+                """
+            )
         result = check.execute("PRAGMA quick_check").fetchone()[0]
         if result != "ok":
             raise RuntimeError(f"SQLite quick_check failed: {result}")

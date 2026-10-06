@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-09-30T09:15:41+08:00",
+  "stage": "day7-closeout-day8-admission",
+  "member": "C",
+  "branch": "feat/c-day2-device-validation",
+  "baseline": {
+    "main_commit": "57d8010a1135b7d5cbe9b3fd847e22db569c2f12",
+    "a_commit_contained_by_main": "eb3b959d5f3be936197cf471fcc1863f072b57c9",
+    "main_merge_commit": "a5c91b54e346909b4b8657f9c318b7293a507334",
+    "a_latest_commit": "cb3f7ee",
+    "a_latest_merge_commit": "404a429d19da89f3740158af90091cee4292382f"
+  },
+  "device": {
+    "adb_devices": [],
+    "physical_android_15_verified": false,
+    "reason": "adb devices -l returned no connected device"
+  },
+  "apk": {
+    "build_path": "mobile/build/app/outputs/flutter-apk/app-debug.apk",
+    "delivery_path": "dist/TapLens-day8-admission-debug.apk",
+    "package_name": "com.taplens.app",
+    "version_name": "0.1.0",
+    "version_code": 1,
+    "min_sdk": 24,
+    "target_sdk": 36,
+    "size_bytes": 187476368,
+    "sha256_first_build": "A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7",
+    "sha256_second_build": "A6263E0256910FE9C599BD746D64336FB083C095632C97DCE83618BAE7D595A7",
+    "repeat_build_hash_match": true,
+    "api_base_url": "http://39.107.253.138/api/v1",
+    "initial_target_url": "https://scholarship.example.test/apply"
+  },
+  "manifest": {
+    "permissions": [
+      "android.permission.INTERNET",
+      "android.permission.CAMERA",
+      "android.permission.ACCESS_NETWORK_STATE"
+    ],
+    "cleartext_default": false,
+    "cleartext_allowed_hosts": [
+      "39.107.253.138"
+    ]
+  },
+  "checks": {
+    "flutter_analyze": "passed",
+    "flutter_tests": {
+      "passed": 84,
+      "failed": 0
+    },
+    "fictional_mapping_source_review": "passed",
+    "cloud_task_created": false,
+    "school_model_called": false
+  },
+  "workstation_health_probe": {
+    "checked_at": "2026-09-30T08:32:33+08:00",
+    "url": "http://39.107.253.138/healthz",
+    "curl_exit_code": 7,
+    "http_response_received": false,
+    "interpretation": "The workstation could not connect at this time. This is not a physical-phone result and the earlier healthy state must not be reused as current evidence."
+  },
+  "blocked": [
+    "physical Android 15 model/version and installed APK hash",
+    "physical-camera QR scan",
+    "physical-gallery QR import",
+    "physical-device URL/intent/Wi-Fi/SMS preview",
+    "physical-phone browser healthz",
+    "physical-phone app network path"
+  ],
+  "status": "PARTIAL"
+}

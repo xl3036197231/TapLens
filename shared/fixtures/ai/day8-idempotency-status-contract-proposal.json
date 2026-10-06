@@ -1,0 +1,310 @@
+{
+  "fixture_version": "1.0",
+  "source": "contract-proposal",
+  "endpoint": "GET /api/v1/ai/analyses/{analysis_id}/status",
+  "contains_secrets": false,
+  "normative": false,
+  "examples": [
+    {
+      "name": "in_progress",
+      "http_status": 200,
+      "body": {
+        "schema_version": "1.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000001",
+        "status": "in_progress",
+        "terminal": false,
+        "actions": {
+          "poll_status": true,
+          "repeat_post": false
+        },
+        "updated_at": "2026-09-30T03:00:00Z",
+        "poll_after_seconds": 2,
+        "result": null,
+        "error": null,
+        "usage": {
+          "status": "unknown"
+        },
+        "cache_expires_at": null
+      }
+    },
+    {
+      "name": "succeeded_cached",
+      "http_status": 200,
+      "body": {
+        "schema_version": "1.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000001",
+        "status": "succeeded",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-09-30T03:00:04Z",
+        "result": {
+          "analysis_id": "00000000-0000-4000-8000-000000000001",
+          "report": {
+            "schema_version": "1.0",
+            "analysis_id": "00000000-0000-4000-8000-000000000001",
+            "created_at": "2026-09-30T03:00:00Z",
+            "risk_level": "high",
+            "consistency": "contradictory",
+            "title": "受控模拟证据报告",
+            "target": {
+              "type": "url",
+              "display": "https://status-contract.example.test/demo",
+              "redacted": true
+            },
+            "summary": "这是只用于接口合同测试的受控模拟报告。",
+            "claim": {
+              "summary": "受控合同测试",
+              "subject": "虚构主体",
+              "purpose": "验证缓存状态响应",
+              "requested_data": [],
+              "intended_target": "受控样例"
+            },
+            "observed_behavior": {
+              "summary": "固定 Mock 观察到受控跳转和测试表单。",
+              "subjects": [
+                "虚构主体"
+              ],
+              "purposes": [
+                "接口测试"
+              ],
+              "collected_data": [],
+              "destinations": [
+                "status-contract.example.test"
+              ],
+              "actions": [
+                "mock_redirect"
+              ],
+              "evidence_ids": [
+                "L01",
+                "C01"
+              ]
+            },
+            "differences": [
+              {
+                "id": "D01",
+                "dimension": "target",
+                "severity": "warning",
+                "description": "受控样例声明与固定 Mock 落地页不同。",
+                "evidence_ids": [
+                  "L01",
+                  "C01"
+                ]
+              }
+            ],
+            "recommendations": [
+              "仅将本报告用于离线合同测试。"
+            ],
+            "evidence": [
+              {
+                "id": "L01",
+                "source": "local",
+                "title": "受控本地目标",
+                "detail": "本地固定输入为虚构测试地址。"
+              },
+              {
+                "id": "C01",
+                "source": "cloud",
+                "title": "受控云端跳转",
+                "detail": "Fake Provider 使用固定证据模拟跳转。"
+              }
+            ],
+            "uncertainty": {
+              "status": "known",
+              "summary": "所有内容均为受控模拟证据，不代表真实网站行为。",
+              "reasons": [],
+              "missing_evidence": []
+            },
+            "sources": {
+              "local": true,
+              "cloud": true,
+              "ai": true
+            },
+            "token_usage": {
+              "request_count": 1,
+              "prompt_tokens": 120,
+              "completion_tokens": 80,
+              "total_tokens": 200,
+              "model": "fake/provider"
+            }
+          },
+          "usage": {
+            "request_count": 1,
+            "prompt_tokens": 120,
+            "completion_tokens": 80,
+            "total_tokens": 200,
+            "model": "fake/provider"
+          }
+        },
+        "error": null,
+        "usage": {
+          "status": "known",
+          "prompt_tokens": 120,
+          "completion_tokens": 80,
+          "total_tokens": 200,
+          "model": "fake/provider"
+        },
+        "cache_expires_at": "2026-10-01T03:00:04Z"
+      }
+    },
+    {
+      "name": "outcome_unknown",
+      "http_status": 200,
+      "body": {
+        "schema_version": "1.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000001",
+        "status": "outcome_unknown",
+        "terminal": false,
+        "actions": {
+          "poll_status": true,
+          "repeat_post": false
+        },
+        "updated_at": "2026-09-30T03:01:40Z",
+        "poll_after_seconds": 5,
+        "result": null,
+        "error": {
+          "code": "AI_OUTCOME_UNKNOWN",
+          "message": "模型请求结果待核实",
+          "retryable": false,
+          "details": null
+        },
+        "usage": {
+          "status": "unknown"
+        },
+        "cache_expires_at": null
+      }
+    },
+    {
+      "name": "failed_after_provider_with_known_usage",
+      "http_status": 200,
+      "body": {
+        "schema_version": "1.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000001",
+        "status": "failed",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-09-30T03:00:05Z",
+        "result": null,
+        "error": {
+          "code": "AI_REPORT_REJECTED",
+          "message": "模型报告未通过守卫",
+          "retryable": false,
+          "details": null
+        },
+        "usage": {
+          "status": "known",
+          "prompt_tokens": 120,
+          "completion_tokens": 80,
+          "total_tokens": 200,
+          "model": "fake/provider"
+        },
+        "cache_expires_at": null
+      }
+    },
+    {
+      "name": "result_expired",
+      "http_status": 200,
+      "body": {
+        "schema_version": "1.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000001",
+        "status": "result_expired",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-01T03:00:05Z",
+        "result": null,
+        "error": {
+          "code": "AI_RESULT_EXPIRED",
+          "message": "缓存结果已清除",
+          "retryable": false,
+          "details": null
+        },
+        "usage": {
+          "status": "known",
+          "prompt_tokens": 120,
+          "completion_tokens": 80,
+          "total_tokens": 200,
+          "model": "fake/provider"
+        },
+        "cache_expires_at": null
+      }
+    },
+    {
+      "name": "not_found_or_other_owner",
+      "http_status": 404,
+      "body": {
+        "error": {
+          "code": "AI_ANALYSIS_NOT_FOUND",
+          "message": "未找到分析状态",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "post_in_progress_conflict",
+      "endpoint": "POST /api/v1/ai/analyze",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "AI_REQUEST_IN_PROGRESS",
+          "message": "分析仍在进行，请查询状态",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/ai/analyses/00000000-0000-4000-8000-000000000001/status",
+            "poll_after_seconds": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "post_input_conflict",
+      "endpoint": "POST /api/v1/ai/analyze",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "AI_ANALYSIS_INPUT_CONFLICT",
+          "message": "分析标识已绑定到不同输入",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "post_outcome_unknown",
+      "endpoint": "POST /api/v1/ai/analyze",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "AI_OUTCOME_UNKNOWN",
+          "message": "模型请求结果待核实，请查询状态",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/ai/analyses/00000000-0000-4000-8000-000000000001/status",
+            "poll_after_seconds": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "post_result_expired",
+      "endpoint": "POST /api/v1/ai/analyze",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "AI_RESULT_EXPIRED",
+          "message": "缓存结果已清除，不会重新调用模型",
+          "retryable": false,
+          "details": null
+        }
+      }
+    }
+  ]
+}

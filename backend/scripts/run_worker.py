@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
 from app.sandbox.collector import DeepScanCollector, build_request_authorizer
+from app.sandbox.fictional_fixture import DEFAULT_FIXTURE_BASE_URL
 from app.storage.database import Database
 from app.storage.tasks import TaskRepository
 from app.tasks.executor import TaskExecutor
@@ -17,6 +18,11 @@ async def run(*, once: bool, poll_seconds: float) -> None:
     database = Database(settings.database_path)
     database.initialize()
     repository = TaskRepository(database)
+    fixture_base_url = DEFAULT_FIXTURE_BASE_URL
+    if settings.environment in {"development", "test"} and settings.allowed_test_origins:
+        # Codespaces and local development serve the controlled page directly
+        # on this exact test-only origin instead of through the compose nginx.
+        fixture_base_url = settings.allowed_test_origins[0]
     service = TaskService(
         repository=repository,
         daily_limit=settings.daily_quota_limit,
@@ -30,6 +36,7 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         collector=DeepScanCollector(
             artifact_directory=settings.artifact_directory,
             request_authorizer=build_request_authorizer(settings.allowed_test_origins),
+            fictional_fixture_base_url=fixture_base_url,
         ),
         public_base_url=settings.public_base_url,
     )

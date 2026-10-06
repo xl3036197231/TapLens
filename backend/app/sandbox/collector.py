@@ -1,8 +1,9 @@
 import asyncio
+import posixpath
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import SplitResult, urljoin, urlsplit, urlunsplit
+from urllib.parse import SplitResult, unquote, urljoin, urlsplit, urlunsplit
 
 from playwright.async_api import (
     Download,
@@ -19,6 +20,11 @@ from app.sandbox.url_policy import (
     UnsafeTargetError,
     resolve_and_validate_target,
     validate_target_url,
+)
+from app.sandbox.fictional_fixture import (
+    DEFAULT_FIXTURE_BASE_URL,
+    SIMULATED_FIXTURE_LIMITATION,
+    fixture_for_url,
 )
 
 
@@ -76,14 +82,23 @@ class DeepScanCollector:
         artifact_directory: Path,
         limits: CollectorLimits | None = None,
         request_authorizer: RequestAuthorizer | None = None,
+        fictional_fixture_base_url: str = DEFAULT_FIXTURE_BASE_URL,
     ) -> None:
         self.artifact_directory = artifact_directory
         self.limits = limits or CollectorLimits()
         self.request_authorizer = request_authorizer or authorize_public_http_request
+        self.fictional_fixture_base_url = fictional_fixture_base_url.rstrip("/")
 
     async def collect(self, *, task_id: str, target_url: str) -> CollectorResult:
         self.artifact_directory.mkdir(parents=True, exist_ok=True)
         screenshot_path = self.artifact_directory / f"{task_id}.png"
+        fixture = fixture_for_url(target_url)
+        navigation_url = target_url
+        if fixture is not None:
+            navigation_url = urljoin(
+                f"{self.fictional_fixture_base_url}/",
+                fixture.site_path.lstrip("/"),
+            )
         requests: list[dict[str, object]] = []
         redirects: list[dict[str, object]] = []
         blocked_actions: list[dict[str, object]] = []
@@ -122,12 +137,24 @@ class DeepScanCollector:
                         limitations.append("请求数量达到上限，后续请求已阻止。")
                     await route.abort("blockedbyclient")
                     return
-                try:
-                    await self.request_authorizer(request.url)
-                except UnsafeTargetError as exc:
-                    blocked_actions.append(blocked_action("external_protocol", request.url, exc.message))
-                    await route.abort("blockedbyclient")
-                    return
+                if fixture is not None:
+                    if not _is_fixture_resource(request.url, self.fictional_fixture_base_url):
+                        blocked_actions.append(
+                            blocked_action(
+                                "external_protocol",
+                                request.url,
+                                "虚构样例仅允许读取仓库内置受控页面资源。",
+                            )
+                        )
+                        await route.abort("blockedbyclient")
+                        return
+                else:
+                    try:
+                        await self.request_authorizer(request.url)
+                    except UnsafeTargetError as exc:
+                        blocked_actions.append(blocked_action("external_protocol", request.url, exc.message))
+                        await route.abort("blockedbyclient")
+                        return
                 await route.continue_()
 
             async def close_popup(popup: Page) -> None:
@@ -177,7 +204,7 @@ class DeepScanCollector:
 
             try:
                 await page.goto(
-                    target_url,
+                    navigation_url,
                     wait_until="domcontentloaded",
                     timeout=self.limits.navigation_timeout_ms,
                 )
@@ -190,6 +217,12 @@ class DeepScanCollector:
                 text_summary = await extract_text_summary(page, self.limits.max_text_length)
                 await page.screenshot(path=str(screenshot_path), full_page=True)
                 final_url = sanitize_url(page.url)
+                if fixture is not None:
+                    final_url = _virtualize_fixture_url(
+                        final_url,
+                        virtual_url=target_url,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    )
             except PlaywrightTimeoutError as exc:
                 raise CollectorError("CLOUD_TASK_TIMEOUT", "云端页面加载超时") from exc
             except PlaywrightError as exc:
@@ -199,6 +232,63 @@ class DeepScanCollector:
                     await asyncio.gather(*background_tasks, return_exceptions=True)
                 await context.close()
                 await browser.close()
+
+        if fixture is not None:
+            virtual_origin = origin_from_url(target_url)
+            requests = [
+                {
+                    **request,
+                    "origin": _virtualize_fixture_origin(
+                        str(request["origin"]),
+                        virtual_origin=virtual_origin,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    ),
+                }
+                for request in requests
+            ]
+            redirects = [
+                {
+                    **redirect,
+                    "from_url": _virtualize_fixture_url(
+                        str(redirect["from_url"]),
+                        virtual_url=target_url,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    ),
+                    "to_url": _virtualize_fixture_url(
+                        str(redirect["to_url"]),
+                        virtual_url=target_url,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    ),
+                }
+                for redirect in redirects
+            ]
+            forms = [
+                {
+                    **form,
+                    "action": _virtualize_fixture_url(
+                        str(form["action"]),
+                        virtual_url=target_url,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    )
+                    if form.get("action")
+                    else None,
+                }
+                for form in forms
+            ]
+            blocked_actions = [
+                {
+                    **action,
+                    "target": _virtualize_fixture_url(
+                        str(action["target"]),
+                        virtual_url=target_url,
+                        fixture_base_url=self.fictional_fixture_base_url,
+                    )
+                    if action.get("target")
+                    else action.get("target"),
+                }
+                for action in blocked_actions
+            ]
+            limitations.append(SIMULATED_FIXTURE_LIMITATION)
 
         return CollectorResult(
             final_url=final_url,
@@ -270,6 +360,78 @@ async def extract_forms(page: Page, *, max_forms: int, max_fields: int) -> list[
             }
         )
     return normalized
+
+
+def _is_fixture_resource(url: str, fixture_base_url: str) -> bool:
+    parsed = urlsplit(url)
+    base = urlsplit(fixture_base_url)
+    try:
+        parsed_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        base_port = base.port or (443 if base.scheme == "https" else 80)
+    except ValueError:
+        return False
+
+    base_path = base.path.rstrip("/")
+    decoded_path = unquote(parsed.path)
+    if (
+        parsed.scheme.casefold() != base.scheme.casefold()
+        or parsed.hostname is None
+        or base.hostname is None
+        or parsed.hostname.casefold() != base.hostname.casefold()
+        or parsed_port != base_port
+        or parsed.username is not None
+        or parsed.password is not None
+        or "\\" in decoded_path
+        or any(part in {".", ".."} for part in decoded_path.split("/"))
+    ):
+        return False
+
+    normalized = posixpath.normpath(decoded_path)
+    return normalized.startswith(f"{base_path}/")
+
+
+def _virtualize_fixture_url(
+    url: str,
+    *,
+    virtual_url: str,
+    fixture_base_url: str,
+) -> str:
+    current = urlsplit(url)
+    base = urlsplit(fixture_base_url)
+    virtual = urlsplit(virtual_url)
+    if (
+        current.hostname is None
+        or base.hostname is None
+        or current.hostname.casefold() != base.hostname.casefold()
+    ):
+        return sanitize_url(url)
+
+    base_path = base.path.rstrip("/")
+    current_path = current.path
+    if base_path and current_path.startswith(f"{base_path}/"):
+        virtual_path = current_path[len(base_path) :]
+    else:
+        virtual_path = current_path or "/"
+    return sanitize_url(
+        urlunsplit((virtual.scheme, virtual.netloc, virtual_path, "", ""))
+    )
+
+
+def _virtualize_fixture_origin(
+    origin: str,
+    *,
+    virtual_origin: str,
+    fixture_base_url: str,
+) -> str:
+    parsed = urlsplit(origin)
+    base = urlsplit(fixture_base_url)
+    if (
+        parsed.hostname is not None
+        and base.hostname is not None
+        and parsed.hostname.casefold() == base.hostname.casefold()
+    ):
+        return virtual_origin
+    return origin
 
 
 async def extract_text_summary(page: Page, max_length: int) -> str:

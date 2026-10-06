@@ -58,8 +58,73 @@ class Database:
 
                 CREATE INDEX IF NOT EXISTS idx_cloud_scan_tasks_expiry
                     ON cloud_scan_tasks(expires_at);
+
+                CREATE TABLE IF NOT EXISTS ai_analysis_calls (
+                    user_id TEXT NOT NULL,
+                    analysis_id TEXT NOT NULL,
+                    report_created_at TEXT NOT NULL,
+                    input_digest TEXT NOT NULL,
+                    digest_key_version INTEGER NOT NULL CHECK (digest_key_version >= 1),
+                    state TEXT NOT NULL CHECK (
+                        state IN (
+                            'in_progress',
+                            'succeeded',
+                            'failed_before_provider',
+                            'failed_after_provider',
+                            'outcome_unknown'
+                        )
+                    ),
+                    usage_status TEXT NOT NULL CHECK (
+                        usage_status IN ('known', 'unknown', 'not_applicable')
+                    ),
+                    attempt_id TEXT NOT NULL,
+                    lease_expires_at TEXT,
+                    provider_dispatch_started_at TEXT,
+                    response_json TEXT,
+                    error_code TEXT,
+                    retryable INTEGER NOT NULL DEFAULT 0 CHECK (retryable IN (0, 1)),
+                    prompt_tokens INTEGER CHECK (prompt_tokens IS NULL OR prompt_tokens >= 0),
+                    completion_tokens INTEGER CHECK (
+                        completion_tokens IS NULL OR completion_tokens >= 0
+                    ),
+                    total_tokens INTEGER CHECK (total_tokens IS NULL OR total_tokens >= 0),
+                    model TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    cache_expires_at TEXT,
+                    record_expires_at TEXT NOT NULL,
+                    compacted_at TEXT,
+                    PRIMARY KEY (user_id, analysis_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ai_analysis_calls_record_expiry
+                    ON ai_analysis_calls(record_expires_at);
+
+                CREATE INDEX IF NOT EXISTS idx_ai_analysis_calls_cache_expiry
+                    ON ai_analysis_calls(cache_expires_at);
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(ai_analysis_calls)").fetchall()
+            }
+            if "report_created_at" not in columns:
+                connection.execute(
+                    "ALTER TABLE ai_analysis_calls ADD COLUMN report_created_at TEXT"
+                )
+                connection.execute(
+                    "UPDATE ai_analysis_calls SET report_created_at = created_at"
+                )
+            if "digest_key_version" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE ai_analysis_calls
+                    ADD COLUMN digest_key_version INTEGER NOT NULL DEFAULT 1
+                    """
+                )
+            if "compacted_at" not in columns:
+                connection.execute("ALTER TABLE ai_analysis_calls ADD COLUMN compacted_at TEXT")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

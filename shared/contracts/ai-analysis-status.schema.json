@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taplens.example/schemas/ai-analysis-status.schema.json",
+  "title": "TapLens school AI analysis status response",
+  "description": "冻结的学校模型幂等状态查询响应。只返回状态、已守卫结果或脱敏失败分类和用量状态。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["analysis_id", "status"],
+  "properties": {
+    "analysis_id": {"type": "string", "format": "uuid"},
+    "status": {
+      "type": "string",
+      "enum": ["in_progress", "succeeded", "failed", "outcome_unknown", "result_expired", "not_found"]
+    },
+    "poll_after_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "服务端建议的下一次状态 GET 间隔；仅 in_progress 必须提供。"
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["report", "model", "usage"],
+      "properties": {
+        "report": {"$ref": "https://taplens.example/schemas/analysis-report.schema.json"},
+        "model": {"type": "string", "minLength": 1, "maxLength": 128},
+        "usage": {"$ref": "#/$defs/usage"}
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "code", "retryable"],
+      "properties": {
+        "stage": {"type": "string", "enum": ["before_provider", "after_provider"]},
+        "code": {"type": "string", "pattern": "^AI_[A-Z0-9_]{1,64}$"},
+        "retryable": {"const": false}
+      }
+    },
+    "usage_status": {"type": "string", "enum": ["known", "unknown", "not_applicable"]},
+    "usage": {"$ref": "#/$defs/usage"}
+  },
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "prompt_tokens", "completion_tokens", "total_tokens"],
+      "properties": {
+        "model": {"type": "string", "minLength": 1, "maxLength": 128},
+        "prompt_tokens": {"type": "integer", "minimum": 0},
+        "completion_tokens": {"type": "integer", "minimum": 0},
+        "total_tokens": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "in_progress"}}, "required": ["status"]},
+      "then": {"required": ["poll_after_seconds"], "not": {"anyOf": [{"required": ["result"]}, {"required": ["failure"]}, {"required": ["usage_status"]}, {"required": ["usage"]}]}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "succeeded"}}, "required": ["status"]},
+      "then": {"required": ["result"], "not": {"anyOf": [{"required": ["poll_after_seconds"]}, {"required": ["failure"]}, {"required": ["usage_status"]}, {"required": ["usage"]}]}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "failed"}}, "required": ["status"]},
+      "then": {
+        "required": ["failure", "usage_status"],
+        "not": {"anyOf": [{"required": ["poll_after_seconds"]}, {"required": ["result"]}]},
+        "allOf": [
+          {"if": {"properties": {"usage_status": {"const": "known"}}, "required": ["usage_status"]}, "then": {"required": ["usage"]}, "else": {"not": {"required": ["usage"]}}},
+          {"if": {"properties": {"failure": {"properties": {"stage": {"const": "before_provider"}}, "required": ["stage"]}}, "required": ["failure"]}, "then": {"properties": {"usage_status": {"const": "not_applicable"}}}},
+          {"if": {"properties": {"failure": {"properties": {"stage": {"const": "after_provider"}}, "required": ["stage"]}}, "required": ["failure"]}, "then": {"properties": {"usage_status": {"enum": ["known", "unknown"]}}}}
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "outcome_unknown"}}, "required": ["status"]},
+      "then": {"required": ["usage_status"], "properties": {"usage_status": {"const": "unknown"}}, "not": {"anyOf": [{"required": ["poll_after_seconds"]}, {"required": ["result"]}, {"required": ["failure"]}, {"required": ["usage"]}]}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "result_expired"}}, "required": ["status"]},
+      "then": {"required": ["usage_status"], "not": {"anyOf": [{"required": ["poll_after_seconds"]}, {"required": ["result"]}, {"required": ["failure"]}, {"required": ["usage"]}]}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "not_found"}}, "required": ["status"]},
+      "then": {"not": {"anyOf": [{"required": ["poll_after_seconds"]}, {"required": ["result"]}, {"required": ["failure"]}, {"required": ["usage_status"]}, {"required": ["usage"]}]}}
+    }
+  ]
+}

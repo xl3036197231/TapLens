@@ -232,3 +232,36 @@ APP必须把`task_id`和`analysis_id`保存在本地任务记录中。断网、A
 - 轮询间隔2秒，前台建议最长等待20秒；
 - 证据和截图默认保留30分钟；
 - 删除接口对已删除、不存在或不属于当前用户的任务统一返回`204`，不泄漏所有权。
+
+## 12. 学校模型幂等状态查询
+
+### `GET /api/v1/ai/analyses/{analysis_id}/status`
+
+需要登录。只按 JWT 中的当前用户查询该分析的持久化调用记录；GET 只读，不创建 attempt、不占用 Provider 并发槽、不调用模型，也不返回输入摘要、URL、请求正文、Key 或其他用户是否拥有该 ID。
+
+成功状态响应统一为 HTTP 200 JSON，并必须通过 [`ai-analysis-status.schema.json`](../contracts/ai-analysis-status.schema.json)。即使当前用户没有该分析记录，也返回 `status=not_found`，不通过不同 HTTP 错误结构泄露跨用户记录是否存在。`analysis_id` 必须原样等于路径中的 ID。
+
+客户端对旧 Mock/旧服务返回的 HTTP 404 也只按 `not_found` 处理，并保留本地防重放记录；正式服务仍必须返回上表中的 HTTP 200 Schema。
+
+| `status` | 必需字段 | 客户端行为 |
+|---|---|---|
+| `in_progress` | `poll_after_seconds`（1–10 秒） | 按响应值等待，再只发同一分析 ID 的 GET。 |
+| `succeeded` | `result.report`、`result.model`、`result.usage` | 展示已通过后端守卫的缓存报告。 |
+| `failed` | `failure.stage`、稳定 `failure.code`、`failure.retryable=false`、`usage_status` | 展示调用前/调用后失败类别及用量状态；不得重复 POST。`usage_status=known` 时必须附上模型和 Token 计数。 |
+| `outcome_unknown` | `usage_status=unknown` | 显示结果待核实；仅可继续 GET，不得重发 POST。 |
+| `result_expired` | `usage_status` | 显示缓存已清除；不得重发 POST。 |
+| `not_found` | 无其他状态字段 | 结果未找到仍按不确定结果处理，不能据此重发 POST。 |
+
+`failed` 的 `failure.stage` 只能是 `before_provider` 或 `after_provider`。前者的 `usage_status` 必须是 `not_applicable`；后者只能是 `known` 或 `unknown`。`usage_status=known` 必须有 `usage`，其他用量状态不得带用量对象。状态对象不返回 Provider 原始错误、原始响应、输入或密钥。
+
+进行中响应示例：
+
+```json
+{
+  "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "status": "in_progress",
+  "poll_after_seconds": 3
+}
+```
+
+用量已知的终态失败示例见 [`../contracts/ai-analysis-status.example.json`](../contracts/ai-analysis-status.example.json)。

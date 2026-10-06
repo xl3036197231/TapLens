@@ -138,6 +138,48 @@ def test_dns_validation_failure_does_not_consume_quota(tmp_path, monkeypatch) ->
     assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 0
 
 
+def test_exact_fictional_fixture_skips_dns_and_creates_task(tmp_path, monkeypatch) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=1)
+
+    def reject_dns(*_, **__):
+        raise AssertionError("known fictional fixtures must map before DNS lookup")
+
+    monkeypatch.setattr("app.tasks.service.resolve_and_validate_target", reject_dns)
+    task = service.create(
+        user_id=user_id,
+        analysis_id=uuid4(),
+        target_url="https://scholarship.example.test/apply?source=poster",
+        now=NOW,
+    )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert task.status == TaskStatus.QUEUED
+    assert task.target_url == "https://scholarship.example.test/apply?source=poster"
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_unknown_fictional_host_still_requires_dns_before_quota(tmp_path, monkeypatch) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=1)
+
+    def reject_dns(_, **__):
+        from app.sandbox.url_policy import UnsafeTargetError
+
+        raise UnsafeTargetError("CLOUD_PRIVATE_ADDRESS_BLOCKED", "DNS解析失败")
+
+    monkeypatch.setattr("app.tasks.service.resolve_and_validate_target", reject_dns)
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=uuid4(),
+            target_url="https://not-listed.example.test/apply",
+            now=NOW,
+        )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert captured.value.code == "CLOUD_PRIVATE_ADDRESS_BLOCKED"
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 0
+
+
 def test_invalid_transition_is_rejected(tmp_path) -> None:
     service, _, user_id = build_service(tmp_path)
     task = service.create(

@@ -60,6 +60,18 @@ void main() {
     expect(result.isValid, isTrue);
   });
 
+  test('accepts redacted=false when the target has no sensitive parameters', () {
+    final report = _report();
+    (report['target'] as Map<String, dynamic>)['redacted'] = false;
+
+    final result = AnalysisReportGuard.validate(
+      jsonEncode(report),
+      availableEvidenceIds: {'C01'},
+    );
+
+    expect(result.isValid, isTrue);
+  });
+
   test('rejects an evidence id that is not in the merged evidence set', () {
     final result = AnalysisReportGuard.validate(
       jsonEncode(_report(evidenceId: 'C99')),
@@ -96,7 +108,7 @@ void main() {
       AiClientErrorCode.reportSchemaInvalid,
     );
     report.remove('uncontracted');
-    (report['target'] as Map<String, dynamic>)['redacted'] = false;
+    (report['target'] as Map<String, dynamic>)['display'] = '';
     expect(
       AnalysisReportGuard.validate(jsonEncode(report),
           availableEvidenceIds: {'C01'}).error?.code,

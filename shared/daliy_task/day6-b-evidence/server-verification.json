@@ -1,0 +1,119 @@
+{
+  "checked_at": "2026-09-28T14:50:00+08:00",
+  "day6_task_revision": "2e198a7",
+  "environment": "aliyun-ecs-staging",
+  "public_base_url": "http://39.107.253.138",
+  "scope": {
+    "new_cloud_tasks_created_by_b": 0,
+    "school_model_provider_calls": 0,
+    "secrets_recorded": false
+  },
+  "health": {
+    "api": "healthy",
+    "worker": "healthy",
+    "nginx": "healthy",
+    "worker_count": 1,
+    "sqlite_quick_check": "ok",
+    "public_tcp_80": "reachable",
+    "public_health_status": 200,
+    "public_health_body": {
+      "status": "ready",
+      "service": "taplens-backend",
+      "checks": {
+        "database": "ok",
+        "artifacts": "ok"
+      }
+    }
+  },
+  "formal_task": {
+    "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+    "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+    "database_found": true,
+    "database_status": "expired",
+    "target_url_present": false,
+    "evidence_present": false,
+    "created_at": "2026-09-27T10:57:59.017073+00:00",
+    "completed_at": "2026-09-27T10:57:59.786849+00:00",
+    "expires_at": "2026-09-27T11:27:59.786849+00:00",
+    "duration_ms": 707,
+    "readonly_get_status": 410,
+    "readonly_get_error_code": "CLOUD_TASK_EXPIRED",
+    "retryable": false
+  },
+  "renewed_task_observed": {
+    "checked_at": "2026-09-28T21:26:00+08:00",
+    "created_by_b": false,
+    "task_id": "2dfe9761-322c-4e71-9863-5b33aad64cd1",
+    "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+    "status": "succeeded",
+    "created_at": "2026-09-28T13:26:00.532408+00:00",
+    "completed_at": "2026-09-28T13:26:01.644064+00:00",
+    "expires_at": "2026-09-28T13:56:01.644064+00:00",
+    "duration_ms": 718,
+    "evidence_ids": ["C01", "C02", "C03", "C04"],
+    "screenshot_size": 436619,
+    "screenshot_sha256": "8b111619bb7864bd285d48aad60819a1fa1c9bbe7cb9fce6640b557a8146e719",
+    "snapshot_directory": "shared/daliy_task/day6-b-evidence/day6-renewed-task",
+    "boundary": "This is a newly created task with the same analysis_id. It is not a recovery or readonly query of the expired formal task."
+  },
+  "connectivity": {
+    "host_listen": [
+      "0.0.0.0:80",
+      "[::]:80"
+    ],
+    "docker_mapping": "0.0.0.0:80 -> nginx:8080",
+    "ufw": "inactive",
+    "nftables_tcp_80": "accepted-by-docker-chain",
+    "observed_app_request": {
+      "source": "nginx-access-log",
+      "timestamp": "2026-09-27T13:29:54Z",
+      "method": "POST",
+      "path": "/api/v1/ai/analyze",
+      "status": 422,
+      "user_agent": "Dart/3.13 (dart:io)"
+    },
+    "server_side_conclusion": "The ECS entry point is reachable. The later emulator refusal occurred before a request reached Nginx and must be reproduced on the Android side.",
+    "emulator_test_url": "http://39.107.253.138/healthz",
+    "android_branch_observation": "A's debug manifest has INTERNET permission but no explicit debug-only cleartextTrafficPermitted or network security configuration. A/C must verify the merged manifest and emulator network path."
+  },
+  "complete_model_report_recovery": {
+    "recoverable": false,
+    "result": "unrecoverable",
+    "checked_locations": [
+      "API and Worker container logs",
+      "ECS /opt/taplens excluding deploy/.env",
+      "ECS /tmp",
+      "taplens_taplens-data volume",
+      "SQLite schema and rows",
+      "ECS backup manifests"
+    ],
+    "sqlite_tables": [
+      "cloud_scan_tasks",
+      "daily_quota_usage",
+      "users"
+    ],
+    "reason": "The successful smoke process kept the provider report only in memory and printed a reduced summary. No AI report persistence table, response archive, or full report log exists. Existing matching files are the sanitized request, Mock report, fixed cloud evidence, tests, and summary evidence only."
+  },
+  "error_contract": {
+    "observed_401": {
+      "code": "AUTH_TOKEN_MISSING",
+      "provider_invoked": false
+    },
+    "observed_422": {
+      "code": "AI_REQUEST_INVALID",
+      "field_path": "body.deepseek_key",
+      "field_type": "extra_forbidden",
+      "provider_invoked": false
+    },
+    "fixture": "shared/fixtures/ai/day6-backend-error-responses.json"
+  },
+  "secret_check": {
+    "env_mode": "0600",
+    "env_owner": "root:root",
+    "llm_enabled": true,
+    "llm_key_present": true,
+    "llm_base_url": "https://openai.cuc.edu.cn/v1",
+    "llm_model": "cuc/deepseek",
+    "recent_log_secret_marker_matches": 0
+  }
+}

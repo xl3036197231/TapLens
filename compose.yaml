@@ -31,6 +31,9 @@ x-backend: &backend
 services:
   api:
     <<: *backend
+    networks:
+      - backend
+      - vpn-egress
     command:
       - uvicorn
       - app.main:app
@@ -97,6 +100,9 @@ services:
 networks:
   backend:
     internal: false
+  vpn-egress:
+    external: true
+    name: taplens_vpn_egress
 
 volumes:
   taplens-data:
