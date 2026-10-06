@@ -1,0 +1,692 @@
+{
+  "schema_version": "1.0",
+  "title": "TapLens D 成员 30 例验收矩阵",
+  "baseline_commit": "0cf68192d0a23db7fdf8b039d24a203ca869c3af",
+  "scope_note": "测试定义与预期，不代表已在最终 APK/真机执行或达到 README 指标。每次执行应另存实测结果和证据。",
+  "cases": [
+    {
+      "case_id": "D30-01",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR01"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "http_url",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-02",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR02"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "intent_deep_link",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-03",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR03"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "wifi",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-04",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR04"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "sms",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-05",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR05"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "phone",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-06",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR06"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "email",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-07",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR07"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "vcard",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-08",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR08"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "apk_download",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-09",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR09"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "app_store",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-10",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR10"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "plain_text",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-11",
+      "area": "qr_safe_preview",
+      "source": {
+        "path": "shared/datasets/qr/manifest.json",
+        "fixture_id": "QR11"
+      },
+      "run_level": "device",
+      "procedure": "用对应 PNG 从相册导入并在安全预览页核对分类；危险载荷只预览，不执行系统动作。",
+      "expected": {
+        "payload_type": "invalid_content",
+        "cloud_allowed": false,
+        "action_boundary": "只展示安全预览；不得执行载荷所描述的外部动作"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "预览截图",
+        "解析/本地证据 JSON",
+        "外部动作未执行记录"
+      ]
+    },
+    {
+      "case_id": "D30-12",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-001"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "skip_non_http"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-13",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-002"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY",
+          "LOCAL_PACKAGE_UNVERIFIED"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "skip_non_http"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-14",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-003"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY",
+          "LOCAL_PACKAGE_MISMATCH"
+        ],
+        "risk_label": "high",
+        "cloud_observation": "skip_non_http"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-15",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-004"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02",
+          "L03"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY",
+          "LOCAL_FALLBACK_PRESENT"
+        ],
+        "risk_label": "medium",
+        "cloud_observation": "skip_unmapped_fallback"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-16",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-005"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02",
+          "L03"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY",
+          "LOCAL_SENSITIVE_PARAMETER"
+        ],
+        "risk_label": "medium",
+        "cloud_observation": "skip_non_http"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-17",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-006"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "failed",
+        "local_ids": [],
+        "risk_hints": [
+          "LOCAL_PARSE_FAILED"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "skip_invalid_input"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-18",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/constructed-fixtures/deep-link-fixtures.json",
+        "fixture_id": "FIX-DL-007"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "controlled_site_mapping_required"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-19",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/evaluation/deep-link-evaluation.json",
+        "fixture_id": "EVAL-DL-001"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "skip_non_http"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-20",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/evaluation/deep-link-evaluation.json",
+        "fixture_id": "EVAL-DL-002"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "succeeded",
+        "local_ids": [
+          "L01",
+          "L02",
+          "L03"
+        ],
+        "risk_hints": [
+          "LOCAL_STATIC_ONLY",
+          "LOCAL_FALLBACK_PRESENT",
+          "LOCAL_PACKAGE_MISMATCH"
+        ],
+        "risk_label": "high",
+        "cloud_observation": "skip_unmapped_fallback"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-21",
+      "area": "deep_link_static",
+      "source": {
+        "path": "shared/datasets/evaluation/deep-link-evaluation.json",
+        "fixture_id": "EVAL-DL-003"
+      },
+      "run_level": "device",
+      "procedure": "把本条 input 交给 analyzeLocalEvidence；只做静态解析，不唤起应用或访问 fallback。",
+      "expected": {
+        "parse_status": "failed",
+        "local_ids": [],
+        "risk_hints": [
+          "LOCAL_PARSE_FAILED"
+        ],
+        "risk_label": "insufficient_evidence",
+        "cloud_observation": "skip_invalid_input"
+      },
+      "capture": [
+        "同版 APK SHA-256",
+        "本地证据 JSON",
+        "风险标签截图",
+        "无外部唤起记录"
+      ]
+    },
+    {
+      "case_id": "D30-22",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/ai_report_service_test.dart",
+        "check": "uses API usage instead of model-provided token values"
+      },
+      "run_level": "automated",
+      "input": "valid_usage",
+      "procedure": "以固定成功响应运行 AiReportService；比较 API usage 与模型正文自报 usage。",
+      "expected": {
+        "behavior": "接受同 analysis_id、有效证据引用的报告，Token 用量取 API 响应。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-23",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/analysis_report_guard_test.dart",
+        "check": "rejects an evidence id that is not in the merged evidence set"
+      },
+      "run_level": "automated",
+      "input": "unknown_evidence",
+      "procedure": "向报告守卫提交引用未知 Lxx/Cxx 的报告。",
+      "expected": {
+        "behavior": "拒绝 AI 结论并保留规则报告。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-24",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/analysis_report_guard_test.dart",
+        "check": "rejects an AI downgrade of a hard high risk"
+      },
+      "run_level": "automated",
+      "input": "hard_risk",
+      "procedure": "规则已判 high，模拟 AI 输出更低风险。",
+      "expected": {
+        "behavior": "拒绝降级，保持规则 high。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-25",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/ai_report_service_test.dart",
+        "check": "invalid JSON falls back to the original rule report"
+      },
+      "run_level": "automated",
+      "input": "invalid_json",
+      "procedure": "模拟模型返回非法报告 JSON。",
+      "expected": {
+        "behavior": "保留原规则报告，记录解析失败，不自动重新调用模型。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-26",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/deepseek_ai_client_test.dart",
+        "check": "rejects unmarked targets before opening a connection"
+      },
+      "run_level": "automated",
+      "input": "unsafe_payload",
+      "procedure": "向客户端提交未标记 redacted 的目标。",
+      "expected": {
+        "behavior": "在建立网络连接前拒绝请求。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-27",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/deepseek_ai_client_test.dart",
+      "check": "(401, AiClientErrorCode.keyInvalid)"
+      },
+      "run_level": "automated",
+      "input": "key_invalid",
+      "procedure": "假 HTTP Provider 返回 401。",
+      "expected": {
+        "behavior": "识别 Key 无效并显示规则回退；请求不自动重试。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-28",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/deepseek_ai_client_test.dart",
+        "check": "maps slow provider to timeout"
+      },
+      "run_level": "automated",
+      "input": "timeout",
+      "procedure": "假 Provider 故意超过客户端超时。",
+      "expected": {
+        "behavior": "识别超时并保留规则报告；不得把用量未知写成实测零 Token。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-29",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/test/ai/school_ai_call_coordinator_test.dart",
+        "check": "first POST is persisted before dispatch, then GET polls to success"
+      },
+      "run_level": "automated",
+      "input": "one_post",
+      "procedure": "Mock HTTP 记录请求方法；首次 POST 后由状态 GET 轮询。",
+      "expected": {
+        "behavior": "同一用户、同一 analysis_id 只有一次 POST；后续只 GET。"
+      },
+      "capture": [
+        "测试命令与完整输出",
+        "HTTP 方法与次数（适用时）",
+        "回退报告/错误码"
+      ]
+    },
+    {
+      "case_id": "D30-30",
+      "area": "ai_and_report",
+      "source": {
+        "path": "mobile/android/app/src/main/kotlin/com/taplens/app/SecureKeyStore.kt",
+        "check": null
+      },
+      "run_level": "device",
+      "input": "native_durability",
+      "procedure": "在实体 Android 设备上模拟保存失败及首次请求前后异常退出，再重启同一分析。",
+      "expected": {
+        "behavior": "保存失败不得发 POST；重启后有记录只 GET。当前 apply() 实现未满足此前置门禁。"
+      },
+      "capture": [
+        "设备型号/Android 版本",
+        "写入失败日志（脱敏）",
+        "HTTP 方法与次数",
+        "重启后的状态记录"
+      ]
+    }
+  ]
+}
