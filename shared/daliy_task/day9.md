@@ -1,6 +1,8 @@
 # TapLens 第九天工作计划
 
-> 本计划按当前提供的门禁状态编写。README 对第九天的概括是候选 APK、公网部署和故障演练；本计划进一步按 A、B、C、D 的交接条件执行。当前首要阻塞项是 D 尚未对 A 的固定提交 `a6fbae0` 给出正式结论。
+> 本计划按当前提供的门禁状态编写，按 A、B、C、D 分角色推进。当前 A 分支基线为 `feat/a-mobile-function@a6fbae0`，首要阻塞项是 D 尚未对该固定提交给出正式结论。仓库现有日计划目录为 `shared/daliy_task/`。
+
+> **基线核对：**任务说明把 `e0f3d09` 标为 main 上的 UI 变更检查点；本次查询远端 refs 时，`main` 已前进到 `0cf68192d0a23db7fdf8b039d24a203ca869c3af`。A、B、C 在后续回归、同步和构建前必须读取并固定当时真实的远端 `main` SHA，同时覆盖 `e0f3d09` 及其后的 UI 变更；不得把 `e0f3d09` 默认当作当前 HEAD。
 
 ## 目标
 
@@ -33,7 +35,7 @@ D 最终材料审计与版本冻结
 - 向 D 提供 `a6fbae0` 对应的 Flutter 测试结果、冻结 Schema、APK SHA-256 和 Mock HTTP 证据。
 - 整理 Mock 调用日志与实际调用次数，证明四类 409 均没有触发第二次 POST。
 - 修正文档行尾空格及 `git diff --check` 记录不一致；记录必须与实际检查结果一致。
-- 检查 `main=e0f3d09` 的 UI 变更是否影响 AI 页面入口、二维码流程和四种状态提示。
+- 检查 `e0f3d09` 的 UI 变更及其后续 main 变更是否影响 AI 页面入口、二维码流程和四种状态提示；记录回归时固定的真实 main SHA。
 - 不扩展 AI 合同、不调用真实模型；`a6fbae0` 生成的 APK 只作为复审证据，不能作为最终候选 APK。
 
 ### D 对 A 给出 NEEDS_CHANGES 时
@@ -56,13 +58,13 @@ D 最终材料审计与版本冻结
 
 ### D 对 A PASS 后：正式集成
 
-- 从远端 `main=e0f3d09` 同步最新基线。
+- 从远端 `main` 同步最新基线，记录真实 SHA；重点纳入 `e0f3d09` 及其后续 UI 变更。
 - 将 `AiCallRepository` 接入正式 `POST /api/v1/ai/analyze`。
 - 实现只读 `GET /api/v1/ai/analyses/{analysis_id}/status`。
 - 严格实现 A 冻结的 Schema；不得未经 D 复审而改变合同。
 - 将 `AiCallCleanupWorker` 接入 FastAPI lifespan。
 - 完成 Fake Provider 覆盖：并发、迟到成功/失败、缓存过期、HMAC、备份恢复。
-- 提交 `day8-b-progress.md`，交 D 复审。
+- 提交 `shared/daliy_task/day8-b-progress.md`，交 D 复审。
 
 ### D 对 B 给出 PASS 后：受控部署
 
@@ -86,7 +88,7 @@ D 最终材料审计与版本冻结
 - 验证相机扫码、相册导入、危险载荷只预览；不得实际唤起危险动作。
 - 验证手机浏览器 `/healthz`、APP 健康接口和状态 GET。
 - GET 验证使用受控测试数据；不创建真实云任务、不调用模型。
-- 提交 `day8-c-device-validation.md`，记录提交 SHA、构建环境、两次构建哈希、设备信息、安装包哈希和验证结果。
+- 提交 `shared/daliy_task/day8-c-device-validation.md`，记录提交 SHA、构建环境、两次构建哈希、设备信息、安装包哈希和验证结果。
 
 ## D｜合同复审与最终冻结
 
@@ -100,13 +102,13 @@ D 最终材料审计与版本冻结
 - 核对 `.test` 明确标记“受控模拟证据”。
 - 检查 Mock HTTP 实际调用次数，不以页面文字代替。
 - 独立复跑 Flutter 测试和 JSON Schema 校验。
-- 更新 `day8-d-client-contract-review.md`，固定 `a6fbae0`，明确写出 `PASS` 或 `NEEDS_CHANGES`。
+- 更新 `shared/daliy_task/day8-d-client-contract-review.md`，固定 `a6fbae0`，明确写出 `PASS` 或 `NEEDS_CHANGES`。
 - 若 PASS，立即通知 B 开始正式集成。
 
 ### 后续复审与冻结
 
-- B 提交正式集成及 `day8-b-progress.md` 后复审；只有 PASS 才允许部署。
-- C 提交 `day8-c-device-validation.md` 后审计所有材料、提交 SHA 与哈希记录。
+- B 提交正式集成及 `shared/daliy_task/day8-b-progress.md` 后复审；只有 PASS 才允许部署。
+- C 提交 `shared/daliy_task/day8-c-device-validation.md` 后审计所有材料、提交 SHA 与哈希记录。
 - 审计通过后冻结版本。真实模型终验另行等待用户授权。
 
 ## 第九天完成标准

@@ -1,0 +1,45 @@
+{
+  "evidence_type": "mock_http_request_count",
+  "branch": "feat/a-mobile-function",
+  "fixed_main_sha": "0cf68192d0a23db7fdf8b039d24a203ca869c3af",
+  "ui_checkpoint_included": "e0f3d09",
+  "fix_commit": "bce023bb4cc7c2970d5165cbe4a7a9cc24a0a6ac",
+  "test_file": "mobile/test/ai/school_ai_call_coordinator_test.dart",
+  "test_name": "each 409 code is dispatched at most once across a replay",
+  "http_transport": "Dart MockClient; no network connection",
+  "invocations_per_case": 2,
+  "cases": [
+    {
+      "error_code": "AI_REQUEST_IN_PROGRESS",
+      "methods_across_both_invocations": ["POST", "GET", "GET"],
+      "post_count": 1,
+      "result": "pass"
+    },
+    {
+      "error_code": "AI_OUTCOME_UNKNOWN",
+      "methods_across_both_invocations": ["POST", "GET", "GET"],
+      "post_count": 1,
+      "result": "pass"
+    },
+    {
+      "error_code": "AI_ANALYSIS_INPUT_CONFLICT",
+      "methods_across_both_invocations": ["POST"],
+      "post_count": 1,
+      "result": "pass"
+    },
+    {
+      "error_code": "AI_RESULT_EXPIRED",
+      "methods_across_both_invocations": ["POST", "GET"],
+      "post_count": 1,
+      "result": "pass"
+    }
+  ],
+  "durable_store_failure": {
+    "test_name": "a durable-ledger write failure prevents the first POST",
+    "methods": [],
+    "result": "pass"
+  },
+  "real_cloud_tasks_created": 0,
+  "real_model_calls": 0,
+  "provider_dispatches": 0
+}

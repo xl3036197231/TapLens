@@ -60,16 +60,52 @@ object SecureKeyStore {
     }
 
     fun saveAiAttempts(context: Context, value: String) {
+        saveAiAttemptsIn(context, value, preferencesName, aiAttemptsKeyAlias)
+    }
+
+    internal fun saveAiAttemptsIn(
+        context: Context,
+        value: String,
+        storageName: String,
+        keyAlias: String,
+    ) {
         require(value.length <= 65536) { "AI attempt metadata is too large" }
-        preferences(context).edit()
-            .putString(encryptedAiAttempts, encrypt(value, aiAttemptsKeyAlias))
-            .apply()
+        val preferences = preferences(context, storageName)
+        val encrypted = encrypt(value, keyAlias)
+        AiAttemptDurability.commitAndVerify(
+            expected = value,
+            commit = {
+                preferences.edit()
+                    .putString(encryptedAiAttempts, encrypted)
+                    .commit()
+            },
+            readBack = {
+                preferences.getString(encryptedAiAttempts, null)?.let {
+                    decrypt(it, keyAlias)
+                }
+            },
+        )
     }
 
     fun readAiAttempts(context: Context): String? {
-        val stored = preferences(context).getString(encryptedAiAttempts, null) ?: return null
-        return decrypt(stored, aiAttemptsKeyAlias)
+        return readAiAttemptsIn(context, preferencesName, aiAttemptsKeyAlias)
+    }
+
+    internal fun readAiAttemptsIn(
+        context: Context,
+        storageName: String,
+        keyAlias: String,
+    ): String? {
+        val stored = preferences(context, storageName)
+            .getString(encryptedAiAttempts, null) ?: return null
+        return decrypt(stored, keyAlias)
             ?: throw IllegalStateException("AI attempt metadata cannot be decrypted")
+    }
+
+    internal fun clearAiAttemptsIn(context: Context, storageName: String) {
+        check(preferences(context, storageName).edit().clear().commit()) {
+            "AI attempt test data could not be cleared"
+        }
     }
 
     fun clearAiAttempts(context: Context) {
@@ -103,8 +139,10 @@ object SecureKeyStore {
         }.getOrNull()
     }
 
-    private fun preferences(context: Context): SharedPreferences =
-        context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
+    private fun preferences(
+        context: Context,
+        name: String = preferencesName,
+    ): SharedPreferences = context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
     private fun getOrCreateKey(alias: String): SecretKey {
         val keyStore = KeyStore.getInstance(keystoreName).apply { load(null) }
