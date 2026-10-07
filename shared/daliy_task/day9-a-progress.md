@@ -35,6 +35,13 @@
 
 本轮没有创建云任务，没有请求 ECS，没有调用学校或用户模型。测试只使用本地 fixture、假存储和 Mock HTTP。
 
-## 门禁状态
+## D 复审与交付状态
 
-A 已按 D 对 `a6fbae0` 的唯一阻塞意见修复，并提供原生单测、模拟器停止/重启读回、四类 409 Mock HTTP 计数和当前 main 基线回归结果。**请 D 对修复提交 `bce023b` 复审并给出 PASS / NEEDS_CHANGES。** D 通过前，B 仍按 Day 9 计划只做 Fake Provider 准备，不接正式 POST/GET、不部署 ECS；C 不进行最终 APK/真机验收。
+- D 已对客户端修复提交 `bce023b` 给出 **PASS（客户端合同）**；当前 A 分支最新提交为 `7703550`，与 `origin/feat/a-mobile-function` 一致。
+- `7703550` 之后只有进度和验收记录变动，`mobile/` 代码与 `bce023b` 相同；固定 APK 的 SHA-256 已重新核对。
+- 固定 APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`；SHA-256：`92C66939D323E3AF5DF09328E8FD7399CD4DBB9DEF1679DA6ADFB6A018E41255`。
+- APK 元数据：`com.taplens.app`，版本 `0.1.0`（versionCode `1`），min SDK `24`，target SDK `36`；Android 15 / API 35 实机兼容性待 C 验证。
+- APK 是本地构建产物，不提交到源码树；共享说明要求最终 APK 作为发布附件或按团队约定交付。当前本机文件路径见 [`day9-a-to-c-device-handoff.md`](day9-a-to-c-device-handoff.md)。
+- C 的 Android 15 实机步骤和安全边界见同一交接文档。当前工作站 `adb devices -l` 未发现连接设备，因此这里没有声称已完成实机验收。
+
+本轮没有创建云任务、查询额度、发送 AI POST 或调用真实模型。`.test` 受控地址的后端映射和报告标识需要云端任务才能端到端验证；按当前门禁要求，本轮将其标为“待授权”，只核对 APP 的本地说明文案。
