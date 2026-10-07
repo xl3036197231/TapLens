@@ -12,6 +12,20 @@ import 'package:taplens_mobile/ai/school_ai_client.dart';
 const _analysisId = '0bab7eba-ff50-42f8-a264-543596b2c9bf';
 const _firstCreatedAt = '2026-09-27T10:57:59.786849+00:00';
 
+class _FailingSaveStore implements AiAnalysisAttemptStore {
+  @override
+  Future<AiAnalysisAttemptRecord?> find({
+    required String analysisId,
+    required String ownerId,
+  }) async =>
+      null;
+
+  @override
+  Future<void> save(AiAnalysisAttemptRecord record) async {
+    throw StateError('simulated durable write failure');
+  }
+}
+
 Map<String, dynamic> _fixture() => jsonDecode(
       File('../shared/fixtures/reports/high-risk.json').readAsStringSync(),
     ) as Map<String, dynamic>;
@@ -131,6 +145,31 @@ void main() {
       (await store.find(analysisId: _analysisId, ownerId: 'user-1'))?.state,
       AiAnalysisAttemptState.succeeded,
     );
+  });
+
+  test('a durable-ledger write failure prevents the first POST', () async {
+    final calls = <String>[];
+    final client = SchoolAiClient(
+      endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+      client: MockClient((request) async {
+        calls.add(request.method);
+        return http.Response('{}', 500);
+      }),
+    );
+
+    await expectLater(
+      SchoolAiCallCoordinator(
+        client: client,
+        store: _FailingSaveStore(),
+      ).run(
+        accessToken: 'TEST_JWT',
+        ownerId: 'user-1',
+        payload: _payload(),
+        mayStartPost: true,
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(calls, isEmpty);
   });
 
   test('restart recovery uses original created_at and GET only', () async {
@@ -498,8 +537,90 @@ void main() {
         (await store.find(analysisId: _analysisId, ownerId: 'user-1'))?.state,
         item.$3,
       );
+
+      await expectLater(
+        SchoolAiCallCoordinator(
+          client: client,
+          store: store,
+          pollInterval: Duration.zero,
+        ).run(
+          accessToken: 'TEST_JWT',
+          ownerId: 'user-1',
+          payload: _payload(),
+          mayStartPost: true,
+        ),
+        throwsA(isA<AiClientException>()),
+      );
+
+      expect(calls.where((method) => method == 'POST'), hasLength(1));
     });
   }
+
+  test('each 409 code is dispatched at most once across a replay', () async {
+    final cases = <(String, String, List<String>)>[
+      (
+        'AI_REQUEST_IN_PROGRESS',
+        '{"analysis_id":"$_analysisId","status":"in_progress","poll_after_seconds":1}',
+        ['POST', 'GET', 'GET'],
+      ),
+      (
+        'AI_OUTCOME_UNKNOWN',
+        '{"analysis_id":"$_analysisId","status":"outcome_unknown","usage_status":"unknown"}',
+        ['POST', 'GET', 'GET'],
+      ),
+      (
+        'AI_ANALYSIS_INPUT_CONFLICT',
+        '{}',
+        ['POST'],
+      ),
+      (
+        'AI_RESULT_EXPIRED',
+        '{"analysis_id":"$_analysisId","status":"result_expired","usage_status":"unknown"}',
+        ['POST', 'GET'],
+      ),
+    ];
+
+    for (final (errorCode, getResponse, expectedCalls) in cases) {
+      final methods = <String>[];
+      final store = MemoryAiAnalysisAttemptStore();
+      final client = SchoolAiClient(
+        endpoint: Uri.parse('https://taplens.test/api/v1/ai/analyze'),
+        client: MockClient((request) async {
+          methods.add(request.method);
+          if (request.method == 'POST') {
+            return http.Response(
+              jsonEncode({
+                'error': {'code': errorCode, 'retryable': false}
+              }),
+              409,
+            );
+          }
+          return http.Response(getResponse, 200);
+        }),
+      );
+      final coordinator = SchoolAiCallCoordinator(
+        client: client,
+        store: store,
+        pollInterval: Duration.zero,
+        maxPolls: 1,
+      );
+
+      for (var invocation = 0; invocation < 2; invocation++) {
+        await expectLater(
+          coordinator.run(
+            accessToken: 'TEST_JWT',
+            ownerId: 'user-$errorCode',
+            payload: _payload(),
+            mayStartPost: true,
+          ),
+          throwsA(isA<AiClientException>()),
+        );
+      }
+
+      expect(methods, expectedCalls, reason: errorCode);
+      expect(methods.where((method) => method == 'POST'), hasLength(1));
+    }
+  });
 
   test('page exit stops polling and preserves the no-repost lock', () async {
     final store = MemoryAiAnalysisAttemptStore(records: [

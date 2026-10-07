@@ -1,14 +1,22 @@
 package com.taplens.app
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 object NativeBridge : MethodChannel.MethodCallHandler {
     const val CHANNEL_NAME = "com.taplens.app/local_safety"
     private const val SECURE_STORAGE_CHANNEL = "com.taplens.app/secure_storage"
+    private val secureStorageExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "taplens-secure-storage")
+    }
+    private val mainThreadHandler = Handler(Looper.getMainLooper())
     private lateinit var applicationContext: Context
 
     val dayOneSamples = listOf(
@@ -64,9 +72,7 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     if (value == null || value.length > 65536) {
                         result.error("AI_ATTEMPTS_INVALID", "AI attempt metadata is invalid", null)
                     } else {
-                        runCatching { SecureKeyStore.saveAiAttempts(applicationContext, value) }
-                            .onSuccess { result.success(null) }
-                            .onFailure { result.error("AI_ATTEMPTS_STORAGE_ERROR", "Unable to save AI attempt metadata", null) }
+                        saveAiAttempts(value, result)
                     }
                 }
                 "readAiAttempts" -> {
@@ -80,6 +86,33 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun saveAiAttempts(value: String, result: MethodChannel.Result) {
+        try {
+            secureStorageExecutor.execute {
+                val failure = runCatching {
+                    SecureKeyStore.saveAiAttempts(applicationContext, value)
+                }.exceptionOrNull()
+                mainThreadHandler.post {
+                    if (failure == null) {
+                        result.success(null)
+                    } else {
+                        result.error(
+                            "AI_ATTEMPTS_STORAGE_ERROR",
+                            "Unable to durably save AI attempt metadata",
+                            null,
+                        )
+                    }
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            result.error(
+                "AI_ATTEMPTS_STORAGE_ERROR",
+                "Unable to durably save AI attempt metadata",
+                null,
+            )
         }
     }
 
