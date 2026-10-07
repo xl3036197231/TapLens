@@ -97,10 +97,7 @@ class Reservation:
 
 
 class AiCallRepository:
-    """Isolated SQLite prototype for exactly-once Provider dispatch protection.
-
-    The production API route intentionally does not use this repository yet.
-    """
+    """SQLite-backed exactly-once Provider dispatch protection."""
 
     def __init__(
         self,
@@ -324,10 +321,16 @@ class AiCallRepository:
         attempt_id: UUID,
         payload: AiAnalyzeRequest,
         result: ProviderResult,
+        payload_data: dict[str, object] | None = None,
         now: datetime | None = None,
     ) -> AiCallRecord:
         if payload.report_context.analysis_id != analysis_id:
             raise ValueError("payload analysis_id does not match completion")
+        bound_payload = payload_data or payload.model_dump(mode="json")
+        if AiAnalyzeRequest.model_validate(bound_payload) != payload:
+            raise ValueError("raw payload does not match validated completion payload")
+        context = _mapping(bound_payload.get("report_context"))
+        expected_created_at_text = _report_created_at_text(context.get("created_at"))
         usage = (
             result.prompt_tokens,
             result.completion_tokens,
@@ -336,7 +339,11 @@ class AiCallRepository:
         )
         try:
             _validate_provider_usage(usage)
-            report = validate_and_finalize_report(payload, result)
+            report = validate_and_finalize_report(
+                payload,
+                result,
+                expected_created_at_text=expected_created_at_text,
+            )
             response = AiAnalyzeResponse(
                 analysis_id=analysis_id,
                 report=report,
@@ -365,7 +372,7 @@ class AiCallRepository:
             connection.execute("BEGIN IMMEDIATE")
             record = row_to_record(self._select(connection, user_id, analysis_id))
             expected_digest = self.digest(
-                payload.model_dump(mode="json"),
+                bound_payload,
                 key_version=record.digest_key_version,
             )
             if (
@@ -515,7 +522,7 @@ class AiCallRepository:
 
 
 class AiCallCleanupWorker:
-    """Prototype scheduler; it is not attached to the application lifespan yet."""
+    """Periodic response-cache clearing and tombstone compaction scheduler."""
 
     def __init__(
         self,

@@ -19,8 +19,7 @@ def project_ai_status(
     """Project an idempotency record into A's frozen, public status contract.
 
     This function is deliberately side-effect free.  It does not reserve an
-    attempt, renew a lease, update SQLite, or obtain a Provider.  The formal
-    HTTP route remains gated on D's approval of A's durable client write.
+    attempt, renew a lease, update SQLite, or obtain a Provider.
     """
 
     if not 1 <= poll_after_seconds <= 10:

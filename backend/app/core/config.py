@@ -1,3 +1,4 @@
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -9,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_AI_DIGEST_KEYS = '{"1":"development-only-ai-digest-secret-change-me"}'
 
 
 class Settings(BaseSettings):
@@ -38,6 +40,12 @@ class Settings(BaseSettings):
     llm_protocol: Literal["openai_chat_completions"] = "openai_chat_completions"
     llm_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
     llm_proxy_url: str = ""
+    ai_digest_active_key_version: int = Field(default=1, ge=1)
+    ai_digest_keys: SecretStr = SecretStr(DEFAULT_AI_DIGEST_KEYS)
+    ai_call_lease_seconds: int = Field(default=90, ge=10, le=600)
+    ai_response_cache_hours: int = Field(default=24, ge=1, le=168)
+    ai_compact_days: int = Field(default=30, ge=1, le=3650)
+    ai_cleanup_interval_seconds: int = Field(default=3600, ge=10, le=86400)
 
     @model_validator(mode="after")
     def require_production_jwt_secret(self) -> "Settings":
@@ -48,6 +56,16 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "staging and production require a random JWT secret of at least 32 characters"
+            )
+        digest_keys = self.ai_digest_secret_map
+        if self.ai_digest_active_key_version not in digest_keys:
+            raise ValueError("active AI digest key version is missing")
+        if self.environment in {"staging", "production"} and (
+            self.ai_digest_keys.get_secret_value() == DEFAULT_AI_DIGEST_KEYS
+            or any(len(secret) < 32 for secret in digest_keys.values())
+        ):
+            raise ValueError(
+                "staging and production require independent AI digest secrets of at least 32 characters"
             )
         try:
             ZoneInfo(self.quota_timezone)
@@ -104,6 +122,22 @@ class Settings(BaseSettings):
     @property
     def allowed_test_origins(self) -> tuple[str, ...]:
         return tuple(origin for origin in self.test_allowed_origins.split(",") if origin)
+
+    @property
+    def ai_digest_secret_map(self) -> dict[int, str]:
+        try:
+            raw = json.loads(self.ai_digest_keys.get_secret_value())
+            if not isinstance(raw, dict) or not raw:
+                raise ValueError
+            parsed = {int(version): secret for version, secret in raw.items()}
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("ai_digest_keys must be a non-empty JSON object") from exc
+        if any(
+            version < 1 or not isinstance(secret, str) or not secret
+            for version, secret in parsed.items()
+        ):
+            raise ValueError("AI digest key versions and secrets must be non-empty")
+        return parsed
 
 
 @lru_cache

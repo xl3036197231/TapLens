@@ -27,9 +27,15 @@ the full interactive Chrome package.
 ## First deployment without a domain
 
 Copy `.env.example` to the untracked `.env`, set a random JWT secret of at least
-32 characters, and set `TAPLENS_PUBLIC_BASE_URL` to the ECS HTTP origin. Keep
+32 characters, set an independent AI digest secret of at least 32 characters,
+and set `TAPLENS_PUBLIC_BASE_URL` to the ECS HTTP origin. Keep
 `TAPLENS_ENVIRONMENT=staging`: staging requires a strong secret and rejects
 `TAPLENS_TEST_ALLOWED_ORIGINS`, while allowing the temporary HTTP origin.
+
+`TAPLENS_AI_DIGEST_KEYS` is a JSON object keyed by positive integer versions.
+During rotation, add the new version, keep every historical version still used
+by tombstones, and then change `TAPLENS_AI_DIGEST_ACTIVE_KEY_VERSION`. Never
+reuse the JWT or model credential for this purpose.
 
 ```bash
 docker compose build

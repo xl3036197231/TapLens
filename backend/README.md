@@ -22,7 +22,8 @@ TapLens 的公网 FastAPI 服务。B 负责账号、每日额度、云任务、P
 - BrowserContext级Playwright采集器，限制请求数和执行时间；
 - 对每个HTTP请求重新执行目标授权，阻止业务写请求、下载、弹窗和外部协议；
 - 只采集脱敏URL、请求域名、跳转、表单字段、标题、文本摘要和截图。
-- `POST /api/v1/ai/analyze` 使用服务端学校凭证分析白名单内的脱敏证据，并再次校验 Schema、证据编号和硬风险。
+- `POST /api/v1/ai/analyze` 在 SQLite 预留幂等记录后才调用服务端学校模型，并再次校验 Schema、证据编号、用量和硬风险。
+- `GET /api/v1/ai/analyses/{analysis_id}/status` 只读返回幂等状态、守卫后的缓存报告或脱敏失败分类，不会触发 Provider。
 
 已提供独立worker，可从SQLite队列取出任务、运行受限Playwright采集并组装正式云证据。单 Worker 重启时会把中断的 `running` 任务重新排队；多 Worker 生产级队列尚未实现，也不属于当前单机部署范围。
 

@@ -15,6 +15,8 @@ CONTRACTS = Path(__file__).resolve().parents[3] / "shared" / "contracts"
 def validate_and_finalize_report(
     payload: AiAnalyzeRequest,
     result: ProviderResult,
+    *,
+    expected_created_at_text: str | None = None,
 ) -> dict[str, object]:
     report = dict(result.report)
     report["analysis_id"] = str(report.get("analysis_id", ""))
@@ -22,9 +24,19 @@ def validate_and_finalize_report(
     if report["analysis_id"] != expected_id:
         reject("模型返回了其他 analysis_id")
 
-    expected_created_at = payload.report_context.created_at.isoformat().replace("+00:00", "Z")
+    expected_created_at = (
+        expected_created_at_text
+        if expected_created_at_text is not None
+        else payload.report_context.created_at.isoformat().replace("+00:00", "Z")
+    )
     returned_created_at = str(report.get("created_at", ""))
-    if returned_created_at.replace("+00:00", "Z") != expected_created_at:
+    if expected_created_at_text is not None:
+        created_at_matches = returned_created_at == expected_created_at
+    else:
+        created_at_matches = (
+            returned_created_at.replace("+00:00", "Z") == expected_created_at
+        )
+    if not created_at_matches:
         reject("模型没有原样返回 created_at")
 
     source_items = {}
