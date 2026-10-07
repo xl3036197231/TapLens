@@ -5,7 +5,8 @@
 | 项目 | 固定值 |
 |---|---|
 | A 分支 | `feat/a-mobile-function` |
-| A 分支最新提交 | `77035505` |
+| APK 客户端代码基线 | `77035505` |
+| A 分支交接提交 | `3a01b81`（只更新交接文档，已推送） |
 | D 已审核的客户端修复 | `bce023bb`，客户端合同 PASS |
 | APK 路径（当前工作站） | `C:\Users\zhixing\Documents\Codex\TapLens-day6-a\mobile\build\app\outputs\flutter-apk\app-debug.apk` |
 | SHA-256 | `92C66939D323E3AF5DF09328E8FD7399CD4DBB9DEF1679DA6ADFB6A018E41255` |
