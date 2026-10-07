@@ -12,8 +12,8 @@
 | 来源引用 | PASS：30 条引用的文件、21 个既有样例编号和 8 个现有自动化测试标记，均在固定 `main` 树中找到 | GitHub 固定树及对应源文件只读核对；未执行产品测试 |
 | 30 例产品执行 | **NOT_RUN：0 PASS / 0 FAIL / 30 NOT_RUN** | 仓库尚未提交该矩阵在同一最终基线上的逐例执行记录；不填写通过率 |
 | A 客户端合同 | **PASS（定点复审）** | `a6fbae0` 的历史阻塞由 `bce023b` 修复；见 [Day 9 D 复审](a-client-rereview.md)。新增测试与 APK 哈希为 A 提供的证据，D 未独立复跑或复算 |
-| B 正式状态路由 | **NEEDS_CHANGES** | `ca00dc9` 已接线；D 独立复跑 55/55 AI 与 164/164 后端测试，但复现第 31 天已知用量失败态 GET 500。见 [D 后端复审](b-backend-review.md) |
-| C 最终 APK | **BLOCKED** | B 尚未通过 D 门禁；同版双构建与实体 Android 15 验收记录未提交 |
+| B 正式状态路由 | **PASS（固定提交 `2104c85`）** | 初审发现的第 31 天失败态 GET 500 和派发前租约过期无限等待已在 `25f3c09` 修复并补正式 API/固定时钟测试；B 记录修复后 59/59 AI、168/168 后端测试。见 [B 初审](b-backend-review.md)及[复审](b-backend-rereview.md) |
+| C 最终 APK | **BLOCKED** | B 的代码复审已通过，但部署健康检查、同版双构建与 Android 15 实体设备验收尚未完成 |
 
 D 在 2026-10-06 的固定复审中记录了 Flutter 111/111、分析无问题和 JSON Schema 校验通过；这是对 `a6fbae0` 的**历史独立复跑**。A 报告 `bce023b` 后 Flutter 118/118、Android 15/15、Android 15 模拟器重启读回成功；这些是 A 的交接结果，D 本机无 Flutter/ADB/Android SDK，未独立复跑。两者都不是本轮 30 例矩阵的执行结果，也不证明最终 APK、正式后端或真实模型通过。
 
@@ -33,7 +33,7 @@ D 在 2026-10-06 的固定复审中记录了 Flutter 111/111、分析无问题�
 ## 当前阻塞与复测顺序
 
 1. A 的 `bce023b` 已修正 `SecureKeyStore.saveAiAttempts()` 的 `apply()` 落盘确认缺口，客户端合同定点复审 PASS。最终设备端仍须核对完整重启恢复只 GET；当前 Mock 与原生设备探针分别覆盖决策和持久化。
-2. B 的正式 POST/GET、cleanup lifespan 与 Fake Provider 已接线，但 `ca00dc9` 的 D 复审为 NEEDS_CHANGES。B 修复第 31 天失败态 GET 500、补对应回归并明确派发前崩溃的状态后，交新固定提交复审；通过前不部署。
+2. B 的正式 POST/GET、cleanup lifespan 与 Fake Provider 在固定提交 `2104c85` 上经 D 复审 PASS。下一步受控部署仍须先备份并只做健康、只读 GET 与 Mock 验证；真实模型与新云任务仍不在本次范围。
 3. B 部署健康后，C 从最终固定 `main` 双构建一致 APK，在 Android 15 实体机执行安全输入、联网及已安装包哈希验收。
 4. D 在同一代码与 APK 基线运行矩阵，填入每例实际结果和证据，再计算指标并更新参赛材料。历史 C04 PNG 已无法恢复；若需要新候选截图，应创建新的候选并明确新 ID，不能改写历史结果。真实模型终验按团队门禁另行安排。
 
