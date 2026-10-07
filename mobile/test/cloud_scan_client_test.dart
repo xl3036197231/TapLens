@@ -5,6 +5,40 @@ import 'package:http/testing.dart';
 import 'package:taplens_mobile/services/cloud_scan_client.dart';
 
 void main() {
+  test('注册走独立接口，成功后可继续登录', () async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/auth/register')) {
+        return http.Response(
+          '{"user_id":"u1","username":"demo","created_at":"2026-09-29T00:00:00Z"}',
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response(
+        '{"access_token":"token-1","expires_at":"2026-09-29T01:00:00Z","user":{"user_id":"u1","username":"demo"}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = TapLensApiClient(
+      config: TapLensApiConfig(baseUri: Uri.parse('http://test/api/v1')),
+      client: client,
+    );
+
+    final account =
+        await api.register(username: 'demo', password: 'password123');
+    final session = await api.login(username: 'demo', password: 'password123');
+
+    expect(account.userId, 'u1');
+    expect(session.accessToken, 'token-1');
+    expect(requests.map((request) => request.url.path), [
+      '/api/v1/auth/register',
+      '/api/v1/auth/login',
+    ]);
+  });
+
   test('登录和额度响应能转换为 APP 模型', () async {
     final client = MockClient((request) async {
       if (request.url.path.endsWith('/auth/login')) {

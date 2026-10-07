@@ -136,6 +136,22 @@ cd backend
 
 该放行只用于仓库内无害页面，不得指向第三方站点，也不得作为公网部署配置。
 
+### 虚构 URL 的受控云端样例
+
+以下三个精确的虚构地址会跳过对原域名的 DNS 查询，并映射到仓库内置的
+`mobile/test/ai/day2_site` 校园登录演示页：
+
+| 输入地址 | 受控页面入口 |
+| --- | --- |
+| `https://scholarship.example.test/apply` | `/controlled/go/campus` |
+| `https://campus.example.test/go/campus` | `/controlled/go/campus` |
+| `https://short.example.test/go/campus` | `/controlled/go/campus` |
+
+采集器只读取该站点自身的页面资源，并继续阻止表单提交和所有站外请求。证据的
+`limitations` 与 App 报告“证据范围”会注明这是模拟云端证据、原虚构域名未被访问，
+因此不能把结果当成该域名真实网页的行为。未列出的虚构域名仍执行常规 DNS 与 SSRF
+检查；本映射不放宽任意地址的云端访问规则。
+
 ## 安全约束
 
 - 不接收或记录客户端模型 Key；请求对象会拒绝包括 `deepseek_key`、`api_key` 在内的未声明字段，错误响应不回显字段值；

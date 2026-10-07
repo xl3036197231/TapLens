@@ -1,0 +1,34 @@
+{
+  "recorded_at": "2026-09-27T17:15:26Z",
+  "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+  "operation": "existing_task_query_from_android_app",
+  "app_state": {
+    "existing_task_id_filled": true,
+    "button_label": "查询已有任务",
+    "query_button_pressed": true,
+    "screenshot": "day5-a-readonly-query-blocked.png"
+  },
+  "connectivity": {
+    "host_healthz_status": 200,
+    "host_api_health_status": 200,
+    "emulator_icmp_reached_server": true,
+    "emulator_tcp_80_connected": false,
+    "emulator_tcp_error": "Connection refused"
+  },
+  "app_result": {
+    "health_check_passed": false,
+    "login_request_sent": false,
+    "task_get_sent": false,
+    "create_task_request_sent": false,
+    "school_ai_request_sent": false,
+    "message": "无法连接后端，请检查地址、网络和服务是否已启动。"
+  },
+  "new_cloud_task_created": false,
+  "assessment": "BLOCKED_BEFORE_READ_ONLY_TASK_GET",
+  "limitations": [
+    "The app stopped at its health check, before login or task lookup.",
+    "This record does not prove that the app retrieved the existing task."
+  ],
+  "credentials_recorded": false
+}

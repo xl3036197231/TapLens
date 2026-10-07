@@ -58,7 +58,13 @@ class _QrCodeScannerPageState extends State<QrCodeScannerPage> {
   Future<void> _returnPayload(String value) async {
     if (_handlingCode) return;
     _handlingCode = true;
-    if (!widget.galleryOnly) await _scannerController.stop();
+    if (!widget.galleryOnly) {
+      try {
+        await _scannerController.stop();
+      } catch (_) {
+        // Camera shutdown must not prevent returning an already-read QR value.
+      }
+    }
     if (!mounted) return;
     Navigator.of(context).pop(value);
   }
@@ -66,8 +72,8 @@ class _QrCodeScannerPageState extends State<QrCodeScannerPage> {
   Future<void> _pickImage() async {
     if (_readingImage || _handlingCode) return;
     setState(() => _readingImage = true);
-    if (!widget.galleryOnly) await _scannerController.stop();
     try {
+      if (!widget.galleryOnly) await _scannerController.stop();
       final image = await _picker.pickImage(source: ImageSource.gallery);
       if (image != null) await _decodeImage(image);
     } catch (_) {
@@ -143,62 +149,84 @@ class _QrCodeScannerPageState extends State<QrCodeScannerPage> {
               child: widget.galleryOnly
                   ? _GalleryOnlyPanel(
                       onPick: _pickImage, loading: _readingImage)
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        MobileScanner(
-                          controller: _scannerController,
-                          onDetect: _onDetect,
-                          errorBuilder: (context, error) => _CameraErrorPanel(
-                            onPick: _pickImage,
-                            onRetry: _retryCamera,
+                  : ValueListenableBuilder<MobileScannerState>(
+                      valueListenable: _scannerController,
+                      builder: (context, scannerState, _) => Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          MobileScanner(
+                            controller: _scannerController,
+                            onDetect: _onDetect,
+                            errorBuilder: (context, error) => _CameraErrorPanel(
+                              onPick: _pickImage,
+                              onRetry: _retryCamera,
+                            ),
                           ),
-                        ),
-                        IgnorePointer(
-                          child: Center(
-                            child: Container(
-                              width: 264,
-                              height: 264,
-                              decoration: BoxDecoration(
-                                border:
-                                    Border.all(color: colors.primary, width: 3),
-                                borderRadius: BorderRadius.circular(24),
-                                color: colors.surface.withValues(alpha: 0.04),
+                          if (scannerState.error == null &&
+                              scannerState.isRunning)
+                            IgnorePointer(
+                              child: Center(
+                                child: SizedBox.square(
+                                  dimension: 264,
+                                  child: CustomPaint(
+                                    painter: _ScanFramePainter(
+                                      color: colors.primary,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        if (_readingImage)
-                          ColoredBox(
-                            color: colors.scrim.withValues(alpha: 0.5),
-                            child: const Center(
-                              child: CircularProgressIndicator(),
+                          if (_readingImage)
+                            ColoredBox(
+                              color: colors.scrim.withValues(alpha: 0.5),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                children: [
-                  Text(
-                    widget.galleryOnly
-                        ? '选择一张包含二维码的图片，内容只在本机解码。'
-                        : '将二维码放入框内。TapLens 只读取内容，不会打开或执行它。',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.shield_outlined,
+                              color: colors.primary, size: 22),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              widget.galleryOnly
+                                  ? '图片只在本机解码，不会上传整张海报。'
+                                  : 'TapLens 只读取二维码内容，不会自动打开链接或执行其中的操作。',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _readingImage ? null : _pickImage,
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: Text(
+                            _readingImage ? '正在读取图片…' : '从相册选择二维码图片',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _readingImage ? null : _pickImage,
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: Text(_readingImage ? '正在读取图片…' : '从相册选择二维码图片'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -301,4 +329,48 @@ class _ScannerMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ScanFramePainter extends CustomPainter {
+  final Color color;
+
+  const _ScanFramePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const arm = 42.0;
+    const radius = 18.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(arm, 2)
+      ..lineTo(radius, 2)
+      ..quadraticBezierTo(2, 2, 2, radius)
+      ..lineTo(2, arm)
+      ..moveTo(size.width - arm, 2)
+      ..lineTo(size.width - radius, 2)
+      ..quadraticBezierTo(size.width - 2, 2, size.width - 2, radius)
+      ..lineTo(size.width - 2, arm)
+      ..moveTo(2, size.height - arm)
+      ..lineTo(2, size.height - radius)
+      ..quadraticBezierTo(2, size.height - 2, radius, size.height - 2)
+      ..lineTo(arm, size.height - 2)
+      ..moveTo(size.width - arm, size.height - 2)
+      ..lineTo(size.width - radius, size.height - 2)
+      ..quadraticBezierTo(
+        size.width - 2,
+        size.height - 2,
+        size.width - 2,
+        size.height - radius,
+      )
+      ..lineTo(size.width - 2, size.height - arm);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScanFramePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

@@ -1,0 +1,31 @@
+{
+  "evidence_type": "offline_archived_rule_report_replay",
+  "source": "mobile/assets/acceptance/day5-unified-test1.json",
+  "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+  "fixture_status": "succeeded",
+  "b_reported_current_task_status": "expired",
+  "request_sent": false,
+  "provider_invoked": false,
+  "risk_level": "high",
+  "sources": {
+    "local": true,
+    "cloud": true,
+    "ai": false
+  },
+  "evidence_ids": [
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "L01"
+  ],
+  "token_usage": {
+    "request_count": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "model": null
+  },
+  "result": "passed"
+}

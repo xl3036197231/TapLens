@@ -23,7 +23,8 @@ void main() {
 
   setUpAll(() async {
     cloud = _decodeFixture(const String.fromEnvironment('TAPLENS_DAY3_CLOUD'));
-    verified = _decodeFixture(const String.fromEnvironment('TAPLENS_DAY3_REPORT'));
+    verified =
+        _decodeFixture(const String.fromEnvironment('TAPLENS_DAY3_REPORT'));
     ruleReport = AnalysisReport.fromCloudEvidence(cloud);
     cloudIds = (cloud['evidence'] as List)
         .map((item) => (item as Map<String, dynamic>)['id'] as String)
@@ -44,7 +45,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: ReportPage(
         report: ruleReport,
-        aiRunner: (apiKey) async {
+        aiRunner: (apiKey, _) async {
           final result = await AiReportService(client).analyzeOrFallback(
             apiKey: apiKey,
             sanitizedPayload: const {},

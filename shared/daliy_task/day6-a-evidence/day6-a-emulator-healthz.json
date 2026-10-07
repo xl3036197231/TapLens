@@ -1,0 +1,26 @@
+{
+  "evidence_type": "real_emulator_http_health_check",
+  "observed_at_utc": "2026-09-28T08:23:14Z",
+  "device": {
+    "avd": "TapLens_API35",
+    "adb_id": "emulator-5554",
+    "android_api": 35
+  },
+  "method": "adb shell toybox nc; HTTP GET",
+  "url": "http://39.107.253.138/healthz",
+  "http_status": 200,
+  "content_type": "application/json",
+  "server": "nginx",
+  "response": {
+    "status": "ready",
+    "service": "taplens-backend",
+    "checks": {
+      "database": "ok",
+      "artifacts": "ok"
+    }
+  },
+  "authorization_header_sent": false,
+  "browser_opened": false,
+  "taplens_app_path_verified": false,
+  "limitation": "Confirms the emulator can reach the public HTTP health endpoint. Browser UI and the rebuilt TapLens APK were not exercised in this run."
+}

@@ -1,0 +1,103 @@
+{
+  "evidence_type": "real_http_no_jwt_preflight",
+  "client_environment": "desktop_dart",
+  "endpoint": "http://39.107.253.138/api/v1/ai/analyze",
+  "formal_analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "formal_task_id": "f1858539-4595-4297-acfe-5bf81a91bc54",
+  "http_status": 401,
+  "error_code": "AUTH_TOKEN_MISSING",
+  "retryable": false,
+  "validation_fields": [],
+  "authorization_header_sent": false,
+  "provider_invoked": false,
+  "request_body": {
+    "report_context": {
+      "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+      "created_at": "2026-09-27T10:57:59.786849Z"
+    },
+    "analysis_input": {
+      "claims_text": "用户确认的链接，等待对云端跳转、页面和表单证据进行深度研判。",
+      "targets": [
+        {
+          "type": "url",
+          "value": "http://39.107.253.138/controlled/go/campus",
+          "label": "用户确认链接"
+        }
+      ]
+    },
+    "local_evidence": {
+      "evidence": [
+        {
+          "id": "L01",
+          "kind": "url",
+          "title": "静态目标",
+          "detail": "http 39.107.253.138 /controlled/go/campus"
+        }
+      ],
+      "risk_hints": [
+        {
+          "code": "LOCAL_STATIC_ONLY",
+          "risk_level": "insufficient_evidence",
+          "message": "当前仅完成静态解析，尚未访问网页或执行目标应用。",
+          "evidence_ids": [
+            "L01"
+          ]
+        }
+      ]
+    },
+    "cloud_evidence": {
+      "evidence": [
+        {
+          "id": "C01",
+          "kind": "redirect",
+          "title": "云端跳转链",
+          "detail": "观察到1次HTTP跳转。"
+        },
+        {
+          "id": "C02",
+          "kind": "form",
+          "title": "敏感表单字段",
+          "detail": "页面表单包含2个敏感输入字段。"
+        },
+        {
+          "id": "C03",
+          "kind": "page",
+          "title": "云端页面摘要",
+          "detail": "页面标题：Example Campus single sign-on"
+        },
+        {
+          "id": "C04",
+          "kind": "screenshot",
+          "title": "云端页面截图",
+          "detail": "已生成受鉴权与过期时间保护的页面截图。"
+        }
+      ],
+      "risk_hints": [
+        {
+          "code": "CLOUD_RULE_HIGH",
+          "risk_level": "high",
+          "message": "云端证据显示敏感表单或疑似仿冒登录风险",
+          "evidence_ids": [
+            "C01",
+            "C02",
+            "C03",
+            "C04"
+          ]
+        }
+      ]
+    },
+    "hard_risk_findings": [
+      {
+        "code": "CLOUD_RULE_HIGH",
+        "risk_level": "high",
+        "message": "云端证据显示敏感表单或疑似仿冒登录风险",
+        "evidence_ids": [
+          "C01",
+          "C02",
+          "C03",
+          "C04"
+        ]
+      }
+    ]
+  }
+}

@@ -20,7 +20,7 @@ void main() {
     expect(find.text('继续做本地安全预检'), findsNothing);
   });
 
-  testWidgets('虚构 .test 短链可以做本地预检但不能提交云端', (tester) async {
+  testWidgets('虚构 .test 短链可选择提交云端，默认仍只做本地预检', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: QrPayloadReviewPage(
@@ -31,7 +31,15 @@ void main() {
 
     expect(find.text('网页链接'), findsOneWidget);
     expect(find.text('继续做本地安全预检'), findsOneWidget);
-    expect(find.textContaining('虚构的保留测试域名'), findsOneWidget);
-    expect(find.textContaining('云端分析不会自动开始'), findsNothing);
+    expect(find.textContaining('虚构或保留示例域名'), findsOneWidget);
+    expect(find.textContaining('映射到受控样例页'), findsOneWidget);
+    final optInNote = find.textContaining('云端分析不会自动开始');
+    await tester.scrollUntilVisible(
+      optInNote,
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(optInNote, findsOneWidget);
+    expect(find.textContaining('此链接不支持云端网页分析'), findsNothing);
   });
 }

@@ -44,6 +44,40 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     SecureKeyStore.clear(applicationContext)
                     result.success(null)
                 }
+                "saveSession" -> {
+                    val value = call.argument<String>("session")
+                    if (value.isNullOrBlank()) {
+                        result.error("SESSION_INVALID", "Session cannot be empty", null)
+                    } else {
+                        runCatching { SecureKeyStore.saveSession(applicationContext, value) }
+                            .onSuccess { result.success(null) }
+                            .onFailure { result.error("SESSION_STORAGE_ERROR", "Unable to save session", null) }
+                    }
+                }
+                "readSession" -> result.success(SecureKeyStore.readSession(applicationContext))
+                "clearSession" -> {
+                    SecureKeyStore.clearSession(applicationContext)
+                    result.success(null)
+                }
+                "saveAiAttempts" -> {
+                    val value = call.argument<String>("attempts")
+                    if (value == null || value.length > 65536) {
+                        result.error("AI_ATTEMPTS_INVALID", "AI attempt metadata is invalid", null)
+                    } else {
+                        runCatching { SecureKeyStore.saveAiAttempts(applicationContext, value) }
+                            .onSuccess { result.success(null) }
+                            .onFailure { result.error("AI_ATTEMPTS_STORAGE_ERROR", "Unable to save AI attempt metadata", null) }
+                    }
+                }
+                "readAiAttempts" -> {
+                    runCatching { SecureKeyStore.readAiAttempts(applicationContext) }
+                        .onSuccess(result::success)
+                        .onFailure { result.error("AI_ATTEMPTS_STORAGE_ERROR", "Unable to read AI attempt metadata", null) }
+                }
+                "clearAiAttempts" -> {
+                    SecureKeyStore.clearAiAttempts(applicationContext)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

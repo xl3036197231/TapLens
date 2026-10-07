@@ -1,12 +1,54 @@
 # TapLens AI 客户端边界（D 维护）
 
-状态：`DAY3-MOCK-VERIFIED`。客户端、Keystore、用户确认和报告页接入已完成；Flutter 全量测试与 Android 模拟器 Mock 测试通过。真实 DeepSeek Key 请求尚未验收。
+状态：A 手机端支持学校模型与自定义模型两种模式。学校模式默认选中，由 TapLens 后端使用学校配置的模型；自定义模式由手机直连 DeepSeek，Key 保存在 Android Keystore。正式请求验收记录见 Day 5 A 进度文件。
 
 Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` 白名单和同分析 ID 校验，并在 Android 模拟器通过四条 Mock 报告集成测试。执行与现场联合验收状态见 `shared/daliy_task/day3-d-progress.md`。
 
 ## 所在位置
 
-手机端 `mobile/lib/ai/` 继续负责 BYOK 自定义模式。默认模式调用后端 `POST /api/v1/ai/analyze`，由后端使用学校凭证访问中传模型；客户端仍执行结果守卫。D 提供请求、Mock、响应校验和错误映射；A 负责模式切换、页面流程和 Android Keystore。
+AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/响应校验、错误映射与自定义 DeepSeek 客户端；A 把两种模式接入报告页，并实现学校模型客户端。默认学校模式调用后端 `POST /api/v1/ai/analyze`，由后端使用学校凭证访问中传模型；BYOK 自定义模式仍由手机端负责，后端和客户端分别执行输入与结果守卫。
+
+## 学校模型模式
+
+学校模式是报告页默认选项，手机向 `POST http://39.107.253.138/api/v1/ai/analyze` 发送一次 JSON 请求，并在 `Authorization: Bearer <TapLens JWT>` 请求头中提供当前登录凭据。JWT 不得放入 JSON 正文；密码、学校 Key、DeepSeek Key、Cookie 和其他认证材料也不得进入正文。
+
+正文只允许这五个顶层字段：
+
+- `report_context`
+- `analysis_input`
+- `local_evidence`
+- `cloud_evidence`
+- `hard_risk_findings`
+
+手机在发出请求前使用 `AiPayloadSanitizer` 生成白名单对象，遮盖 URL 查询值、常见凭据、JWT、邮箱、手机号和身份证号。请求不包含原始图片、完整预检对象或历史报告。学校 Key 只由后端持有。
+
+当前部署地址为 HTTP，Authorization 头中的 JWT 在传输链路上没有 TLS 加密；只允许在受控测试网络验收，不能在不可信网络使用。
+
+成功响应应提供符合 `analysis-report.schema.json` 的报告、实际模型名称和接口用量。手机客户端仍会覆盖 `sources.ai=true` 与 `token_usage`，再校验 Schema、analysis_id、证据编号和硬风险。客户端识别报告直返及 `{report, model, usage}` 响应包络。
+
+学校模式错误提示：`401/403` 映射为登录状态失效；`408/504` 映射为学校模型超时；`5xx/429/404` 映射为模型服务不可用；`422` 或 `REPORT_*` 映射为后端报告守卫拒绝；连接异常提示网络不可用。请求不会自动重试。
+
+## Day 8 客户端幂等与状态查询合同
+
+同一 `analysis_id` 的首次请求使用云端证据中的 `generated_at` 原始 RFC 3339 文本作为 `report_context.created_at`。手机客户端先将 `analysis_id`、`created_at`、TapLens 用户 ID 和状态写入 Android Keystore 加密的最小元数据记录，再发送第一次 POST。记录不保存 JWT、URL、请求正文、模型报告或 Key；最多保存 250 条，达到上限或记录损坏时拒绝新的学校模型 POST，不删除旧记录来腾位置。
+
+一旦存在该用户和 `analysis_id` 的本地记录，后续启动只调用只读 GET，不再 POST。状态接口路径为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带同一个 TapLens JWT。预期成功响应：
+
+```json
+{"analysis_id":"<uuid>","status":"in_progress","retry_after_seconds":2}
+```
+
+```json
+{"analysis_id":"<uuid>","status":"succeeded","result":{"report":{},"model":"cuc/deepseek","usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}}
+```
+
+`status` 也可为 `outcome_unknown`、`result_expired` 或 `not_found`。`in_progress` 和 `outcome_unknown` 只继续 GET 轮询；`not_found`、网络失败或轮询停止均保持“待核实”，不得据此重新 POST。状态请求最多等待约一分钟，离开页面后停止后续轮询。此客户端合同由 Mock 验证；在 B 接入并部署之前，不代表线上已有状态路由。
+
+POST 返回四种 409 时按 `error.code` 分开处理：`AI_REQUEST_IN_PROGRESS` 开始 GET 轮询；`AI_ANALYSIS_INPUT_CONFLICT` 提示保留当前上下文并由用户新建/确认上下文；`AI_OUTCOME_UNKNOWN` 只查状态；`AI_RESULT_EXPIRED` 保留规则报告并禁止重新计费调用。四种响应都不触发客户端 POST 重试。
+
+精确映射的 `.test` 仓库受控页面会在报告标题、摘要、证据范围和 AI 输入中显示“受控模拟证据”，并说明结果不代表原始 `.test` 域名的真实网页行为。
+
+自定义模式保留手机直连 DeepSeek 的路径。用户填写模型名称与自己的 API Key，Key 仍由 Android Keystore 保存，绝不传给 TapLens 后端。
 
 ## 请求边界
 
@@ -22,7 +64,7 @@ Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` �
 
 不得发送：原始海报、原始 OCR 全文、用户报告历史、完整敏感查询参数、JWT 或 DeepSeek Key。
 
-自定义模式当前默认使用 `deepseek-flash`，并设置 `thinking.type=disabled` 和 `response_format.type=json_object`；默认学校模式使用后端配置的 `cuc/deepseek`，不假设学校网关支持上述 DeepSeek 扩展参数。一次分析最多一次模型请求；两种模式的输出都必须符合 `analysis-report.schema.json`。客户端只复制白名单字段并遮盖常见密钥、手机号、邮箱和 URL 查询参数；后端默认模式还会再次验证白名单结构。
+BYOK 当前默认模型为 `deepseek-flash`，现有客户端使用 `thinking.type=disabled` 和 `response_format.type=json_object`。学校模式使用 B 配置的 `cuc/deepseek`，不假设学校网关支持上述扩展参数。一次分析最多一次模型请求；两个模式输出均须符合 `analysis-report.schema.json`。客户端只复制白名单字段并遮盖常见密钥、手机号、邮箱和 URL 查询参数；A 在调用前仍必须完成自由文本等脱敏，后端学校模式还会再次验证白名单结构。用量由实际 Provider 响应覆盖，不信任模型自报用量；守卫允许符合格式的非空模型名，调用端可传 `expectedModel` 钉定 Provider。
 
 ## 响应处理
 
@@ -64,5 +106,5 @@ Day 3 更新：A 已接入确认提示与 Keystore；D 增加 `report_context` �
 
 - Key 只由 A 的手机安全存储模块保存和读取；
 - D 的 AI 客户端不得打印 Key、Authorization 头或完整请求；
-- 用户自定义 Key 不进入触镜后端、Git、截图、崩溃报告或测试 fixture；学校 Key 只存在 ECS 私有环境；
+- 用户 BYOK Key 不进入触镜后端、Git、截图、崩溃报告或测试 fixture；学校 Key 仅存 ECS 私有环境，不进入 APP；
 - 测试只能使用占位字符串，例如 `sk-test-redacted`，且不得提交到真实配置文件。

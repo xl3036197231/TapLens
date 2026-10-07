@@ -7,7 +7,7 @@
 本项目拟参加 **华北五省大学生计算机应用大赛·方向二（智能网联与智能终端）**。
 
 > [!NOTE]
-> 当前仓库处于开发准备阶段，本文描述的是已经冻结的首版目标和技术方案。功能完成情况将随代码提交持续更新。
+> 当前仍在开发与联调。`main` 已整合 A/B/C/D 当前提交，但尚未完成 Day 8 客户端合同冻结、B 正式幂等集成和四方设备终验。学校模型的手机端完整报告仍未验收。
 
 ## 为什么做触镜
 
@@ -66,28 +66,24 @@ AI 输出必须引用真实证据编号。规则判定出的硬风险不能被 A
 
 ```mermaid
 flowchart TD
-    A[扫码 / 相册 / 粘贴 / 系统分享] --> B[手机 OCR 与二维码解码]
-    B --> C[隐私遮盖与静态解析]
-    C --> D{输入类型}
-    D -->|网页| E[手机受控 WebView 预检]
-    D -->|Deep Link| F[目标 APP 与包名核验]
-    E --> G[本地证据与基础报告]
-    F --> G
-    G --> H{用户是否开启云端深度分析}
-    H -->|是| I[公网 Playwright 沙箱]
-    H -->|否| J[保留本地证据]
-    I --> K[合并本地与云端证据]
-    J --> K
-    K --> L{用户是否点击 AI 深度研判}
-    L -->|是| M{模型模式}
-    M -->|默认| Q[后端调用学校模型]
-    M -->|自定义| R[手机使用用户 Key 直连模型]
-    L -->|否| N[规则与模板报告]
-    Q --> O[校验 JSON 与证据引用]
-    R --> O
-    N --> P[最终结果页]
-    O --> P
+    A[扫码 / 相册 / 粘贴] --> B[安全预览与本地静态解析]
+    B --> C[本地 Lxx 与规则报告]
+    C --> D{用户确认云端分析?}
+    D -->|是| E{选择模型}
+    D -->|否| F[保留本地报告]
+    F --> H[报告页]
+    E -->|学校模型| G[TapLens JWT / 云任务 / Playwright]
+    E -->|用户自定义模型| G
+    G --> I[合并 Lxx 与 Cxx / 规则报告]
+    I -->|学校模型| J[后端 AI 接口 / 服务端学校 Key]
+    I -->|用户自定义模型| K[手机直连 / 用户 Key]
+    J --> L[Schema 与证据守卫]
+    K --> L
+    L -->|通过| H
+    L -->|失败| H
 ```
+
+图中本地“预检”目前以**静态解析**为已验证部分；独立进程 WebView 动态预检、已安装应用身份核验和完整手机 AI 成功展示尚属计划/待验收。云端分析仅在用户确认后执行，不代表本地解析访问了目标。
 
 ## 系统架构
 
@@ -95,61 +91,52 @@ flowchart TD
 flowchart LR
     subgraph Phone[Android 手机]
         UI[Flutter 界面]
-        OCR[QR / OCR 与脱敏]
-        DL[Deep Link 与目标 APP]
-        LW[本地受控 WebView]
-        RULE[规则与证据合并]
-        KEY[Android Keystore]
-        AI[DeepSeek 客户端]
-        HIST[本地报告]
-        UI --> OCR
-        OCR -->|网页| LW --> RULE
-        OCR -->|Deep Link| DL --> RULE
-        KEY --> AI
-        RULE --> HIST
-        RULE --> AI --> HIST
+        PREVIEW[QR 预览 / URL 和 Deep Link 静态解析]
+        RULE[规则报告与证据合并]
+        STORE[Android Keystore 保护会话和用户 Key]
+        CUSTOM[用户自定义模型客户端]
+        UI --> PREVIEW --> RULE
+        STORE --> UI
+        STORE --> CUSTOM
+        RULE --> UI
     end
 
     subgraph Server[触镜公网服务]
         AUTH[账号与 JWT]
         QUOTA[每日额度]
         API[FastAPI]
-        SAI[学校模型代理]
-        PW[Playwright 深度沙箱]
-        META[任务元数据]
+        PW[Playwright 云端取证]
+        SCHOOL[学校模型接口 / 服务端 Key]
         AUTH --> API
-        QUOTA --> API --> PW --> META
-        API --> SAI
+        QUOTA --> API --> PW
+        API --> SCHOOL
     end
 
     subgraph Provider[模型服务]
-        CUC[中传 DeepSeek-V4.1-Flash]
-        DS[用户自定义模型]
+        CAMPUS[cuc/deepseek]
+        USER[用户选定的自定义模型]
     end
 
-    UI -->|账号令牌 / 脱敏目标| API
+    UI -->|TapLens JWT / 用户确认的任务| API
     PW -->|云端证据 JSON| RULE
-    RULE -->|默认模式：脱敏证据| SAI
-    SAI -->|服务端学校 Key| CUC
-    CUC -->|报告 JSON 与 Token 用量| SAI
-    AI -->|用户 Key 与脱敏证据| DS
-    DS -->|报告 JSON 与 Token 用量| AI
+    RULE -->|脱敏证据与 JWT| SCHOOL --> CAMPUS
+    CAMPUS -->|报告与 Provider 用量| SCHOOL --> UI
+    RULE -->|脱敏证据| CUSTOM --> USER
+    USER -->|报告与用量| CUSTOM --> UI
 ```
 
 这是一款可以独立安装和操作的手机 APP。开发电脑只用于编写代码；正式使用时，用户不需要打开个人电脑，也不需要与服务器处于同一局域网。
 
 ## 隐私与 API Key
 
-触镜提供学校模型默认模式和 BYOK（Bring Your Own Key）自定义模式：
+云端扫描开始前，用户可以选择是否同时进行 AI 研判以及使用哪种模型。新云任务成功后，APP 按所选模式自动发起一次 AI 研判；查询已有任务只读取结果，不自动重复调用。当前调用幂等与重启后的恢复合同仍待 Day 8 冻结及后端正式集成。
 
-1. 默认模式由后端使用仅存在 ECS 环境变量中的学校模型 Key；
-2. APP 只向后端发送白名单内的脱敏证据，不上传用户模型 Key；
-3. 自定义模式继续允许用户在手机中填写自己的模型 Key，由 Android Keystore 保护；
-4. 自定义 Key 只保存在当前手机，手机直接请求用户指定模型；
-5. 触镜服务器拒绝接收、保存或转发用户上传的模型 Key；
-6. 两种模式都执行报告 Schema、证据编号和硬风险守卫，并显示接口返回的 Token 用量。
+1. **默认学校模型**：用户选择学校模型后，新云任务成功时 APP 向 `POST /api/v1/ai/analyze` 发送白名单内的脱敏证据和 TapLens JWT；学校模型 Key 只放在后端环境中，APP 不接收该 Key。服务端调用 `cuc/deepseek`，再校验报告 Schema、证据编号与硬风险，返回报告及 Provider Token 用量。
+2. **用户自定义模型（BYOK）**：用户 Key 保存在手机的 Android Keystore 保护范围内，由手机直接连接所选模型服务，不交给 TapLens 后端。其真实模型端到端验收仍需单独记录，不能把 Mock 当作真调用。
 
-完整检测报告只保存在手机。服务器只保存账号、额度、任务状态和必要的脱敏元数据，不保存完整报告。
+登录态也使用 Android Keystore 保护；密码不应持久化。学校模式必然会把脱敏证据传到后端，不能宣称“所有证据始终只在手机”。AI 失败时保留规则报告并标明 `sources.ai=false`；规则报告里的零 Token 只表示**该报告不是 AI 产物**，不代表服务端没有产生 Provider 用量。Day 7 的一次服务端请求已记录 5203 Token，但 APP 未保留完整 AI 报告，因此手机端 AI 终验仍为 BLOCKED。后端目前没有可靠的服务端幂等/重复计费保护，“每分析最多一次调用”仍是目标而非保证。
+
+当前演示 ECS 地址为 **HTTP**；它不具备 HTTPS 的传输保护，只用于受控测试和虚构账号。正式上线前需要 HTTPS、域名及相应配置。
 
 ## 风险结果
 
@@ -198,8 +185,8 @@ flowchart LR
 | 本地数据 | SQLite 或 Hive | 完整报告历史 |
 | 后端 | Python、FastAPI、Pydantic | 账号、JWT、额度、任务和元数据 |
 | 云端沙箱 | Playwright、Chromium | 网页动态行为与证据采集 |
-| AI | DeepSeek `deepseek-flash` | 单次、非思考模式的语义差分 |
-| 部署 | Docker Compose、Nginx、HTTPS | 公网运行和自动重启 |
+| AI | 后端学校模型 `cuc/deepseek`；手机端用户自定义模型 | 脱敏证据的语义差分与证据守卫；真实手机端成功路径待验收 |
+| 部署 | Docker Compose、Nginx；HTTPS 待配置 | 当前 ECS 仅有受控 HTTP 演示入口 |
 
 ## 计划中的仓库结构
 
@@ -211,7 +198,7 @@ TapLens/
 │   │   ├── capture/          # 扫码、相册、粘贴与分享
 │   │   ├── privacy/          # 端侧脱敏
 │   │   ├── evidence/         # 证据合并
-│   │   ├── ai/               # DeepSeek 直连与结果校验
+│   │   ├── ai/               # 学校模型后端模式 / 用户自定义模型直连与守卫
 │   │   ├── history/          # 本地历史
 │   │   └── report_ui/        # 报告界面
 │   └── android/app/src/main/kotlin/
@@ -232,7 +219,7 @@ TapLens/
 └── submission/               # 参赛文档、截图、视频与测试报告
 ```
 
-## 计划中的公网 API
+## 公网 API 与计划项
 
 | 接口 | 方法 | 用途 |
 |---|---|---|
@@ -242,18 +229,19 @@ TapLens/
 | `/api/v1/deep-scans` | `POST` | 创建 Playwright 深度分析任务 |
 | `/api/v1/deep-scans/{id}` | `GET` | 查询任务状态和云端证据 |
 | `/api/v1/deep-scans/{id}` | `DELETE` | 删除任务和临时截图 |
-| `/api/v1/ai/analyze` | `POST` | 使用学校模型分析脱敏证据，不接收客户端 Key |
 | `/api/v1/task-metadata` | `POST` | 保存不含 URL 和报告的任务元数据 |
-| `/api/v1/health` | `GET` | 服务健康检查 |
+| `/api/v1/ai/analyze` | `POST` | TapLens JWT 鉴权的学校模型分析；结果还需 APP 验收 |
+| `/healthz` | `GET` | 当前 ECS 健康检查 |
+| `/api/v1/health` | `GET` | 版本健康接口，见共享 HTTP API 草案 |
 
-后端默认模型接口只使用服务端学校凭证，并继续拒绝任何客户端上传的模型 Key。
+此表混列现有接口与首版计划；`DELETE /api/v1/deep-scans/{id}`、`POST /api/v1/task-metadata` 等不得仅凭本表视作已部署。精确请求/响应和错误码以 `shared/interfaces/http-api.md` 与 `shared/interfaces/backend-ai.md`（B 分支）为准。后端**提供学校模型接口**，保存服务端学校 Key；不接收用户自定义模型 Key。
 
 ## 四人分工
 
 - **A｜Flutter 产品与整合**：完成用户能看到和操作的整个 APP，并把本地安全、云端分析和 AI 模块串成完整流程。
 - **B｜账号、云端沙箱与部署**：完成登录与额度系统、Playwright 深度分析服务、演示网页和公网部署。
 - **C｜Android 本地安全能力**：完成 URL/Deep Link 解析、目标 APP 核验、受控 WebView 预检与本地硬风险规则。
-- **D｜AI、验证、测试与材料**：完成手机端 DeepSeek 调用、证据约束与结果校验、测试集、测试报告和参赛材料。
+- **D｜AI、验证、测试与材料**：维护两种模型模式的证据约束与结果校验、测试集、审计报告和参赛材料；默认学校模型由 B 后端调用，手机端模式由 A 集成。
 
 ## 10 天开发计划
 
@@ -266,9 +254,9 @@ TapLens/
 | Day 5 | 完成本地基础报告、Keystore 与首个 AI 差分案例 |
 | Day 6 | 串通本地、云端、AI 和最终报告，冻结功能范围 |
 | Day 7 | 补齐系统分享与打开方式，跑通三个正式演示案例 |
-| Day 8 | 集中进行功能、安全、隐私和异常测试 |
-| Day 9 | 生成候选 APK，完成公网部署和故障演练 |
-| Day 10 | 冻结版本，整理材料并完成全流程彩排 |
+| Day 8 | 冻结客户端合同、接入后端、门禁审查；合并候选 APK、部署与故障演练，并完成材料整理和全流程彩排 |
+| Day 9 | 工作并入 Day 8；不再单独安排 |
+| Day 10 | 工作并入 Day 8；不再单独安排 |
 
 ## 首版验收目标
 
@@ -297,11 +285,13 @@ TapLens/
 - 阻止 `file://`、`content://` 和私网地址进入不可信分析流程；
 - 云端防护 localhost、云元数据地址、DNS 重绑定和 SSRF；
 - 网页权限、下载、表单提交与外部唤起只记录，不执行；
-- DeepSeek Key 不进入日志、后端、截图、崩溃报告或 Git；
+- 用户自定义模型 Key 不进入后端、日志、截图、崩溃报告或 Git；学校模型 Key 只在受控后端环境，不进入 APP 或 Git；
 - 网页中的提示注入内容不能改变 AI 的证据约束；
 - AI 引用不存在的证据时，拒绝该结论并回退到规则报告。
 
 ## 项目状态
+
+以下勾选仍是早期计划快照，不代表整合后的 `main` 已通过 Day 8 测试或设备终验；Day 7 审计记录见 `shared/daliy_task/day7-d-final-audit.md`。
 
 - [x] 完成需求分析与方案冻结
 - [x] 确定双层分析架构与隐私边界

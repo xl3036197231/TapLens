@@ -1,0 +1,16 @@
+{
+  "analysis_id": "0bab7eba-ff50-42f8-a264-543596b2c9bf",
+  "status": "failed",
+  "failure": {
+    "stage": "after_provider",
+    "code": "AI_REPORT_GUARD_REJECTED",
+    "retryable": false
+  },
+  "usage_status": "known",
+  "usage": {
+    "model": "cuc/deepseek",
+    "prompt_tokens": 3327,
+    "completion_tokens": 2274,
+    "total_tokens": 5601
+  }
+}

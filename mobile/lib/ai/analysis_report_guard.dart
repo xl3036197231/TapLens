@@ -7,10 +7,10 @@ class ReportGuardResult {
   const ReportGuardResult._({this.report, this.error});
 
   const ReportGuardResult.valid(Map<String, dynamic> report)
-    : this._(report: report);
+      : this._(report: report);
 
   const ReportGuardResult.invalid(AiClientException error)
-    : this._(error: error);
+      : this._(error: error);
 
   bool get isValid => report != null;
 }
@@ -40,6 +40,7 @@ class AnalysisReportGuard {
     required Set<String> availableEvidenceIds,
     String? hardRiskLevel,
     String? expectedAnalysisId,
+    String? expectedModel,
   }) {
     late final Map<String, dynamic> report;
     try {
@@ -124,10 +125,21 @@ class AnalysisReportGuard {
         'Zero requests require zero usage and null model',
       );
     }
-    if (requestCount == 1 && tokenUsage['model'] != 'deepseek-flash') {
+    if (requestCount == 1 &&
+        (!_isModelName(tokenUsage['model']) ||
+            (expectedModel != null && tokenUsage['model'] != expectedModel))) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
         'Unexpected AI model',
+      );
+    }
+    if (sources['ai'] != (requestCount == 1) ||
+        tokenUsage['total_tokens'] !=
+            (tokenUsage['prompt_tokens'] as int) +
+                (tokenUsage['completion_tokens'] as int)) {
+      return _invalid(
+        AiClientErrorCode.reportSchemaInvalid,
+        'AI source or Token arithmetic does not match usage',
       );
     }
 
@@ -173,7 +185,8 @@ class AnalysisReportGuard {
 
     final referencedIds = <String>[];
     final behavior = report['observed_behavior'];
-    if (behavior is! Map<String, dynamic> || behavior['evidence_ids'] is! List) {
+    if (behavior is! Map<String, dynamic> ||
+        behavior['evidence_ids'] is! List) {
       return _invalid(
         AiClientErrorCode.reportSchemaInvalid,
         'Invalid observed_behavior',
@@ -266,11 +279,14 @@ class AnalysisReportGuard {
     }
 
     final target = report['target'];
+    // The shared schema defines redacted as a boolean. It may be false when
+    // there were no sensitive parameters to remove; request sanitization is
+    // enforced separately before sending the URL to the model.
     if (target is! Map<String, dynamic> ||
         !_exactKeys(target, {'type', 'display', 'redacted'}) ||
         !{'url', 'deep_link', 'qr_payload'}.contains(target['type']) ||
         !_isText(target['display'], 4096) ||
-        target['redacted'] != true) {
+        target['redacted'] is! bool) {
       return false;
     }
 
@@ -389,6 +405,9 @@ class AnalysisReportGuard {
         ].any((key) => usage[key] is! int || (usage[key] as int) < 0)) {
       return false;
     }
+    if (usage['model'] != null && !_isModelName(usage['model'])) {
+      return false;
+    }
     return true;
   }
 
@@ -401,6 +420,10 @@ class AnalysisReportGuard {
       (maxLength == null || value.length <= maxLength);
   static bool _isOptionalText(Object? value, int maxLength) =>
       value == null || (value is String && value.length <= maxLength);
+  static bool _isModelName(Object? value) =>
+      value is String &&
+      value.length <= 128 &&
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$').hasMatch(value);
   static bool _isTextList(Object? value, int maxItems, int maxLength) =>
       value is List &&
       value.length <= maxItems &&
