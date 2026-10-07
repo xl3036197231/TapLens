@@ -1,6 +1,6 @@
 # D Day 9 进度：复审交接与 30 例验收基线
 
-> 日期：2026-10-07；基线 `main=0cf68192d0a23db7fdf8b039d24a203ca869c3af`；A 修复 `bce023bb4cc7c2970d5165cbe4a7a9cc24a0a6ac`；D 上轮远端 `feat/d-ai=6a119c1fa8558128e84851f84b1a08b60250f580`。
+> 日期：2026-10-07；基线 `main=0cf68192d0a23db7fdf8b039d24a203ca869c3af`；A 修复 `bce023b`；B 集成 `ca00dc9`。
 
 ## 已交付
 
@@ -9,12 +9,13 @@
 3. 建立 [30 例验收矩阵](../../shared/datasets/acceptance/README.md)及标准库校验工具；11 QR、10 Deep Link、9 AI/报告用例。矩阵结构校验通过，30 个来源文件与样例/测试标记在固定仓库树中核对存在。
 4. 建立 [Day 9 测试报告](test-report.md)，将本轮产品执行记为 `NOT_RUN`，README 性能与正确率指标保留“未测”；不沿用旧 APK、旧截图或 Mock 充当最终同版证据。
 5. 核对 A 的同步提交、读回、保存失败阻止 POST，以及四类 409 两次调用各最多一次 POST。A 提交的 Flutter/Android/模拟器结果与 APK 哈希作为交接证据记录；D 本机未独立复跑新增测试或复算 APK 哈希。
+6. 对 B 的 `ca00dc9` 建立独立 Git 快照并复跑 **55/55 AI 测试、164/164 后端测试**。D [正式集成复审](b-backend-review.md)为 **NEEDS_CHANGES**：30 天压缩后，已知用量失败态的状态 GET 返回 500；另记录派发前崩溃后租约过期仍无限 `in_progress` 的恢复缺口。
 
 ## 待接棒
 
 - **A**：客户端合同修复与复审已完成；配合 B 核对冻结 Schema 和 Fake Provider 联调。
-- **B**：A 门禁已 PASS，可接正式 POST/GET、cleanup 与 Fake Provider 集成；完成后交 D 复审，通过前不部署。
+- **B**：正式 POST/GET、cleanup 与 Fake Provider 已提交；按 D 对 `ca00dc9` 的复审修正压缩后 GET 500，并明确未派发租约过期的状态，交新固定 SHA 复审。D 给出 PASS 前不部署。
 - **C**：在最终代码与部署健康后执行双构建哈希、Android 15 实体设备安全预览及网络验收。
 - **D**：按同版 APK 逐例执行矩阵、归档原始结果、计算实测指标并整理最终参赛材料。C04 历史 PNG 与手机完整真实 AI 报告仍缺失，不改写为 PASS。
 
-**当前判定：A 客户端合同 PASS；B 正式集成、C 最终设备验收与全组版本冻结仍未完成。** 本轮不声称真实模型终验或最终设备验收完成。
+**当前判定：A 客户端合同 PASS；B 正式集成 NEEDS_CHANGES；C 最终设备验收与全组版本冻结仍未完成。** 本轮不声称真实模型终验或最终设备验收完成。
