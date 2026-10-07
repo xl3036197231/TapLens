@@ -33,12 +33,19 @@ def project_ai_status(
     base: dict[str, object] = {"analysis_id": str(analysis_id)}
 
     if record.state is AiCallState.IN_PROGRESS:
-        if (
-            record.provider_dispatch_started_at is not None
-            and record.lease_expires_at is not None
-            and record.lease_expires_at <= timestamp
-        ):
-            return {**base, "status": "outcome_unknown", "usage_status": "unknown"}
+        if record.lease_expires_at is None or record.lease_expires_at <= timestamp:
+            if record.provider_dispatch_started_at is not None:
+                return {**base, "status": "outcome_unknown", "usage_status": "unknown"}
+            return {
+                **base,
+                "status": "failed",
+                "failure": {
+                    "stage": "before_provider",
+                    "code": "AI_DISPATCH_NOT_STARTED",
+                    "retryable": False,
+                },
+                "usage_status": "not_applicable",
+            }
         return {
             **base,
             "status": "in_progress",

@@ -232,24 +232,28 @@ class AiCallRepository:
                 )
                 row = self._select(connection, user_id, analysis_id)
                 return Reservation(ReservationKind.OUTCOME_UNKNOWN, row_to_record(row))
-
-            new_attempt_id = uuid.uuid4()
+            # The durable reservation proves that this analysis context existed,
+            # while the missing dispatch marker proves that no Provider request
+            # started.  After its lease expires, close the old context instead
+            # of silently dispatching it from a replay.  Recovery requires a new
+            # analysis_id and fresh user confirmation.
             connection.execute(
                 """
                 UPDATE ai_analysis_calls
-                SET attempt_id = ?, lease_expires_at = ?, updated_at = ?
+                SET state = 'failed_before_provider', usage_status = 'not_applicable',
+                    error_code = 'AI_DISPATCH_NOT_STARTED', retryable = 0,
+                    lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
                 WHERE user_id = ? AND analysis_id = ?
                 """,
                 (
-                    str(new_attempt_id),
-                    _iso(timestamp + self.lease),
                     _iso(timestamp),
+                    _iso(timestamp + self.compact_ttl),
                     str(user_id),
                     str(analysis_id),
                 ),
             )
             return Reservation(
-                ReservationKind.ACQUIRED,
+                ReservationKind.TERMINAL_FAILURE,
                 row_to_record(self._select(connection, user_id, analysis_id)),
             )
 
@@ -502,7 +506,13 @@ class AiCallRepository:
                 UPDATE ai_analysis_calls
                 SET response_json = NULL, cache_expires_at = NULL,
                     prompt_tokens = NULL, completion_tokens = NULL,
-                    total_tokens = NULL, model = NULL, compacted_at = ?, updated_at = ?
+                    total_tokens = NULL, model = NULL,
+                    usage_status = CASE
+                        WHEN state = 'failed_after_provider' AND usage_status = 'known'
+                        THEN 'unknown'
+                        ELSE usage_status
+                    END,
+                    compacted_at = ?, updated_at = ?
                 WHERE record_expires_at IS NOT NULL AND record_expires_at <= ?
                   AND compacted_at IS NULL AND state != 'in_progress'
                 """,

@@ -3,7 +3,7 @@ import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from httpx import ASGITransport, AsyncClient
 
@@ -150,6 +150,43 @@ def test_equivalent_created_at_text_is_an_input_conflict_without_dispatch(tmp_pa
     asyncio.run(run())
 
 
+def test_expired_predispatch_reservation_requires_new_analysis_context(tmp_path) -> None:
+    async def run() -> None:
+        provider = CountingProvider()
+        app = build_app(tmp_path, provider)
+        app.state.ai_call_repository.lease = timedelta(seconds=10)
+        async with client_for(app) as client:
+            token = await register_and_login(client, "Predispatch_Crash_User")
+            with app.state.database.connect() as connection:
+                user_id = UUID(connection.execute("SELECT id FROM users").fetchone()["id"])
+            app.state.ai_call_repository.reserve(
+                user_id=user_id,
+                analysis_id=UUID(analysis_id()),
+                payload=body(),
+                now=datetime.now(UTC) - timedelta(seconds=11),
+            )
+
+            status = await get_status(client, token, analysis_id())
+            replay = await post(client, token, body())
+
+        assert status.status_code == 200
+        assert status.json() == {
+            "analysis_id": analysis_id(),
+            "status": "failed",
+            "failure": {
+                "stage": "before_provider",
+                "code": "AI_DISPATCH_NOT_STARTED",
+                "retryable": False,
+            },
+            "usage_status": "not_applicable",
+        }
+        assert replay.status_code == 409
+        assert replay.json()["error"]["code"] == "AI_ANALYSIS_FAILED"
+        assert provider.calls == []
+
+    asyncio.run(run())
+
+
 def test_definitive_provider_failure_is_terminal_and_not_retryable(tmp_path) -> None:
     async def run() -> None:
         provider = CountingProvider(
@@ -225,6 +262,39 @@ def test_guard_rejection_records_known_usage_and_never_redispatches(tmp_path) ->
         assert status.json()["status"] == "failed"
         assert status.json()["usage_status"] == "known"
         assert status.json()["usage"]["total_tokens"] == 200
+        assert len(provider.calls) == 1
+
+    asyncio.run(run())
+
+
+def test_day_31_compacted_guard_failure_remains_queryable_and_terminal(tmp_path) -> None:
+    async def run() -> None:
+        provider = GuardRejectingProvider()
+        app = build_app(tmp_path, provider)
+        async with client_for(app) as client:
+            token = await register_and_login(client, "Compacted_Failure_User")
+            first = await post(client, token, body())
+            cleared, compacted = app.state.ai_call_repository.purge_expired(
+                now=datetime.now(UTC) + timedelta(days=31)
+            )
+            status = await get_status(client, token, analysis_id())
+            replay = await post(client, token, body())
+
+        assert first.status_code == 502
+        assert (cleared, compacted) == (0, 1)
+        assert status.status_code == 200
+        assert status.json() == {
+            "analysis_id": analysis_id(),
+            "status": "failed",
+            "failure": {
+                "stage": "after_provider",
+                "code": "AI_REPORT_REJECTED",
+                "retryable": False,
+            },
+            "usage_status": "unknown",
+        }
+        assert replay.status_code == 409
+        assert replay.json()["error"]["code"] == "AI_ANALYSIS_FAILED"
         assert len(provider.calls) == 1
 
     asyncio.run(run())

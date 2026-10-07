@@ -6,7 +6,7 @@
 >
 > A 客户端门禁：D 在 `322323a` 对 A 的 `bce023b` 复审 **PASS**
 >
-> 当前状态：**READY FOR D REVIEW / NOT DEPLOYED**
+> 当前状态：**D NEEDS_CHANGES ADDRESSED / READY FOR RE-REVIEW / NOT DEPLOYED**
 
 ## 正式接线
 
@@ -24,7 +24,12 @@
   冻结的六种状态；跨用户查询回答 `not_found`，GET 不写 SQLite 也不取得
   Provider。
 - `AiCallCleanupWorker` 已接入 FastAPI lifespan：24 小时清除守卫报告缓存，
-  30 天后压缩用量与模型字段，不删除防重放核心记录。
+  30 天后压缩用量与模型字段，不删除防重放核心记录。失败态的
+  已知用量被压缩时，同一事务把 `usage_status` 改为 `unknown`，因而第 31 天
+  GET 仍符合冻结合同。
+- 已预留但确认从未 dispatch 的租约过期后，GET 固定返回
+  `failed / before_provider / AI_DISPATCH_NOT_STARTED / not_applicable`。原 analysis ID
+  进入不可重派终态；恢复路径是建立新分析上下文并重新取得用户确认。
 
 ## 密钥与运维边界
 
@@ -41,8 +46,8 @@
   自动清理。
 - 隔离仓储测试继续覆盖迟到成功/失败、并发终态、HMAC 轮换、第 31 天
   防重放和备份恢复缓存剔除。
-- AI 相关正式/隔离/备份测试：**55/55 PASS**。
-- 后端完整回归：**164/164 PASS**；其中三项受控站点测试在允许临时绑定
+- AI 相关正式/隔离/备份测试：**58/58 PASS**。
+- 后端完整回归：**167/167 PASS**；其中三项受控站点测试在允许临时绑定
   `127.0.0.1` 端口的环境重跑通过。
 - `compileall` 和 `git diff --check` 通过。
 

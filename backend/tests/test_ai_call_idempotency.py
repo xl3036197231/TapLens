@@ -184,7 +184,7 @@ def test_expired_dispatched_lease_becomes_unknown_and_never_reacquires(tmp_path)
     assert second_replay.record.attempt_id == acquired.record.attempt_id
 
 
-def test_expired_undispatched_lease_is_the_only_safe_reacquire(tmp_path) -> None:
+def test_expired_undispatched_lease_closes_without_provider_reacquire(tmp_path) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path, lease_seconds=10)
     acquired = reserve(repository, user_id, analysis_id, body)
 
@@ -195,8 +195,11 @@ def test_expired_undispatched_lease_is_the_only_safe_reacquire(tmp_path) -> None
         now=NOW + timedelta(seconds=11),
     )
 
-    assert retry.kind is ReservationKind.ACQUIRED
-    assert retry.record.attempt_id != acquired.record.attempt_id
+    assert retry.kind is ReservationKind.TERMINAL_FAILURE
+    assert retry.record.attempt_id == acquired.record.attempt_id
+    assert retry.record.state is AiCallState.FAILED_BEFORE_PROVIDER
+    assert retry.record.error_code == "AI_DISPATCH_NOT_STARTED"
+    assert retry.record.usage_status is UsageStatus.NOT_APPLICABLE
     assert retry.record.provider_dispatch_started_at is None
 
 

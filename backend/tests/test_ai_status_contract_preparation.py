@@ -138,6 +138,38 @@ def test_expired_dispatched_lease_is_projected_unknown_without_mutating_sqlite(t
     assert before == after
 
 
+def test_expired_undispatched_lease_is_projected_failed_without_mutating_sqlite(
+    tmp_path,
+) -> None:
+    repository, user_id, analysis_id, body = setup_repository(
+        tmp_path, lease_seconds=10
+    )
+    acquired = repository.reserve(
+        user_id=user_id, analysis_id=analysis_id, payload=body, now=NOW
+    )
+
+    before = repository.database.path.read_bytes()
+    payload = project_ai_status(
+        analysis_id=analysis_id,
+        record=acquired.record,
+        now=NOW + timedelta(seconds=11),
+    )
+    after = repository.database.path.read_bytes()
+
+    assert payload == {
+        "analysis_id": str(analysis_id),
+        "status": "failed",
+        "failure": {
+            "stage": "before_provider",
+            "code": "AI_DISPATCH_NOT_STARTED",
+            "retryable": False,
+        },
+        "usage_status": "not_applicable",
+    }
+    assert list(validator().iter_errors(payload)) == []
+    assert before == after
+
+
 def test_failed_before_provider_has_no_usage_and_status_projection_is_pure(tmp_path) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path)
     acquired = repository.reserve(

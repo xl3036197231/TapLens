@@ -35,14 +35,14 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/
 一旦存在该用户和 `analysis_id` 的本地记录，后续启动只调用只读 GET，不再 POST。状态接口路径为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带同一个 TapLens JWT。预期成功响应：
 
 ```json
-{"analysis_id":"<uuid>","status":"in_progress","retry_after_seconds":2}
+{"analysis_id":"<uuid>","status":"in_progress","poll_after_seconds":2}
 ```
 
 ```json
 {"analysis_id":"<uuid>","status":"succeeded","result":{"report":{},"model":"cuc/deepseek","usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}}
 ```
 
-`status` 也可为 `outcome_unknown`、`result_expired` 或 `not_found`。`in_progress` 和 `outcome_unknown` 只继续 GET 轮询；`not_found`、网络失败或轮询停止均保持“待核实”，不得据此重新 POST。状态请求最多等待约一分钟，离开页面后停止后续轮询。此客户端合同由 Mock 验证；在 B 接入并部署之前，不代表线上已有状态路由。
+`status` 也可为 `failed`、`outcome_unknown`、`result_expired` 或 `not_found`。`in_progress` 和 `outcome_unknown` 只继续 GET 轮询；`not_found`、网络失败或轮询停止均保持“待核实”，不得据此重新 POST。`failed` 是不可重派终态；当错误为 `AI_DISPATCH_NOT_STARTED` 时，表示旧预留在 Provider 派发前过期，恢复时必须由用户建立新分析上下文并重新确认，不得自动替换 analysis ID。状态请求最多等待约一分钟，离开页面后停止后续轮询。此客户端合同由 Mock 验证；B 候选提交已实现状态路由，但 D 复审 PASS 并部署之前不代表线上已生效。
 
 POST 返回四种 409 时按 `error.code` 分开处理：`AI_REQUEST_IN_PROGRESS` 开始 GET 轮询；`AI_ANALYSIS_INPUT_CONFLICT` 提示保留当前上下文并由用户新建/确认上下文；`AI_OUTCOME_UNKNOWN` 只查状态；`AI_RESULT_EXPIRED` 保留规则报告并禁止重新计费调用。四种响应都不触发客户端 POST 重试。
 
