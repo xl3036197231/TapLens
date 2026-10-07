@@ -30,25 +30,36 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/
 
 ## Day 8 客户端幂等与状态查询合同
 
-同一 `analysis_id` 的首次请求使用云端证据中的 `generated_at` 原始 RFC 3339 文本作为 `report_context.created_at`。手机客户端先将 `analysis_id`、`created_at`、TapLens 用户 ID 和状态写入 Android Keystore 加密的最小元数据记录，再发送第一次 POST。记录不保存 JWT、URL、请求正文、模型报告或 Key；最多保存 250 条，达到上限或记录损坏时拒绝新的学校模型 POST，不删除旧记录来腾位置。
+**合同状态：D 对 A 的 `bce023b` 客户端合同复审为 `PASS`；D 对 B 固定提交 `2104c85` 的后端复审也为 `PASS`，但尚未部署。** 详情见 [A 客户端复审](../../submission/day9/a-client-rereview.md)、[B 后端初审](../../submission/day9/b-backend-review.md)和 [B 后端复审](../../submission/day9/b-backend-rereview.md)。下述冻结合同不能当作线上已实现行为。
 
-一旦存在该用户和 `analysis_id` 的本地记录，后续启动只调用只读 GET，不再 POST。状态接口路径为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带同一个 TapLens JWT。预期成功响应：
+同一 `analysis_id` 的首次请求使用云证据 `generated_at` 的**完整原始 RFC 3339 文本**作为 `report_context.created_at`，后续逐字复用。客户端在第一次 POST 前持久保存 `analysis_id`、`created_at`、用户 ID 和状态；一旦记录存在，后续只允许查询状态 GET。A 的 `bce023b` 改为后台线程执行 `SharedPreferences.commit()`，检查提交结果并解密读回；只有保存成功才向 Flutter 返回成功，失败时拒绝 POST。原生设备探针已提供强制停止后读回证据；完整设备端 HTTP 重启演练留给最终设备验收。记录不得包含 JWT、URL、请求正文、模型报告或 Key；达到 250 条上限、损坏或写入失败时应拒绝新 POST。
+
+只读状态接口为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带 TapLens JWT。冻结 Schema 是 [ai-analysis-status.schema.json](../contracts/ai-analysis-status.schema.json)，**六种状态均为 HTTP 200 JSON**：
+
+| `status` | 必须提供 | 客户端动作 |
+|---|---|---|
+| `in_progress` | `poll_after_seconds`，1–10 秒 | 按该字段等待后继续 GET；不得 POST |
+| `succeeded` | `result.report/model/usage` | 守卫通过后展示缓存结果；不得 POST |
+| `failed` | `failure.stage/code/retryable`、`usage_status`；已知用量附 `usage` | 保留规则报告，显示调用前／后阶段和真实用量状态；不得 POST |
+| `outcome_unknown` | `usage_status=unknown` | 有界 GET 核实；不得 POST |
+| `result_expired` | `usage_status` | 保留规则报告；不得 POST |
+| `not_found` | 仅 `analysis_id`、`status` | 保持待核实；不得 POST |
+
+`in_progress` 示例：
 
 ```json
-{"analysis_id":"<uuid>","status":"in_progress","poll_after_seconds":2}
+{"analysis_id":"00000000-0000-4000-8000-000000000001","status":"in_progress","poll_after_seconds":2}
 ```
 
-```json
-{"analysis_id":"<uuid>","status":"succeeded","result":{"report":{},"model":"cuc/deepseek","usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}}
-```
+`SchoolAiCallCoordinator` 当前上限为 30 次状态 GET；`in_progress` 每次按服务端 1–10 秒建议等待，`outcome_unknown` 使用本地 2 秒间隔，页面离开后停止后续 GET。不能统一声称总等待“约一分钟”；还应在最终设备测试中记录真实墙钟时长与取消行为。旧服务的 HTTP 404 仅作为未找到处理，绝不解锁重发 POST。
 
-`status` 也可为 `failed`、`outcome_unknown`、`result_expired` 或 `not_found`。`in_progress` 和 `outcome_unknown` 只继续 GET 轮询；`not_found`、网络失败或轮询停止均保持“待核实”，不得据此重新 POST。`failed` 是不可重派终态；当错误为 `AI_DISPATCH_NOT_STARTED` 时，表示旧预留在 Provider 派发前过期，恢复时必须由用户建立新分析上下文并重新确认，不得自动替换 analysis ID。状态请求最多等待约一分钟，离开页面后停止后续轮询。此客户端合同由 Mock 验证；B 候选提交已实现状态路由，但 D 复审 PASS 并部署之前不代表线上已生效。
+POST 的四种 409 按 `error.code` 分流：`AI_REQUEST_IN_PROGRESS`、`AI_OUTCOME_UNKNOWN` 只查状态；`AI_ANALYSIS_INPUT_CONFLICT` 停止并保留原上下文；`AI_RESULT_EXPIRED` 保留规则报告。任何状态均不触发同一分析的客户端 POST 重试。输入冲突若需重新分析，必须由用户确认**新的**分析上下文和 ID。
 
-POST 返回四种 409 时按 `error.code` 分开处理：`AI_REQUEST_IN_PROGRESS` 开始 GET 轮询；`AI_ANALYSIS_INPUT_CONFLICT` 提示保留当前上下文并由用户新建/确认上下文；`AI_OUTCOME_UNKNOWN` 只查状态；`AI_RESULT_EXPIRED` 保留规则报告并禁止重新计费调用。四种响应都不触发客户端 POST 重试。
+`failed` 是终态，客户端不得用原 `analysis_id` 再发 POST。若失败码为
+`AI_DISPATCH_NOT_STARTED`，表示旧预留在 Provider 派发前过期；用户要继续时，必须
+建立新的分析上下文、生成新的 ID 并重新确认。
 
-精确映射的 `.test` 仓库受控页面会在报告标题、摘要、证据范围和 AI 输入中显示“受控模拟证据”，并说明结果不代表原始 `.test` 域名的真实网页行为。
-
-自定义模式保留手机直连 DeepSeek 的路径。用户填写模型名称与自己的 API Key，Key 仍由 Android Keystore 保存，绝不传给 TapLens 后端。
+精确映射的 `.test` 仓库受控页面在报告标题、摘要、证据范围和 AI 输入中标记“受控模拟证据”，并说明它不代表原虚构域名的真实网页行为。自定义 BYOK 模式仍由手机直连 DeepSeek，不经过学校模型状态接口。
 
 ## 请求边界
 
