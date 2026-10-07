@@ -6,7 +6,11 @@ from uuid import UUID
 from app.ai.provider import AiProvider
 from app.ai.schemas import AiAnalyzeRequest, AiAnalyzeResponse
 from app.core.errors import AppError
-from app.storage.ai_calls import AiCallRepository, ReservationKind
+from app.storage.ai_calls import (
+    AiCallRepository,
+    AiDispatchLeaseExpiredError,
+    ReservationKind,
+)
 
 
 UNKNOWN_PROVIDER_CODES = {"AI_PROVIDER_TIMEOUT"}
@@ -46,12 +50,17 @@ class AiAnalysisService:
             raise self._reservation_error(reservation.kind, analysis_id)
 
         attempt_id = reservation.record.attempt_id
-        self.repository.mark_provider_dispatch_started(
-            user_id=user_id,
-            analysis_id=analysis_id,
-            attempt_id=attempt_id,
-            now=self.clock(),
-        )
+        try:
+            self.repository.mark_provider_dispatch_started(
+                user_id=user_id,
+                analysis_id=analysis_id,
+                attempt_id=attempt_id,
+                now=self.clock(),
+            )
+        except AiDispatchLeaseExpiredError as error:
+            raise self._reservation_error(
+                ReservationKind.TERMINAL_FAILURE, analysis_id
+            ) from error
         try:
             result = await self._analyze_with_lease_renewal(
                 user_id=user_id,

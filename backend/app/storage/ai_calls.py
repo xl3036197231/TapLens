@@ -64,6 +64,10 @@ class UnsafeCacheResponseError(ValueError):
     pass
 
 
+class AiDispatchLeaseExpiredError(ValueError):
+    """The reserved attempt expired before its Provider dispatch marker."""
+
+
 @dataclass(frozen=True)
 class AiCallRecord:
     user_id: UUID
@@ -266,6 +270,8 @@ class AiCallRepository:
         now: datetime | None = None,
     ) -> AiCallRecord:
         timestamp = _utc(now)
+        expired_before_dispatch = False
+        result: AiCallRecord | None = None
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
@@ -274,6 +280,7 @@ class AiCallRepository:
                 SET provider_dispatch_started_at = ?, usage_status = 'unknown', updated_at = ?
                 WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
                   AND state = 'in_progress' AND provider_dispatch_started_at IS NULL
+                  AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
                 """,
                 (
                     _iso(timestamp),
@@ -281,11 +288,58 @@ class AiCallRepository:
                     str(user_id),
                     str(analysis_id),
                     str(attempt_id),
+                    _iso(timestamp),
                 ),
             )
             if cursor.rowcount != 1:
-                raise ValueError("AI call is not dispatchable")
-            return row_to_record(self._select(connection, user_id, analysis_id))
+                record = row_to_record(self._select(connection, user_id, analysis_id))
+                if (
+                    record.attempt_id == attempt_id
+                    and record.state is AiCallState.IN_PROGRESS
+                    and record.provider_dispatch_started_at is None
+                    and (
+                        record.lease_expires_at is None
+                        or record.lease_expires_at <= timestamp
+                    )
+                ):
+                    connection.execute(
+                        """
+                        UPDATE ai_analysis_calls
+                        SET state = 'failed_before_provider',
+                            usage_status = 'not_applicable',
+                            error_code = 'AI_DISPATCH_NOT_STARTED', retryable = 0,
+                            lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
+                        WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                          AND state = 'in_progress'
+                          AND provider_dispatch_started_at IS NULL
+                        """,
+                        (
+                            _iso(timestamp),
+                            _iso(timestamp + self.compact_ttl),
+                            str(user_id),
+                            str(analysis_id),
+                            str(attempt_id),
+                        ),
+                    )
+                    expired_before_dispatch = True
+                elif (
+                    record.attempt_id == attempt_id
+                    and record.state is AiCallState.FAILED_BEFORE_PROVIDER
+                    and record.error_code == "AI_DISPATCH_NOT_STARTED"
+                    and record.provider_dispatch_started_at is None
+                ):
+                    expired_before_dispatch = True
+                else:
+                    raise ValueError("AI call is not dispatchable")
+            else:
+                result = row_to_record(self._select(connection, user_id, analysis_id))
+        if expired_before_dispatch:
+            raise AiDispatchLeaseExpiredError(
+                "AI call lease expired before Provider dispatch"
+            )
+        if result is None:
+            raise RuntimeError("dispatch transition produced no record")
+        return result
 
     def renew_lease(
         self,

@@ -10,11 +10,13 @@ import pytest
 
 from app.ai.provider import ProviderResult
 from app.ai.schemas import AiAnalyzeRequest
+from app.ai.status_contract import project_ai_status
 from app.core.errors import AppError
 from app.storage.ai_calls import (
     AiCallCleanupWorker,
     AiCallRepository,
     AiCallState,
+    AiDispatchLeaseExpiredError,
     ReservationKind,
     UnsafeCacheResponseError,
     UsageStatus,
@@ -201,6 +203,40 @@ def test_expired_undispatched_lease_closes_without_provider_reacquire(tmp_path) 
     assert retry.record.error_code == "AI_DISPATCH_NOT_STARTED"
     assert retry.record.usage_status is UsageStatus.NOT_APPLICABLE
     assert retry.record.provider_dispatch_started_at is None
+    with pytest.raises(AiDispatchLeaseExpiredError):
+        repository.mark_provider_dispatch_started(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            attempt_id=acquired.record.attempt_id,
+            now=NOW + timedelta(seconds=12),
+        )
+
+
+def test_expired_undispatched_attempt_cannot_mark_late_dispatch(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(
+        tmp_path, lease_seconds=10
+    )
+    acquired = reserve(repository, user_id, analysis_id, body)
+
+    status = project_ai_status(
+        analysis_id=analysis_id,
+        record=acquired.record,
+        now=NOW + timedelta(seconds=11),
+    )
+    with pytest.raises(AiDispatchLeaseExpiredError):
+        repository.mark_provider_dispatch_started(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            attempt_id=acquired.record.attempt_id,
+            now=NOW + timedelta(seconds=12),
+        )
+
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert status["failure"]["code"] == "AI_DISPATCH_NOT_STARTED"
+    assert record is not None
+    assert record.state is AiCallState.FAILED_BEFORE_PROVIDER
+    assert record.error_code == "AI_DISPATCH_NOT_STARTED"
+    assert record.provider_dispatch_started_at is None
 
 
 def test_lease_renewal_keeps_long_running_attempt_in_progress(tmp_path) -> None:

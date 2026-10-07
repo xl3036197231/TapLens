@@ -8,6 +8,8 @@ from uuid import UUID, uuid4
 from httpx import ASGITransport, AsyncClient
 
 from app.ai.provider import ProviderResult
+from app.ai.schemas import AiAnalyzeRequest
+from app.ai.service import AiAnalysisService
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.main import create_app
@@ -182,6 +184,60 @@ def test_expired_predispatch_reservation_requires_new_analysis_context(tmp_path)
         }
         assert replay.status_code == 409
         assert replay.json()["error"]["code"] == "AI_ANALYSIS_FAILED"
+        assert provider.calls == []
+
+    asyncio.run(run())
+
+
+def test_service_rejects_lease_expiry_between_reserve_and_dispatch(tmp_path) -> None:
+    async def run() -> None:
+        provider = CountingProvider()
+        app = build_app(tmp_path, provider)
+        app.state.ai_call_repository.lease = timedelta(seconds=10)
+        times = iter(
+            [
+                datetime(2026, 10, 7, 10, 0, tzinfo=UTC),
+                datetime(2026, 10, 7, 10, 0, 12, tzinfo=UTC),
+            ]
+        )
+        service = AiAnalysisService(
+            app.state.ai_call_repository,
+            provider,
+            clock=lambda: next(times),
+        )
+        user_id = uuid4()
+        with app.state.database.connect() as connection:
+            connection.execute(
+                "INSERT INTO users (id, username, username_normalized, password_hash, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(user_id),
+                    "late-user",
+                    "late-user",
+                    "unused",
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+        raw = body()
+        payload = AiAnalyzeRequest.model_validate(raw)
+
+        try:
+            await service.analyze(user_id=user_id, payload=payload, payload_data=raw)
+        except AppError as error:
+            assert error.status_code == 409
+            assert error.code == "AI_ANALYSIS_FAILED"
+            assert error.retryable is False
+        else:
+            raise AssertionError("expired attempt reached Provider dispatch")
+
+        record = app.state.ai_call_repository.get_for_owner(
+            user_id=user_id,
+            analysis_id=payload.report_context.analysis_id,
+        )
+        assert record is not None
+        assert record.state.value == "failed_before_provider"
+        assert record.error_code == "AI_DISPATCH_NOT_STARTED"
+        assert record.provider_dispatch_started_at is None
         assert provider.calls == []
 
     asyncio.run(run())
