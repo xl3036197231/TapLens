@@ -1,6 +1,6 @@
 # Day 9 D 成员测试报告（执行前基线）
 
-> 日期：2026-10-07；固定代码基线：`main=0cf68192d0a23db7fdf8b039d24a203ca869c3af`；D 最新复审：`feat/d-ai=3ac613714ff33d1eabc426c22116b44560984fd1`。
+> 日期：2026-10-07；固定代码基线：`main=0cf68192d0a23db7fdf8b039d24a203ca869c3af`；A 修复：`bce023bb4cc7c2970d5165cbe4a7a9cc24a0a6ac`；D 上轮远端：`feat/d-ai=6a119c1fa8558128e84851f84b1a08b60250f580`。
 >
 > 状态：**测试矩阵已建立，最终产品验收未执行，版本冻结 BLOCKED。** 本文件不把 Mock、静态检查、历史日志或候选截图记作同版真机通过。
 
@@ -11,10 +11,10 @@
 | 30 例矩阵结构 | PASS：30 个连续且唯一的 `D30-01`～`D30-30`；QR 11、Deep Link 10、AI 9 | `mobile/test/ai/validate_acceptance_matrix.py` 本轮结构校验 |
 | 来源引用 | PASS：30 条引用的文件、21 个既有样例编号和 8 个现有自动化测试标记，均在固定 `main` 树中找到 | GitHub 固定树及对应源文件只读核对；未执行产品测试 |
 | 30 例产品执行 | **NOT_RUN：0 PASS / 0 FAIL / 30 NOT_RUN** | 仓库尚未提交该矩阵在同一最终基线上的逐例执行记录；不填写通过率 |
-| A 客户端合同 | **NEEDS_CHANGES** | D 对 `a6fbae0` 的固定复审见 [合同审查](../../shared/daliy_task/day8-d-client-contract-review.md) |
+| A 客户端合同 | **PASS（定点复审）** | `a6fbae0` 的历史阻塞由 `bce023b` 修复；见 [Day 9 D 复审](a-client-rereview.md)。新增测试与 APK 哈希为 A 提供的证据，D 未独立复跑或复算 |
 | B 正式状态路由、C 最终 APK | **BLOCKED** | 正式 POST/GET/lifespan 未接线；同版双构建与实体 Android 15 验收记录未提交 |
 
-D 在 2026-10-06 的固定复审中记录了 Flutter 111/111、分析无问题和 JSON Schema 校验通过；这是对 `a6fbae0` 的**历史独立复跑**，不是本轮 30 例矩阵的执行结果，也不证明最终 APK、正式后端或真实模型通过。
+D 在 2026-10-06 的固定复审中记录了 Flutter 111/111、分析无问题和 JSON Schema 校验通过；这是对 `a6fbae0` 的**历史独立复跑**。A 报告 `bce023b` 后 Flutter 118/118、Android 15/15、Android 15 模拟器重启读回成功；这些是 A 的交接结果，D 本机无 Flutter/ADB/Android SDK，未独立复跑。两者都不是本轮 30 例矩阵的执行结果，也不证明最终 APK、正式后端或真实模型通过。
 
 ## README 指标实测栏
 
@@ -31,8 +31,8 @@ D 在 2026-10-06 的固定复审中记录了 Flutter 111/111、分析无问题�
 
 ## 当前阻塞与复测顺序
 
-1. A 修正 `SecureKeyStore.saveAiAttempts()` 使用 `apply()` 的落盘确认缺口，并提供真实设备“写入失败、异常退出、重启只 GET”记录；D 重审 D30-30 和客户端合同。
-2. B 按冻结 `ai-analysis-status.schema.json` 接正式 POST/GET 与 cleanup lifespan，用 Fake Provider 验证并发、过期、重启、备份恢复；D 独立复审正式集成。
+1. A 的 `bce023b` 已修正 `SecureKeyStore.saveAiAttempts()` 的 `apply()` 落盘确认缺口，客户端合同定点复审 PASS。最终设备端仍须核对完整重启恢复只 GET；当前 Mock 与原生设备探针分别覆盖决策和持久化。
+2. B 可按冻结 `ai-analysis-status.schema.json` 接正式 POST/GET 与 cleanup lifespan，用 Fake Provider 验证并发、过期、重启、备份恢复；D 独立复审正式集成，通过前不部署。
 3. B 部署健康后，C 从最终固定 `main` 双构建一致 APK，在 Android 15 实体机执行安全输入、联网及已安装包哈希验收。
 4. D 在同一代码与 APK 基线运行矩阵，填入每例实际结果和证据，再计算指标并更新参赛材料。历史 C04 PNG 已无法恢复；若需要新候选截图，应创建新的候选并明确新 ID，不能改写历史结果。真实模型终验按团队门禁另行安排。
 

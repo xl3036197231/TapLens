@@ -30,9 +30,9 @@ AI 调用代码位于手机端 `mobile/lib/ai/`。D 提供报告守卫、请求/
 
 ## Day 8 客户端幂等与状态查询合同
 
-**合同状态：客户端 Mock 已覆盖，D 对原生耐久性仍判 `NEEDS_CHANGES`；B 正式 POST/GET 尚未接线或部署。** 详情见 [D 对 A 的固定复审](../daliy_task/day8-d-client-contract-review.md)，不能把下述预期合同当作线上已实现行为。
+**合同状态：D 对 A 的 `bce023b` 客户端合同复审为 `PASS`；B 正式 POST/GET 尚未接线或部署。** 详情见 [D Day 9 复审](../../submission/day9/a-client-rereview.md)。此结论只放行 B 按冻结合同开始正式路由与 Fake Provider 集成，不能把下述预期合同当作线上已实现行为。
 
-同一 `analysis_id` 的首次请求使用云证据 `generated_at` 的**完整原始 RFC 3339 文本**作为 `report_context.created_at`，后续逐字复用。客户端应在第一次 POST 前可靠持久保存 `analysis_id`、`created_at`、用户 ID 和状态；一旦记录存在，后续只允许查询状态 GET。当前 Kotlin `saveAiAttempts()` 使用 `SharedPreferences.apply()`，尚不能证明磁盘写入完成后才返回，故“重启后只 GET”仍须 A 修复并经原生／设备级验证。记录不得包含 JWT、URL、请求正文、模型报告或 Key；达到 250 条上限、损坏或写入失败时应拒绝新 POST。
+同一 `analysis_id` 的首次请求使用云证据 `generated_at` 的**完整原始 RFC 3339 文本**作为 `report_context.created_at`，后续逐字复用。客户端在第一次 POST 前持久保存 `analysis_id`、`created_at`、用户 ID 和状态；一旦记录存在，后续只允许查询状态 GET。A 的 `bce023b` 改为后台线程执行 `SharedPreferences.commit()`，检查提交结果并解密读回；只有保存成功才向 Flutter 返回成功，失败时拒绝 POST。原生设备探针已提供强制停止后读回证据；完整设备端 HTTP 重启演练留给最终设备验收。记录不得包含 JWT、URL、请求正文、模型报告或 Key；达到 250 条上限、损坏或写入失败时应拒绝新 POST。
 
 只读状态接口为 `GET /api/v1/ai/analyses/{analysis_id}/status`，携带 TapLens JWT。冻结 Schema 是 [ai-analysis-status.schema.json](../contracts/ai-analysis-status.schema.json)，**六种状态均为 HTTP 200 JSON**：
 
