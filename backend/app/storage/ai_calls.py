@@ -97,10 +97,7 @@ class Reservation:
 
 
 class AiCallRepository:
-    """Isolated SQLite prototype for exactly-once Provider dispatch protection.
-
-    The production API route intentionally does not use this repository yet.
-    """
+    """SQLite-backed exactly-once Provider dispatch protection."""
 
     def __init__(
         self,
@@ -235,24 +232,28 @@ class AiCallRepository:
                 )
                 row = self._select(connection, user_id, analysis_id)
                 return Reservation(ReservationKind.OUTCOME_UNKNOWN, row_to_record(row))
-
-            new_attempt_id = uuid.uuid4()
+            # The durable reservation proves that this analysis context existed,
+            # while the missing dispatch marker proves that no Provider request
+            # started.  After its lease expires, close the old context instead
+            # of silently dispatching it from a replay.  Recovery requires a new
+            # analysis_id and fresh user confirmation.
             connection.execute(
                 """
                 UPDATE ai_analysis_calls
-                SET attempt_id = ?, lease_expires_at = ?, updated_at = ?
+                SET state = 'failed_before_provider', usage_status = 'not_applicable',
+                    error_code = 'AI_DISPATCH_NOT_STARTED', retryable = 0,
+                    lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
                 WHERE user_id = ? AND analysis_id = ?
                 """,
                 (
-                    str(new_attempt_id),
-                    _iso(timestamp + self.lease),
                     _iso(timestamp),
+                    _iso(timestamp + self.compact_ttl),
                     str(user_id),
                     str(analysis_id),
                 ),
             )
             return Reservation(
-                ReservationKind.ACQUIRED,
+                ReservationKind.TERMINAL_FAILURE,
                 row_to_record(self._select(connection, user_id, analysis_id)),
             )
 
@@ -324,10 +325,16 @@ class AiCallRepository:
         attempt_id: UUID,
         payload: AiAnalyzeRequest,
         result: ProviderResult,
+        payload_data: dict[str, object] | None = None,
         now: datetime | None = None,
     ) -> AiCallRecord:
         if payload.report_context.analysis_id != analysis_id:
             raise ValueError("payload analysis_id does not match completion")
+        bound_payload = payload_data or payload.model_dump(mode="json")
+        if AiAnalyzeRequest.model_validate(bound_payload) != payload:
+            raise ValueError("raw payload does not match validated completion payload")
+        context = _mapping(bound_payload.get("report_context"))
+        expected_created_at_text = _report_created_at_text(context.get("created_at"))
         usage = (
             result.prompt_tokens,
             result.completion_tokens,
@@ -336,7 +343,11 @@ class AiCallRepository:
         )
         try:
             _validate_provider_usage(usage)
-            report = validate_and_finalize_report(payload, result)
+            report = validate_and_finalize_report(
+                payload,
+                result,
+                expected_created_at_text=expected_created_at_text,
+            )
             response = AiAnalyzeResponse(
                 analysis_id=analysis_id,
                 report=report,
@@ -365,7 +376,7 @@ class AiCallRepository:
             connection.execute("BEGIN IMMEDIATE")
             record = row_to_record(self._select(connection, user_id, analysis_id))
             expected_digest = self.digest(
-                payload.model_dump(mode="json"),
+                bound_payload,
                 key_version=record.digest_key_version,
             )
             if (
@@ -495,7 +506,13 @@ class AiCallRepository:
                 UPDATE ai_analysis_calls
                 SET response_json = NULL, cache_expires_at = NULL,
                     prompt_tokens = NULL, completion_tokens = NULL,
-                    total_tokens = NULL, model = NULL, compacted_at = ?, updated_at = ?
+                    total_tokens = NULL, model = NULL,
+                    usage_status = CASE
+                        WHEN state = 'failed_after_provider' AND usage_status = 'known'
+                        THEN 'unknown'
+                        ELSE usage_status
+                    END,
+                    compacted_at = ?, updated_at = ?
                 WHERE record_expires_at IS NOT NULL AND record_expires_at <= ?
                   AND compacted_at IS NULL AND state != 'in_progress'
                 """,
@@ -515,7 +532,7 @@ class AiCallRepository:
 
 
 class AiCallCleanupWorker:
-    """Prototype scheduler; it is not attached to the application lifespan yet."""
+    """Periodic response-cache clearing and tombstone compaction scheduler."""
 
     def __init__(
         self,

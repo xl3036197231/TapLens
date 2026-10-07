@@ -254,6 +254,13 @@ APP必须把`task_id`和`analysis_id`保存在本地任务记录中。断网、A
 
 `failed` 的 `failure.stage` 只能是 `before_provider` 或 `after_provider`。前者的 `usage_status` 必须是 `not_applicable`；后者只能是 `known` 或 `unknown`。`usage_status=known` 必须有 `usage`，其他用量状态不得带用量对象。状态对象不返回 Provider 原始错误、原始响应、输入或密钥。
 
+已预留但没有 dispatch 标记的租约过期时，状态为 `failed`、
+`failure.stage=before_provider`、`failure.code=AI_DISPATCH_NOT_STARTED` 且
+`usage_status=not_applicable`。该 analysis ID 不可重派；客户端只能在用户建立新
+分析上下文并重新确认后发起新请求。失败记录的用量细节在 30 天后压缩时，
+`usage_status=known` 与用量字段在同一事务中改为 `unknown` 和空值，保证 GET
+始终符合冻结 Schema。
+
 进行中响应示例：
 
 ```json
