@@ -6,7 +6,7 @@
 >
 > A 客户端门禁：D 在 `322323a` 对 A 的 `bce023b` 复审 **PASS**
 >
-> 当前状态：**D NEEDS_CHANGES ADDRESSED / READY FOR RE-REVIEW / NOT DEPLOYED**
+> 当前状态：**D 7242cd5 NEEDS_CHANGES ADDRESSED / READY FOR RE-REVIEW**
 
 ## 正式接线
 
@@ -30,6 +30,9 @@
 - 已预留但确认从未 dispatch 的租约过期后，GET 固定返回
   `failed / before_provider / AI_DISPATCH_NOT_STARTED / not_applicable`。原 analysis ID
   进入不可重派终态；恢复路径是建立新分析上下文并重新取得用户确认。
+- dispatch 标记的单条原子 UPDATE 同时要求 `lease_expires_at > now`。如果原请求
+  在 GET 已投影派发前失败后才迟到 mark，仓储会同事务落盘终态并返回受控
+  `409 AI_ANALYSIS_FAILED`；Provider 调用数为 0。
 
 ## 密钥与运维边界
 
@@ -46,8 +49,8 @@
   自动清理。
 - 隔离仓储测试继续覆盖迟到成功/失败、并发终态、HMAC 轮换、第 31 天
   防重放和备份恢复缓存剔除。
-- AI 相关正式/隔离/备份测试：**59/59 PASS**。
-- 后端完整回归：**168/168 PASS**；其中三项受控站点测试在允许临时绑定
+- AI 相关正式/隔离/备份测试：**61/61 PASS**。
+- 后端完整回归：**170/170 PASS**；其中三项受控站点测试在允许临时绑定
   `127.0.0.1` 端口的环境重跑通过。
 - `compileall` 和 `git diff --check` 通过。
 
@@ -56,5 +59,7 @@
 
 ## 待 D 复审
 
-D 需对本次正式接线给出独立 `PASS` 或 `NEEDS_CHANGES`。D 对 B 给出 PASS 前，
-不允许部署 ECS；真实模型调用仍必须由用户另行明确授权。
+D 需对本次原子租约修复给出新的 `PASS` 或 `NEEDS_CHANGES`。远端曾根据较早
+`4711c40 PASS` 部署 `main=09834c6`；收到 `7242cd5 NEEDS_CHANGES` 后已立即把 ECS
+的 `TAPLENS_LLM_ENABLED` 改为 `false`并重建 API/Nginx，三项应用容器保持健康。
+新 PASS 前不恢复真实 Provider，真实模型调用仍必须由用户另行明确授权。
