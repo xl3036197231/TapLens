@@ -6,6 +6,16 @@
 >
 > 当前状态：**BLOCKED / 等待门禁**
 
+## Day 9 检查点（2026-10-07）
+
+- 当前正式 main：`0cf6819`。
+- A 待审提交：`a6fbae0`；D 的复审结论仍为 `NEEDS_CHANGES`。
+- 阻塞原因：Android 原生 `saveAiAttempts()` 仍使用异步 `SharedPreferences.Editor.apply()`，不能证明首次 POST 前记录已经耐久落盘。
+- B=`9878e27` 只完成门禁前合同建议和 Fake Provider 测试矩阵，未接正式 POST/GET、lifespan，也未部署。
+- D=`99bb6f9` 增加验收矩阵，但没有给 A 修订版 PASS，也没有 B 正式集成 PASS。
+- `adb devices -l` 为空；Windows 未发现手机或 ADB 接口。
+- 本检查点没有构建最终 APK、创建云任务、调用模型或访问载荷目标。
+
 ## 固定版本
 
 - 最终 main 提交：待 A/B/D 门禁通过后填写。
