@@ -17,6 +17,7 @@ from app.storage.ai_calls import (
     AiCallRepository,
     AiCallState,
     AiDispatchLeaseExpiredError,
+    AiProviderLeaseExpiredError,
     ReservationKind,
     UnsafeCacheResponseError,
     UsageStatus,
@@ -239,6 +240,28 @@ def test_expired_undispatched_attempt_cannot_mark_late_dispatch(tmp_path) -> Non
     assert record.provider_dispatch_started_at is None
 
 
+def test_dispatch_expiry_uses_datetime_order_not_variable_width_text(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(
+        tmp_path, lease_seconds=10
+    )
+    acquired = reserve(repository, user_id, analysis_id, body)
+
+    # The stored exact-second value ends in "10Z" while this timestamp ends
+    # in "10.100000Z". A lexical SQLite comparison reverses their real order.
+    with pytest.raises(AiDispatchLeaseExpiredError):
+        repository.mark_provider_dispatch_started(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            attempt_id=acquired.record.attempt_id,
+            now=NOW + timedelta(seconds=10, milliseconds=100),
+        )
+
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert record is not None
+    assert record.state is AiCallState.FAILED_BEFORE_PROVIDER
+    assert record.provider_dispatch_started_at is None
+
+
 def test_lease_renewal_keeps_long_running_attempt_in_progress(tmp_path) -> None:
     repository, user_id, analysis_id, body = setup_repository(tmp_path, lease_seconds=10)
     acquired = dispatch(repository, user_id, analysis_id, body)
@@ -258,6 +281,35 @@ def test_lease_renewal_keeps_long_running_attempt_in_progress(tmp_path) -> None:
 
     assert renewed.lease_expires_at == NOW + timedelta(seconds=18)
     assert replay.kind is ReservationKind.IN_PROGRESS
+
+
+def test_expired_dispatched_lease_cannot_be_revived_by_late_renewal(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(
+        tmp_path, lease_seconds=10
+    )
+    acquired = dispatch(repository, user_id, analysis_id, body)
+    dispatched = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert dispatched is not None
+
+    projected = project_ai_status(
+        analysis_id=analysis_id,
+        record=dispatched,
+        now=NOW + timedelta(seconds=11),
+    )
+    with pytest.raises(AiProviderLeaseExpiredError):
+        repository.renew_lease(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            attempt_id=acquired.record.attempt_id,
+            now=NOW + timedelta(seconds=12),
+        )
+
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert projected["status"] == "outcome_unknown"
+    assert record is not None
+    assert record.state is AiCallState.OUTCOME_UNKNOWN
+    assert record.lease_expires_at is None
+    assert record.error_code == "AI_OUTCOME_UNKNOWN"
 
 
 def test_same_attempt_late_success_converges_after_unknown_transition(tmp_path) -> None:
@@ -371,6 +423,41 @@ def test_cache_is_cleared_after_24_hours_but_tombstone_blocks_replay(tmp_path) -
     assert (cleared, compacted) == (1, 0)
     assert replay.kind is ReservationKind.RESULT_EXPIRED
     assert replay.record.response is None
+
+
+def test_cleanup_uses_datetime_order_for_mixed_fractional_timestamps(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path)
+    acquired = dispatch(repository, user_id, analysis_id, body)
+    complete(repository, user_id, analysis_id, acquired.record.attempt_id, body)
+    # Simulate rows written by the prior serializer, which omitted .000000.
+    with repository.database.connect() as connection:
+        connection.execute(
+            """
+            UPDATE ai_analysis_calls
+            SET cache_expires_at = ?, record_expires_at = ?
+            WHERE user_id = ? AND analysis_id = ?
+            """,
+            (
+                "2026-09-30T12:00:00Z",
+                "2026-10-29T12:00:00Z",
+                str(user_id),
+                str(analysis_id),
+            ),
+        )
+
+    first = repository.purge_expired(
+        now=datetime(2026, 9, 30, 12, 0, 0, 100000, tzinfo=UTC)
+    )
+    second = repository.purge_expired(
+        now=datetime(2026, 10, 29, 12, 0, 0, 100000, tzinfo=UTC)
+    )
+
+    record = repository.get_for_owner(user_id=user_id, analysis_id=analysis_id)
+    assert first == (1, 0)
+    assert second == (0, 1)
+    assert record is not None
+    assert record.response is None
+    assert record.compacted_at is not None
 
 
 def test_day_31_compaction_keeps_permanent_replay_tombstone(tmp_path) -> None:

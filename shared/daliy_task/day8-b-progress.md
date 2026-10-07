@@ -6,7 +6,7 @@
 >
 > A 客户端门禁：D 在 `322323a` 对 A 的 `bce023b` 复审 **PASS**
 >
-> 当前状态：**D 7242cd5 NEEDS_CHANGES ADDRESSED / READY FOR RE-REVIEW**
+> 当前状态：**D 06852c4 对 B 2ab7cf1 复审 PASS / MAIN 同版回归 PASS**
 
 ## 正式接线
 
@@ -30,9 +30,14 @@
 - 已预留但确认从未 dispatch 的租约过期后，GET 固定返回
   `failed / before_provider / AI_DISPATCH_NOT_STARTED / not_applicable`。原 analysis ID
   进入不可重派终态；恢复路径是建立新分析上下文并重新取得用户确认。
-- dispatch 标记的单条原子 UPDATE 同时要求 `lease_expires_at > now`。如果原请求
-  在 GET 已投影派发前失败后才迟到 mark，仓储会同事务落盘终态并返回受控
-  `409 AI_ANALYSIS_FAILED`；Provider 调用数为 0。
+- dispatch 标记在同一 `BEGIN IMMEDIATE` 写事务内解析并要求
+  `lease_expires_at > now`，再以原租约文本做 compare-and-set；不能直接依赖
+  可变精度的 ISO 文本排序。如果原请求在 GET 已投影派发前失败后才迟到 mark，
+  仓储会同事务落盘终态并返回受控 `409 AI_ANALYSIS_FAILED`；Provider 调用数为 0。
+- 已 dispatch 的租约到期后，迟到续租不能把 GET 已显示的 `outcome_unknown`
+  复活为 `in_progress`；仓储会持久化未知结果，服务返回受控
+  `409 AI_OUTCOME_UNKNOWN`。缓存和 30 天压缩清理使用实际 datetime 顺序，兼容
+  历史无微秒和新固定微秒两种 SQLite 时间文本。
 
 ## 密钥与运维边界
 
@@ -49,17 +54,19 @@
   自动清理。
 - 隔离仓储测试继续覆盖迟到成功/失败、并发终态、HMAC 轮换、第 31 天
   防重放和备份恢复缓存剔除。
-- AI 相关正式/隔离/备份测试：**61/61 PASS**。
-- 后端完整回归：**170/170 PASS**；其中三项受控站点测试在允许临时绑定
+- AI 相关正式/隔离/备份测试：**66/66 PASS**。
+- 后端完整回归：**175/175 PASS**；其中三项受控站点测试在允许临时绑定
   `127.0.0.1` 端口的环境重跑通过。
 - `compileall` 和 `git diff --check` 通过。
 
 全部 AI 验证使用本地 fixture、Fake Provider 和临时 SQLite。本轮没有调用真实
 学校模型、没有创建云任务、没有读取或输出任何服务端密钥。
 
-## 待 D 复审
+## D 复审与主线门禁
 
-D 需对本次原子租约修复给出新的 `PASS` 或 `NEEDS_CHANGES`。远端曾根据较早
-`4711c40 PASS` 部署 `main=09834c6`；收到 `7242cd5 NEEDS_CHANGES` 后已立即把 ECS
-的 `TAPLENS_LLM_ENABLED` 改为 `false`并重建 API/Nginx，三项应用容器保持健康。
-新 PASS 前不恢复真实 Provider，真实模型调用仍必须由用户另行明确授权。
+D 已在 `06852c4` 对 B 固定提交 `2ab7cf1` 给出 PASS，并独立复跑 AI/备份
+66/66、后端全量 175/175；另用真实 SQLite 写锁延迟探针确认过期派发被拒绝。
+该固定提交已合入 `main=0107a2a` 的后续合并树；关键后端、测试和接口合同与
+`2ab7cf1` 一致，并在合并树上重跑 AI/备份 66/66、后端全量 175/175、
+`compileall` 和 `git diff --check` 全部通过。ECS 的 `TAPLENS_LLM_ENABLED` 继续
+保持 `false`；真实模型调用仍必须由用户另行明确授权。
