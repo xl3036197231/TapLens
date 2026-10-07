@@ -30,9 +30,14 @@
 - 已预留但确认从未 dispatch 的租约过期后，GET 固定返回
   `failed / before_provider / AI_DISPATCH_NOT_STARTED / not_applicable`。原 analysis ID
   进入不可重派终态；恢复路径是建立新分析上下文并重新取得用户确认。
-- dispatch 标记的单条原子 UPDATE 同时要求 `lease_expires_at > now`。如果原请求
-  在 GET 已投影派发前失败后才迟到 mark，仓储会同事务落盘终态并返回受控
-  `409 AI_ANALYSIS_FAILED`；Provider 调用数为 0。
+- dispatch 标记在同一 `BEGIN IMMEDIATE` 写事务内解析并要求
+  `lease_expires_at > now`，再以原租约文本做 compare-and-set；不能直接依赖
+  可变精度的 ISO 文本排序。如果原请求在 GET 已投影派发前失败后才迟到 mark，
+  仓储会同事务落盘终态并返回受控 `409 AI_ANALYSIS_FAILED`；Provider 调用数为 0。
+- 已 dispatch 的租约到期后，迟到续租不能把 GET 已显示的 `outcome_unknown`
+  复活为 `in_progress`；仓储会持久化未知结果，服务返回受控
+  `409 AI_OUTCOME_UNKNOWN`。缓存和 30 天压缩清理使用实际 datetime 顺序，兼容
+  历史无微秒和新固定微秒两种 SQLite 时间文本。
 
 ## 密钥与运维边界
 
@@ -49,8 +54,8 @@
   自动清理。
 - 隔离仓储测试继续覆盖迟到成功/失败、并发终态、HMAC 轮换、第 31 天
   防重放和备份恢复缓存剔除。
-- AI 相关正式/隔离/备份测试：**61/61 PASS**。
-- 后端完整回归：**170/170 PASS**；其中三项受控站点测试在允许临时绑定
+- AI 相关正式/隔离/备份测试：**66/66 PASS**。
+- 后端完整回归：**175/175 PASS**；其中三项受控站点测试在允许临时绑定
   `127.0.0.1` 端口的环境重跑通过。
 - `compileall` 和 `git diff --check` 通过。
 

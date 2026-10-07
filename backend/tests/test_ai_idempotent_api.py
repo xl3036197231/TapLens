@@ -243,6 +243,86 @@ def test_service_rejects_lease_expiry_between_reserve_and_dispatch(tmp_path) -> 
     asyncio.run(run())
 
 
+def test_http_post_returns_controlled_conflict_when_dispatch_lease_expires(
+    tmp_path,
+) -> None:
+    async def run() -> None:
+        provider = CountingProvider()
+        app = build_app(tmp_path, provider)
+        repository = app.state.ai_call_repository
+        repository.lease = timedelta(seconds=10)
+        original_mark = repository.mark_provider_dispatch_started
+
+        def delayed_mark(*, user_id, analysis_id, attempt_id, now=None):
+            return original_mark(
+                user_id=user_id,
+                analysis_id=analysis_id,
+                attempt_id=attempt_id,
+                now=datetime.now(UTC) + timedelta(seconds=11),
+            )
+
+        repository.mark_provider_dispatch_started = delayed_mark
+        async with client_for(app) as client:
+            token = await register_and_login(client, "Expired_HTTP_User")
+            response = await post(client, token, body())
+
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "AI_ANALYSIS_FAILED"
+        assert response.json()["error"]["retryable"] is False
+        assert provider.calls == []
+
+    asyncio.run(run())
+
+
+def test_service_maps_late_lease_renewal_to_controlled_unknown(tmp_path) -> None:
+    async def run() -> None:
+        provider = CountingProvider(blocked=True)
+        app = build_app(tmp_path, provider)
+        app.state.ai_call_repository.lease = timedelta(milliseconds=150)
+        start = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
+        times = iter([start, start, start + timedelta(seconds=1)])
+        service = AiAnalysisService(
+            app.state.ai_call_repository,
+            provider,
+            clock=lambda: next(times),
+        )
+        user_id = uuid4()
+        with app.state.database.connect() as connection:
+            connection.execute(
+                "INSERT INTO users (id, username, username_normalized, password_hash, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(user_id),
+                    "late-renewal-user",
+                    "late-renewal-user",
+                    "unused",
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+        raw = body()
+        payload = AiAnalyzeRequest.model_validate(raw)
+
+        try:
+            await service.analyze(user_id=user_id, payload=payload, payload_data=raw)
+        except AppError as error:
+            assert error.status_code == 409
+            assert error.code == "AI_OUTCOME_UNKNOWN"
+            assert error.retryable is False
+        else:
+            raise AssertionError("expired Provider lease was renewed")
+
+        record = app.state.ai_call_repository.get_for_owner(
+            user_id=user_id,
+            analysis_id=payload.report_context.analysis_id,
+        )
+        assert record is not None
+        assert record.state.value == "outcome_unknown"
+        assert record.lease_expires_at is None
+        assert len(provider.calls) == 1
+
+    asyncio.run(run())
+
+
 def test_definitive_provider_failure_is_terminal_and_not_retryable(tmp_path) -> None:
     async def run() -> None:
         provider = CountingProvider(

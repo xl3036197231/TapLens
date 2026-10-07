@@ -261,9 +261,11 @@ APP必须把`task_id`和`analysis_id`保存在本地任务记录中。断网、A
 `usage_status=known` 与用量字段在同一事务中改为 `unknown` 和空值，保证 GET
 始终符合冻结 Schema。
 
-Provider dispatch 标记只能在同一条原子更新同时满足 attempt、未派发、
-`state=in_progress` 和 `lease_expires_at > now` 时写入。租约过期后的迟到请求必须在
-调用 Provider 前转为上述派发前失败，并返回不可重试的受控错误。
+Provider dispatch 标记只能在同一写事务内同时满足 attempt、未派发、
+`state=in_progress` 和解析后的 `lease_expires_at > now` 时写入；不得直接依赖可变精度的
+ISO 时间文本排序。租约过期后的迟到请求必须在调用 Provider 前转为上述派发前失败，
+并返回不可重试的受控错误。已派发任务的续租也必须遵守同一过期边界：过期后只能收敛为
+`outcome_unknown`，不得重新延长租约或退回 `in_progress`。
 
 进行中响应示例：
 

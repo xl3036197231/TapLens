@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from app.ai.provider import AiProvider
@@ -9,6 +9,7 @@ from app.core.errors import AppError
 from app.storage.ai_calls import (
     AiCallRepository,
     AiDispatchLeaseExpiredError,
+    AiProviderLeaseExpiredError,
     ReservationKind,
 )
 
@@ -26,7 +27,7 @@ class AiAnalysisService:
     ) -> None:
         self.repository = repository
         self.provider = provider
-        self.clock = clock or (lambda: datetime.now(UTC))
+        self.clock = clock
 
     async def analyze(
         self,
@@ -40,7 +41,7 @@ class AiAnalysisService:
             user_id=user_id,
             analysis_id=analysis_id,
             payload=payload_data,
-            now=self.clock(),
+            now=self._now(),
         )
         if reservation.kind is ReservationKind.CACHED:
             if reservation.record.response is None:
@@ -55,7 +56,7 @@ class AiAnalysisService:
                 user_id=user_id,
                 analysis_id=analysis_id,
                 attempt_id=attempt_id,
-                now=self.clock(),
+                now=self._now(),
             )
         except AiDispatchLeaseExpiredError as error:
             raise self._reservation_error(
@@ -68,6 +69,10 @@ class AiAnalysisService:
                 attempt_id=attempt_id,
                 payload=payload_data,
             )
+        except AiProviderLeaseExpiredError as error:
+            raise self._reservation_error(
+                ReservationKind.OUTCOME_UNKNOWN, analysis_id
+            ) from error
         except AppError as error:
             outcome_unknown = error.code in UNKNOWN_PROVIDER_CODES
             self.repository.complete_failure(
@@ -76,7 +81,7 @@ class AiAnalysisService:
                 attempt_id=attempt_id,
                 error_code=("AI_OUTCOME_UNKNOWN" if outcome_unknown else error.code),
                 outcome_unknown=outcome_unknown,
-                now=self.clock(),
+                now=self._now(),
             )
             if outcome_unknown:
                 raise self._reservation_error(
@@ -95,7 +100,7 @@ class AiAnalysisService:
                 attempt_id=attempt_id,
                 error_code="AI_OUTCOME_UNKNOWN",
                 outcome_unknown=True,
-                now=self.clock(),
+                now=self._now(),
             )
             raise
         except Exception:
@@ -105,7 +110,7 @@ class AiAnalysisService:
                 attempt_id=attempt_id,
                 error_code="AI_OUTCOME_UNKNOWN",
                 outcome_unknown=True,
-                now=self.clock(),
+                now=self._now(),
             )
             raise
 
@@ -116,7 +121,7 @@ class AiAnalysisService:
             payload=payload,
             payload_data=payload_data,
             result=result,
-            now=self.clock(),
+            now=self._now(),
         )
         if record.response is None:
             raise RuntimeError("guarded AI completion did not cache a response")
@@ -141,7 +146,7 @@ class AiAnalysisService:
                     user_id=user_id,
                     analysis_id=analysis_id,
                     attempt_id=attempt_id,
-                    now=self.clock(),
+                    now=self._now(),
                 )
         except BaseException:
             if not task.done():
@@ -149,6 +154,12 @@ class AiAnalysisService:
             with suppress(BaseException):
                 await task
             raise
+
+    def _now(self) -> datetime | None:
+        # A production call passes None so the repository samples time only
+        # after acquiring its SQLite write lock. Tests can still inject a
+        # deterministic clock to exercise exact interleavings.
+        return self.clock() if self.clock is not None else None
 
     @staticmethod
     def _reservation_error(kind: ReservationKind, analysis_id: UUID) -> AppError:

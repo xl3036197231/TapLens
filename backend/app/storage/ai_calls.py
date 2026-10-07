@@ -68,6 +68,10 @@ class AiDispatchLeaseExpiredError(ValueError):
     """The reserved attempt expired before its Provider dispatch marker."""
 
 
+class AiProviderLeaseExpiredError(ValueError):
+    """A dispatched attempt lost its lease before it could be renewed."""
+
+
 @dataclass(frozen=True)
 class AiCallRecord:
     user_id: UUID
@@ -147,12 +151,12 @@ class AiCallRepository:
         payload: dict[str, object],
         now: datetime | None = None,
     ) -> Reservation:
-        timestamp = _utc(now)
         payload_analysis_id, report_created_at = payload_binding(payload)
         if payload_analysis_id != analysis_id:
             raise ValueError("payload analysis_id does not match reservation")
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            timestamp = _utc(now)
             row = connection.execute(
                 "SELECT * FROM ai_analysis_calls WHERE user_id = ? AND analysis_id = ?",
                 (str(user_id), str(analysis_id)),
@@ -269,69 +273,76 @@ class AiCallRepository:
         attempt_id: UUID,
         now: datetime | None = None,
     ) -> AiCallRecord:
-        timestamp = _utc(now)
         expired_before_dispatch = False
         result: AiCallRecord | None = None
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
-                """
-                UPDATE ai_analysis_calls
-                SET provider_dispatch_started_at = ?, usage_status = 'unknown', updated_at = ?
-                WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
-                  AND state = 'in_progress' AND provider_dispatch_started_at IS NULL
-                  AND lease_expires_at IS NOT NULL AND lease_expires_at > ?
-                """,
-                (
-                    _iso(timestamp),
-                    _iso(timestamp),
-                    str(user_id),
-                    str(analysis_id),
-                    str(attempt_id),
-                    _iso(timestamp),
-                ),
-            )
-            if cursor.rowcount != 1:
-                record = row_to_record(self._select(connection, user_id, analysis_id))
-                if (
-                    record.attempt_id == attempt_id
-                    and record.state is AiCallState.IN_PROGRESS
-                    and record.provider_dispatch_started_at is None
-                    and (
-                        record.lease_expires_at is None
-                        or record.lease_expires_at <= timestamp
-                    )
-                ):
-                    connection.execute(
-                        """
-                        UPDATE ai_analysis_calls
-                        SET state = 'failed_before_provider',
-                            usage_status = 'not_applicable',
-                            error_code = 'AI_DISPATCH_NOT_STARTED', retryable = 0,
-                            lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
-                        WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
-                          AND state = 'in_progress'
-                          AND provider_dispatch_started_at IS NULL
-                        """,
-                        (
-                            _iso(timestamp),
-                            _iso(timestamp + self.compact_ttl),
-                            str(user_id),
-                            str(analysis_id),
-                            str(attempt_id),
-                        ),
-                    )
-                    expired_before_dispatch = True
-                elif (
-                    record.attempt_id == attempt_id
-                    and record.state is AiCallState.FAILED_BEFORE_PROVIDER
-                    and record.error_code == "AI_DISPATCH_NOT_STARTED"
-                    and record.provider_dispatch_started_at is None
-                ):
-                    expired_before_dispatch = True
-                else:
-                    raise ValueError("AI call is not dispatchable")
+            timestamp = _utc(now)
+            row = self._select(connection, user_id, analysis_id)
+            record = row_to_record(row)
+            if (
+                record.attempt_id == attempt_id
+                and record.state is AiCallState.FAILED_BEFORE_PROVIDER
+                and record.error_code == "AI_DISPATCH_NOT_STARTED"
+                and record.provider_dispatch_started_at is None
+            ):
+                expired_before_dispatch = True
+            elif (
+                record.attempt_id != attempt_id
+                or record.state is not AiCallState.IN_PROGRESS
+                or record.provider_dispatch_started_at is not None
+            ):
+                raise ValueError("AI call is not dispatchable")
+            elif (
+                record.lease_expires_at is None
+                or record.lease_expires_at <= timestamp
+            ):
+                connection.execute(
+                    """
+                    UPDATE ai_analysis_calls
+                    SET state = 'failed_before_provider',
+                        usage_status = 'not_applicable',
+                        error_code = 'AI_DISPATCH_NOT_STARTED', retryable = 0,
+                        lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
+                    WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                      AND state = 'in_progress'
+                      AND provider_dispatch_started_at IS NULL
+                    """,
+                    (
+                        _iso(timestamp),
+                        _iso(timestamp + self.compact_ttl),
+                        str(user_id),
+                        str(analysis_id),
+                        str(attempt_id),
+                    ),
+                )
+                expired_before_dispatch = True
             else:
+                # The Python datetime comparison and this compare-and-set run
+                # under the same BEGIN IMMEDIATE write transaction.  Comparing
+                # RFC 3339 text in SQL is unsafe because legacy rows can omit
+                # fractional seconds ("...10Z" sorts after "...10.1Z").
+                cursor = connection.execute(
+                    """
+                    UPDATE ai_analysis_calls
+                    SET provider_dispatch_started_at = ?, usage_status = 'unknown',
+                        updated_at = ?
+                    WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                      AND state = 'in_progress'
+                      AND provider_dispatch_started_at IS NULL
+                      AND lease_expires_at = ?
+                    """,
+                    (
+                        _iso(timestamp),
+                        _iso(timestamp),
+                        str(user_id),
+                        str(analysis_id),
+                        str(attempt_id),
+                        row["lease_expires_at"],
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("AI dispatch lease changed inside locked transaction")
                 result = row_to_record(self._select(connection, user_id, analysis_id))
         if expired_before_dispatch:
             raise AiDispatchLeaseExpiredError(
@@ -349,27 +360,77 @@ class AiCallRepository:
         attempt_id: UUID,
         now: datetime | None = None,
     ) -> AiCallRecord:
-        timestamp = _utc(now)
+        expired_after_dispatch = False
+        result: AiCallRecord | None = None
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            cursor = connection.execute(
-                """
-                UPDATE ai_analysis_calls
-                SET lease_expires_at = ?, updated_at = ?
-                WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
-                  AND state = 'in_progress' AND provider_dispatch_started_at IS NOT NULL
-                """,
-                (
-                    _iso(timestamp + self.lease),
-                    _iso(timestamp),
-                    str(user_id),
-                    str(analysis_id),
-                    str(attempt_id),
-                ),
-            )
-            if cursor.rowcount != 1:
+            timestamp = _utc(now)
+            row = self._select(connection, user_id, analysis_id)
+            record = row_to_record(row)
+            if (
+                record.attempt_id == attempt_id
+                and record.state is AiCallState.OUTCOME_UNKNOWN
+                and record.provider_dispatch_started_at is not None
+            ):
+                expired_after_dispatch = True
+            elif (
+                record.attempt_id != attempt_id
+                or record.state is not AiCallState.IN_PROGRESS
+                or record.provider_dispatch_started_at is None
+            ):
                 raise ValueError("AI call lease cannot be renewed")
-            return row_to_record(self._select(connection, user_id, analysis_id))
+            elif (
+                record.lease_expires_at is None
+                or record.lease_expires_at <= timestamp
+            ):
+                connection.execute(
+                    """
+                    UPDATE ai_analysis_calls
+                    SET state = 'outcome_unknown', usage_status = 'unknown',
+                        error_code = 'AI_OUTCOME_UNKNOWN', retryable = 0,
+                        lease_expires_at = NULL, updated_at = ?, record_expires_at = ?
+                    WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                      AND state = 'in_progress'
+                      AND provider_dispatch_started_at IS NOT NULL
+                    """,
+                    (
+                        _iso(timestamp),
+                        _iso(timestamp + self.compact_ttl),
+                        str(user_id),
+                        str(analysis_id),
+                        str(attempt_id),
+                    ),
+                )
+                expired_after_dispatch = True
+            else:
+                cursor = connection.execute(
+                    """
+                    UPDATE ai_analysis_calls
+                    SET lease_expires_at = ?, updated_at = ?
+                    WHERE user_id = ? AND analysis_id = ? AND attempt_id = ?
+                      AND state = 'in_progress'
+                      AND provider_dispatch_started_at IS NOT NULL
+                      AND lease_expires_at = ?
+                    """,
+                    (
+                        _iso(timestamp + self.lease),
+                        _iso(timestamp),
+                        str(user_id),
+                        str(analysis_id),
+                        str(attempt_id),
+                        row["lease_expires_at"],
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError("AI renewal lease changed inside locked transaction")
+                result = row_to_record(self._select(connection, user_id, analysis_id))
+        if expired_after_dispatch:
+            raise AiProviderLeaseExpiredError(
+                "AI call lease expired after Provider dispatch"
+            )
+        if result is None:
+            raise RuntimeError("lease renewal produced no record")
+        return result
 
     def complete_guarded_success(
         self,
@@ -551,7 +612,8 @@ class AiCallRepository:
                 """
                 UPDATE ai_analysis_calls
                 SET response_json = NULL, cache_expires_at = NULL, updated_at = ?
-                WHERE response_json IS NOT NULL AND cache_expires_at <= ?
+                WHERE response_json IS NOT NULL
+                  AND julianday(cache_expires_at) <= julianday(?)
                 """,
                 (_iso(timestamp), _iso(timestamp)),
             ).rowcount
@@ -567,7 +629,8 @@ class AiCallRepository:
                         ELSE usage_status
                     END,
                     compacted_at = ?, updated_at = ?
-                WHERE record_expires_at IS NOT NULL AND record_expires_at <= ?
+                WHERE record_expires_at IS NOT NULL
+                  AND julianday(record_expires_at) <= julianday(?)
                   AND compacted_at IS NULL AND state != 'in_progress'
                 """,
                 (_iso(timestamp), _iso(timestamp), _iso(timestamp)),
@@ -770,7 +833,9 @@ def _utc(value: datetime | None) -> datetime:
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _datetime(value: str | None) -> datetime | None:
