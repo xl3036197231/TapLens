@@ -207,6 +207,85 @@ def test_projection_rejects_invalid_poll_interval_without_touching_record(tmp_pa
     assert repository.get_for_owner(user_id=user_id, analysis_id=analysis_id) == acquired.record
 
 
+def test_status_lookup_isolated_by_owner_projects_other_user_as_not_found(tmp_path) -> None:
+    repository, owner_id, analysis_id, body = setup_repository(tmp_path)
+    repository.reserve(
+        user_id=owner_id, analysis_id=analysis_id, payload=body, now=NOW
+    )
+    other_user = uuid4()
+    with repository.database.connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO users (id, username, username_normalized, password_hash, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                str(other_user),
+                f"user-{other_user}",
+                f"user-{other_user}",
+                "not-a-real-password-hash",
+                NOW.isoformat(),
+            ),
+        )
+
+    other_record = repository.get_for_owner(
+        user_id=other_user, analysis_id=analysis_id
+    )
+    payload = project_ai_status(
+        analysis_id=analysis_id, record=other_record, now=NOW
+    )
+
+    assert payload == {"analysis_id": str(analysis_id), "status": "not_found"}
+
+
+def test_success_cache_expiry_boundary_and_corrupt_cache_fail_closed(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path)
+    success = complete_success(repository, user_id, analysis_id, body)
+    assert success.cache_expires_at is not None
+
+    before_expiry = project_ai_status(
+        analysis_id=analysis_id,
+        record=success,
+        now=success.cache_expires_at - timedelta(microseconds=1),
+    )
+    at_expiry = project_ai_status(
+        analysis_id=analysis_id,
+        record=success,
+        now=success.cache_expires_at,
+    )
+
+    assert before_expiry["status"] == "succeeded"
+    assert at_expiry == {
+        "analysis_id": str(analysis_id),
+        "status": "result_expired",
+        "usage_status": "known",
+    }
+
+    corrupt = replace(success, response={"report": {"title": "partial"}})
+    try:
+        project_ai_status(analysis_id=analysis_id, record=corrupt, now=NOW)
+    except ValueError as error:
+        assert "incomplete" in str(error)
+    else:
+        raise AssertionError("corrupt cached result was exposed")
+
+
+def test_projection_rejects_record_for_another_analysis(tmp_path) -> None:
+    repository, user_id, analysis_id, body = setup_repository(tmp_path)
+    acquired = repository.reserve(
+        user_id=user_id, analysis_id=analysis_id, payload=body, now=NOW
+    )
+
+    try:
+        project_ai_status(
+            analysis_id=uuid4(), record=acquired.record, now=NOW
+        )
+    except ValueError as error:
+        assert "another analysis" in str(error)
+    else:
+        raise AssertionError("cross-analysis record was projected")
+
+
 def setup_repository(path: Path, *, lease_seconds: int = 90):
     path.mkdir(parents=True, exist_ok=True)
     database = Database(path / "taplens-test.db")

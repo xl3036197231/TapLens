@@ -26,14 +26,18 @@ D 在 `3ac6137` 对 A 的 `a6fbae0` 给出 `NEEDS_CHANGES`。阻塞项是 Androi
 - 对六种状态执行 Draft 2020-12 Schema 校验，并检查响应不含 `user_id`、attempt、租约、
   HMAC、dispatch 时间或缓存到期时间等内部字段。
 - 增加写前写后数据库字节一致检查，证明状态投影不会改变 SQLite。
+- 增加测试内 Scripted Fake Provider 编排：相同请求 20 并发连续运行 10 轮，每轮只允许
+  一次 Provider 调用；缓存重放、明确失败、超时未知和三类守卫失败均禁止再次派发。
+- 增加跨用户同 ID 返回 `not_found`、缓存到期边界、损坏缓存、错误 analysis ID 和非法轮询
+  间隔的 fail-closed 测试。
 
 ## 测试
 
 在 `backend/` 下执行：
 
 - 原型与备份隐私基线：`24 passed`。
-- 状态合同准备测试加原型/备份隐私：`29 passed`。
-- 后端全量：`137 passed`。其中两项受控站点测试需要允许绑定本机临时
+- 状态合同/Fake Provider 准备测试加原型/备份隐私：`39 passed`。
+- 后端全量：`147 passed`。其中两项受控站点测试需要允许绑定本机临时
   `127.0.0.1` 端口，本轮在获准环境中复跑通过。
 
 所有测试使用临时 SQLite、固定时钟和本地 fixture；没有真实网络 Provider 请求。
