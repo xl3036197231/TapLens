@@ -566,7 +566,9 @@ class _ReportPageState extends State<ReportPage> {
   Color _riskColor(ColorScheme colors, RiskLevel level) {
     return switch (level) {
       RiskLevel.low => colors.primary,
-      RiskLevel.medium => Colors.orange.shade800,
+      RiskLevel.medium => colors.brightness == Brightness.dark
+          ? const Color(0xFFFFC46B)
+          : const Color(0xFF805000),
       RiskLevel.high => colors.error,
       RiskLevel.insufficientEvidence => colors.outline,
     };

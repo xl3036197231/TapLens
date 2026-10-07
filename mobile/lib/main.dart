@@ -36,6 +36,8 @@ class TapLensApp extends StatelessWidget {
         title: '触镜 TapLens',
         debugShowCheckedModeBanner: false,
         theme: theme ?? AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.system,
         home: HomePage(report: report),
       ),
     );

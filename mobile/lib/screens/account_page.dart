@@ -147,7 +147,48 @@ class _AccountPageState extends State<AccountPage> {
                 label: const Text('退出登录并清除会话'),
               ),
             ] else ...[
-              const Text('登录一次后，云端分析和学校模型会复用此账号。会话加密保存在手机，密码不会保存。'),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 23,
+                        backgroundColor: colors.primaryContainer,
+                        foregroundColor: colors.onPrimaryContainer,
+                        child: const Icon(Icons.verified_user_outlined),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '登录一次，后续继续使用',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '云端分析和学校模型会复用当前会话。会话加密保存在手机，密码不会保存。',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: colors.onSurfaceVariant,
+                                    height: 1.4,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _baseUrlController,
@@ -178,6 +219,8 @@ class _AccountPageState extends State<AccountPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: _usernameController,
+                autofillHints: const [AutofillHints.username],
+                textCapitalization: TextCapitalization.none,
                 textInputAction: TextInputAction.next,
                 autocorrect: false,
                 decoration: const InputDecoration(
@@ -188,6 +231,8 @@ class _AccountPageState extends State<AccountPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: _passwordController,
+                autofillHints: const [AutofillHints.password],
+                textInputAction: TextInputAction.done,
                 obscureText: true,
                 enableSuggestions: false,
                 autocorrect: false,
@@ -197,21 +242,27 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _busy ? null : _login,
-                icon: _busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.login_rounded),
-                label: Text(_busy ? '请稍候…' : '登录'),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : _login,
+                  icon: _busy
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login_rounded),
+                  label: Text(_busy ? '请稍候…' : '登录'),
+                ),
               ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _register,
-                icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: const Text('注册并登录'),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _register,
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: const Text('注册并登录'),
+                ),
               ),
             ],
             if (_message != null) ...[

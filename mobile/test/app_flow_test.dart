@@ -95,8 +95,68 @@ void main() {
     expect(find.text('自定义 API Key'), findsOneWidget);
   });
 
+  testWidgets('本地证据格式异常时显示错误且不会卡在解析中', (tester) async {
+    const channel = MethodChannel('com.taplens.app/local_safety');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'analyzeLocalEvidence') {
+        return <String, dynamic>{
+          'schema_version': '1.0',
+          'analysis_id': 'test-analysis',
+          'processed_at': '2026-10-01T00:00:00Z',
+          'processing_status': 'completed',
+          'target': <String, dynamic>{
+            'input_type': 'url',
+            'scheme': 'https',
+            'host': 'example.test',
+            'path': '/',
+            'parameters': <String, dynamic>{},
+            'extras': <String, dynamic>{},
+            'candidate_apps': <dynamic>[],
+          },
+          'observations': <String, dynamic>{
+            'launched_external_app': false,
+            'network_accessed': false,
+          },
+          'evidence': <dynamic>[],
+          'errors': <dynamic>[],
+          'risk_hints': <dynamic>[],
+          'preflight': <dynamic, dynamic>{1: 'malformed-key'},
+        };
+      }
+      return null;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: const LocalCheckPage(initialValue: 'https://example.test'),
+      ),
+    );
+    await tester.tap(find.text('开始本地预检'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('LOCAL_EVIDENCE_INVALID'), findsOneWidget);
+    expect(find.text('本地解析结果格式异常，请重试。'), findsOneWidget);
+    expect(find.text('解析中…'), findsNothing);
+    expect(find.text('前往云端分析'), findsNothing);
+  });
+
   testWidgets('首页入口可以完成本地预检并打开报告', (tester) async {
     const channel = MethodChannel('com.taplens.app/local_safety');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return <String, String>{
+          'text': 'https://scholarship.example.test/apply?source=poster',
+        };
+      }
+      return null;
+    });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'analyzeLink') {
@@ -119,6 +179,8 @@ void main() {
     addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
     });
 
     tester.view.physicalSize = const Size(800, 1200);
@@ -132,7 +194,7 @@ void main() {
       ),
     );
 
-    final paste = find.text('粘贴链接');
+    final paste = find.text('检查链接');
     expect(paste, findsOneWidget);
     await tester.ensureVisible(paste);
     await tester.tap(paste);
