@@ -37,8 +37,9 @@
 
 ## D 复审与交付状态
 
-- D 已对客户端修复提交 `bce023b` 给出 **PASS（客户端合同）**；当前 A 分支最新提交为 `7703550`，与 `origin/feat/a-mobile-function` 一致。
-- `7703550` 之后只有进度和验收记录变动，`mobile/` 代码与 `bce023b` 相同；固定 APK 的 SHA-256 已重新核对。
+- D 已对客户端修复提交 `bce023b` 给出 **PASS（客户端合同）**；APK 对应的客户端代码基线为 `7703550`。
+- 当前 A 分支交接提交为 `3a01b81`，已推送且与远端一致；从 APK 代码基线到该交接提交只有文档变化，`mobile/` 源码未变。
+- 固定 APK 的 SHA-256 已重新核对。
 - 固定 APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`；SHA-256：`92C66939D323E3AF5DF09328E8FD7399CD4DBB9DEF1679DA6ADFB6A018E41255`。
 - APK 元数据：`com.taplens.app`，版本 `0.1.0`（versionCode `1`），min SDK `24`，target SDK `36`；Android 15 / API 35 实机兼容性待 C 验证。
 - APK 是本地构建产物，不提交到源码树；共享说明要求最终 APK 作为发布附件或按团队约定交付。当前本机文件路径见 [`day9-a-to-c-device-handoff.md`](day9-a-to-c-device-handoff.md)。
