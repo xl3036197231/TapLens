@@ -42,7 +42,7 @@
 
 首次标准 APK 构建遇到 Kotlin 增量缓存无法处理 C 盘工作区与 D 盘 Pub 缓存的跨盘路径；清理生成目录后使用非增量 Kotlin 编译成功。没有改动 Gradle 配置来隐藏该环境问题。
 
-APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`  
+APK：`mobile/build/app/outputs/flutter-apk/app-debug.apk`
 SHA-256：`C0ACF996A1ECF791947C8BB13AD20EA50C21BB8ED91D1F45FDAE3D8C2A456C87`
 
 ## 尚待后续门禁
