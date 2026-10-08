@@ -644,6 +644,13 @@ void main() {
     expect(callCount, 1);
   });
 
+  test('default wait exceeds the reviewed provider timeout', () {
+    final client = SchoolAiClient(
+      client: MockClient((_) async => http.Response('{}', 200)),
+    );
+    expect(client.timeout, const Duration(seconds: 130));
+  });
+
   test('redacts bearer-looking text before sending JSON', () async {
     String? requestBody;
     final client = SchoolAiClient(

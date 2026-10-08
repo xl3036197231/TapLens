@@ -32,11 +32,13 @@ class AiPayloadSanitizer {
     final cloud = payload['cloud_evidence'];
     final hardRisks = payload['hard_risk_findings'];
     final reportContext = _reportContext(payload['report_context']);
+    final qrSummary = _qrSummary(input['qr_summary']);
 
     return {
       if (reportContext != null) 'report_context': reportContext,
       'analysis_input': {
         'claims_text': _safeText(input['claims_text']),
+        if (qrSummary != null) 'qr_summary': qrSummary,
         'targets': targets
             .whereType<Map<String, dynamic>>()
             .map(
@@ -44,6 +46,7 @@ class AiPayloadSanitizer {
                 'type': item['type'],
                 'value': _safeTarget(item['value']),
                 'label': _safeText(item['label']),
+                'redacted': true,
               },
             )
             .toList(),
@@ -52,20 +55,85 @@ class AiPayloadSanitizer {
       'cloud_evidence': _evidenceSummary(cloud, 'C'),
       'hard_risk_findings': hardRisks is List
           ? hardRisks
-              .map((item) {
-                if (item is Map<String, dynamic>) {
-                  return {
-                    'code': _safeText(item['code']),
-                    'risk_level': _safeText(item['risk_level']),
-                    'message': _safeText(item['message']),
-                    'evidence_ids': _safeIds(item['evidence_ids']),
-                  };
-                }
-                return _safeText(item);
-              })
-              .where((item) => item != null)
-              .toList()
+                .map((item) {
+                  if (item is Map<String, dynamic>) {
+                    return {
+                      'code': _safeText(item['code']),
+                      'risk_level': _safeText(item['risk_level']),
+                      'message': _safeText(item['message']),
+                      'evidence_ids': _safeIds(item['evidence_ids']),
+                    };
+                  }
+                  return _safeText(item);
+                })
+                .where((item) => item != null)
+                .toList()
           : <String>[],
+    };
+  }
+
+  static Map<String, dynamic>? _qrSummary(Object? raw) {
+    if (raw == null) return null;
+    const expected = {
+      'payload_type',
+      'possible_actions',
+      'redacted',
+      'raw_image_sent',
+      'target_accessed',
+      'sensitive_values_omitted',
+    };
+    const kinds = {
+      'intent',
+      'deep_link',
+      'wifi',
+      'sms',
+      'phone',
+      'email',
+      'contact',
+      'apk',
+      'app_store',
+      'plain_text',
+      'invalid',
+    };
+    const actions = {
+      'open_app',
+      'open_fallback_url',
+      'connect_wifi',
+      'send_sms',
+      'place_call',
+      'compose_email',
+      'import_contact',
+      'download_apk',
+      'open_app_store',
+      'display_text',
+      'unknown',
+    };
+    if (raw is! Map<String, dynamic> ||
+        raw.keys.toSet().difference(expected).isNotEmpty ||
+        !raw.keys.toSet().containsAll(expected) ||
+        !kinds.contains(raw['payload_type']) ||
+        raw['possible_actions'] is! List ||
+        (raw['possible_actions'] as List).isEmpty ||
+        (raw['possible_actions'] as List).length > 4 ||
+        (raw['possible_actions'] as List).any(
+          (item) => !actions.contains(item),
+        ) ||
+        raw['redacted'] != true ||
+        raw['raw_image_sent'] != false ||
+        raw['target_accessed'] != false ||
+        raw['sensitive_values_omitted'] != true) {
+      throw const AiClientException(
+        AiClientErrorCode.unsafePayload,
+        'QR summary must contain only the frozen redacted fields',
+      );
+    }
+    return {
+      'payload_type': raw['payload_type'],
+      'possible_actions': List<String>.from(raw['possible_actions'] as List),
+      'redacted': true,
+      'raw_image_sent': false,
+      'target_accessed': false,
+      'sensitive_values_omitted': true,
     };
   }
 
@@ -111,7 +179,10 @@ class AiPayloadSanitizer {
         'Evidence list is required',
       );
     }
-    final idPattern = RegExp('^$prefix[0-9]{2,}' r'$');
+    final idPattern = RegExp(
+      '^$prefix[0-9]{2,}'
+      r'$',
+    );
     if (items.any(
       (item) =>
           item is! Map<String, dynamic> ||
@@ -156,8 +227,10 @@ class AiPayloadSanitizer {
     final value = raw.trim();
     final uri = Uri.tryParse(value);
     if (uri == null || !uri.hasScheme) return '[UNPARSEABLE_TARGET]';
-    final delimiters =
-        [value.indexOf('?'), value.indexOf('#')].where((index) => index >= 0);
+    final delimiters = [
+      value.indexOf('?'),
+      value.indexOf('#'),
+    ].where((index) => index >= 0);
     final firstDelimiter = delimiters.isEmpty
         ? value.length
         : delimiters.reduce((left, right) => left < right ? left : right);

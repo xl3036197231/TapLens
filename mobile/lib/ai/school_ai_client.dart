@@ -105,7 +105,7 @@ class SchoolAiClient {
   SchoolAiClient({
     Uri? endpoint,
     http.Client? client,
-    this.timeout = const Duration(seconds: 60),
+    this.timeout = const Duration(seconds: 130),
     this.defaultModelName = 'cuc/deepseek',
   })  : endpoint = endpoint ?? defaultEndpoint,
         _client = client ?? http.Client(),
