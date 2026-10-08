@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -15,6 +16,7 @@ from app.tasks.service import TaskService
 
 
 NOW = datetime(2026, 9, 21, 2, 0, tzinfo=UTC)
+TEST_DIGEST_SECRETS = {1: "test-cloud-task-digest-secret"}
 
 
 def test_task_lifecycle_clears_target_and_expires_evidence(tmp_path) -> None:
@@ -148,14 +150,256 @@ def test_exact_fictional_fixture_skips_dns_and_creates_task(tmp_path, monkeypatc
     task = service.create(
         user_id=user_id,
         analysis_id=uuid4(),
-        target_url="https://scholarship.example.test/apply?source=poster",
+        target_url="https://campus.example.test/go/campus",
         now=NOW,
     )
 
     quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
     assert task.status == TaskStatus.QUEUED
-    assert task.target_url == "https://scholarship.example.test/apply?source=poster"
+    assert task.target_url == "https://campus.example.test/go/campus"
     assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_same_cloud_request_replays_one_task_and_consumes_quota_once(tmp_path) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+
+    first = service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/example",
+        now=NOW,
+    )
+    replay = service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/example",
+        now=NOW + timedelta(seconds=1),
+    )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert replay.id == first.id
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_same_analysis_id_with_different_cloud_input_is_conflict(tmp_path) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+    service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/first",
+        now=NOW,
+    )
+
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/changed",
+            now=NOW + timedelta(seconds=1),
+        )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert captured.value.code == "CLOUD_ANALYSIS_INPUT_CONFLICT"
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_concurrent_cloud_request_creates_one_task_and_charges_once(tmp_path) -> None:
+    service, repository, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+
+    def create():
+        return service.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/concurrent",
+            now=NOW,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        tasks = list(pool.map(lambda _: create(), range(8)))
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert len({task.id for task in tasks}) == 1
+    assert repository.get(tasks[0].id) is not None
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_deleted_task_keeps_replay_tombstone_and_cannot_charge_again(tmp_path) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+    task = service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/deleted",
+        now=NOW,
+    )
+    assert service.delete_for_owner(task.id, user_id) is True
+
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/deleted",
+            now=NOW + timedelta(seconds=1),
+        )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    with service.repository.database.connect() as connection:
+        tombstone = connection.execute(
+            """
+            SELECT task_id, target_digest, digest_key_version
+            FROM cloud_scan_requests
+            WHERE user_id = ? AND analysis_id = ?
+            """,
+            (str(user_id), str(analysis_id)),
+        ).fetchone()
+    assert captured.value.code == "CLOUD_TASK_RESULT_EXPIRED"
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+    assert tombstone["task_id"] == str(task.id)
+    assert len(tombstone["target_digest"]) == 64
+    assert "deleted" not in "".join(str(value) for value in tombstone)
+
+
+def test_expired_task_keeps_replay_tombstone_and_cannot_charge_again(tmp_path) -> None:
+    service, _, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+    task = service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/expired",
+        now=NOW,
+    )
+    service.start(task.id, now=NOW + timedelta(seconds=1))
+    service.succeed(
+        task.id,
+        evidence={"status": "succeeded"},
+        duration_ms=10,
+        now=NOW + timedelta(seconds=2),
+    )
+    assert service.expire_due(NOW + timedelta(minutes=31)) == 1
+
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/expired",
+            now=NOW + timedelta(minutes=32),
+        )
+
+    quota_date = NOW.astimezone(ZoneInfo("Asia/Shanghai")).date()
+    assert captured.value.code == "CLOUD_TASK_RESULT_EXPIRED"
+    assert QuotaRepository(service.repository.database).used(user_id, quota_date) == 1
+
+
+def test_legacy_task_is_tombstoned_before_conflict(tmp_path) -> None:
+    service, repository, user_id = build_service(tmp_path, daily_limit=2)
+    analysis_id = uuid4()
+    legacy_id = uuid4()
+    with repository.database.connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO cloud_scan_tasks (
+                id, user_id, analysis_id, status, target_url, evidence_json,
+                error_code, created_at, started_at, completed_at, expires_at,
+                duration_ms
+            ) VALUES (?, ?, ?, 'queued', ?, NULL, NULL, ?, NULL, NULL, NULL, NULL)
+            """,
+            (
+                str(legacy_id),
+                str(user_id),
+                str(analysis_id),
+                "https://8.8.8.8/legacy",
+                NOW.isoformat(),
+            ),
+        )
+
+    with pytest.raises(AppError) as captured:
+        service.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/legacy",
+            now=NOW + timedelta(seconds=1),
+        )
+
+    with repository.database.connect() as connection:
+        reservation = connection.execute(
+            """
+            SELECT task_id, target_digest
+            FROM cloud_scan_requests
+            WHERE user_id = ? AND analysis_id = ?
+            """,
+            (str(user_id), str(analysis_id)),
+        ).fetchone()
+    assert captured.value.code == "CLOUD_ANALYSIS_INPUT_CONFLICT"
+    assert reservation["task_id"] == str(legacy_id)
+    assert reservation["target_digest"] is None
+
+
+def test_cloud_request_replays_across_digest_key_rotation(tmp_path) -> None:
+    service, repository, user_id = build_service(
+        tmp_path,
+        daily_limit=2,
+        digest_secrets={1: "old-task-digest", 2: "new-task-digest"},
+        active_digest_key_version=1,
+    )
+    analysis_id = uuid4()
+    first = service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/rotation",
+        now=NOW,
+    )
+    rotated = TaskService(
+        repository=repository,
+        daily_limit=2,
+        quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets={1: "old-task-digest", 2: "new-task-digest"},
+        active_digest_key_version=2,
+    )
+
+    replay = rotated.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/rotation",
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert replay.id == first.id
+
+
+def test_missing_historical_cloud_digest_key_fails_closed(tmp_path) -> None:
+    service, repository, user_id = build_service(
+        tmp_path,
+        daily_limit=2,
+        digest_secrets={1: "old-task-digest"},
+        active_digest_key_version=1,
+    )
+    analysis_id = uuid4()
+    service.create(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        target_url="https://8.8.8.8/rotation",
+        now=NOW,
+    )
+    without_old_key = TaskService(
+        repository=repository,
+        daily_limit=2,
+        quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets={2: "new-task-digest"},
+        active_digest_key_version=2,
+    )
+
+    with pytest.raises(AppError) as captured:
+        without_old_key.create(
+            user_id=user_id,
+            analysis_id=analysis_id,
+            target_url="https://8.8.8.8/rotation",
+            now=NOW + timedelta(seconds=1),
+        )
+
+    assert captured.value.code == "CLOUD_ANALYSIS_INPUT_CONFLICT"
 
 
 def test_unknown_fictional_host_still_requires_dns_before_quota(tmp_path, monkeypatch) -> None:
@@ -233,6 +477,8 @@ def build_service(
     tmp_path,
     daily_limit: int = 10,
     allowed_test_origins: tuple[str, ...] = (),
+    digest_secrets: dict[int, str] | None = None,
+    active_digest_key_version: int = 1,
 ):
     database = Database(tmp_path / "taplens-tasks-test.db")
     database.initialize()
@@ -252,5 +498,7 @@ def build_service(
         daily_limit=daily_limit,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
         allowed_test_origins=allowed_test_origins,
+        digest_secrets=digest_secrets or TEST_DIGEST_SECRETS,
+        active_digest_key_version=active_digest_key_version,
     )
     return service, repository, user_id

@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 @dataclass(frozen=True)
 class FictionalFixture:
+    scheme: str
     host: str
     path: str
     site_path: str
@@ -13,17 +14,20 @@ class FictionalFixture:
 # served by the nginx service in compose.yaml. Unknown .test hosts still use
 # normal DNS and SSRF validation.
 _FIXTURES = {
-    ("scholarship.example.test", "/apply"): FictionalFixture(
+    ("https", "scholarship.example.test", "/apply"): FictionalFixture(
+        scheme="https",
         host="scholarship.example.test",
         path="/apply",
         site_path="/go/campus",
     ),
-    ("campus.example.test", "/go/campus"): FictionalFixture(
+    ("https", "campus.example.test", "/go/campus"): FictionalFixture(
+        scheme="https",
         host="campus.example.test",
         path="/go/campus",
         site_path="/go/campus",
     ),
-    ("short.example.test", "/go/campus"): FictionalFixture(
+    ("https", "short.example.test", "/go/campus"): FictionalFixture(
+        scheme="https",
         host="short.example.test",
         path="/go/campus",
         site_path="/go/campus",
@@ -46,14 +50,16 @@ def fixture_for_url(url: str) -> FictionalFixture | None:
         return None
 
     if (
-        parsed.scheme.casefold() not in {"http", "https"}
+        parsed.scheme.casefold() != "https"
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.query and len(parsed.query) > 2048
-        or parsed.fragment
-        or (port is not None and port != (443 if parsed.scheme.casefold() == "https" else 80))
+        or "?" in url
+        or "#" in url
+        or port is not None
         or parsed.hostname is None
     ):
         return None
 
-    return _FIXTURES.get((parsed.hostname.casefold().rstrip("."), parsed.path))
+    return _FIXTURES.get(
+        (parsed.scheme.casefold(), parsed.hostname.casefold(), parsed.path)
+    )

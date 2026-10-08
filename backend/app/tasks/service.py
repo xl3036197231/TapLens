@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -12,8 +14,10 @@ from app.sandbox.url_policy import (
 from app.storage.tasks import (
     InvalidTaskTransitionError,
     QuotaExceededError,
+    TaskInputConflictError,
     TaskNotFoundError,
     TaskRepository,
+    TaskResultExpiredError,
 )
 from app.tasks.models import CloudScanTask, TaskStatus
 
@@ -25,14 +29,27 @@ class TaskService:
         repository: TaskRepository,
         daily_limit: int,
         quota_timezone: ZoneInfo,
+        digest_secrets: dict[int, str],
         artifact_ttl: timedelta = timedelta(minutes=30),
         allowed_test_origins: tuple[str, ...] = (),
+        active_digest_key_version: int = 1,
     ) -> None:
         self.repository = repository
         self.daily_limit = daily_limit
         self.quota_timezone = quota_timezone
         self.artifact_ttl = artifact_ttl
         self.allowed_test_origins = allowed_test_origins
+        resolved_secrets = digest_secrets
+        if active_digest_key_version not in resolved_secrets:
+            raise ValueError("active cloud task digest key version is missing")
+        self.digest_secrets = {
+            version: secret.encode("utf-8")
+            for version, secret in resolved_secrets.items()
+            if version >= 1 and secret
+        }
+        if len(self.digest_secrets) != len(resolved_secrets):
+            raise ValueError("cloud task digest keys must be non-empty")
+        self.active_digest_key_version = active_digest_key_version
 
     def create(
         self,
@@ -75,11 +92,18 @@ class TaskService:
             duration_ms=None,
         )
         quota_date = created_at.astimezone(self.quota_timezone).date()
+        candidate_digests = {
+            version: self._target_digest(validated.url, version)
+            for version in self.digest_secrets
+        }
         try:
-            return self.repository.create_and_consume_quota(
+            creation = self.repository.create_and_consume_quota(
                 task,
                 quota_date=quota_date,
                 daily_limit=self.daily_limit,
+                target_digest=candidate_digests[self.active_digest_key_version],
+                digest_key_version=self.active_digest_key_version,
+                candidate_digests=candidate_digests,
             )
         except QuotaExceededError as exc:
             raise AppError(
@@ -87,6 +111,25 @@ class TaskService:
                 message="今日深度分析额度已用完",
                 status_code=429,
             ) from exc
+        except TaskInputConflictError as exc:
+            raise AppError(
+                code="CLOUD_ANALYSIS_INPUT_CONFLICT",
+                message="该分析 ID 已绑定其他云扫描输入",
+                status_code=409,
+            ) from exc
+        except TaskResultExpiredError as exc:
+            raise AppError(
+                code="CLOUD_TASK_RESULT_EXPIRED",
+                message="该分析 ID 的云扫描结果已清除",
+                status_code=409,
+            ) from exc
+        if creation.replayed and creation.task.status == TaskStatus.EXPIRED:
+            raise AppError(
+                code="CLOUD_TASK_RESULT_EXPIRED",
+                message="该分析 ID 的云扫描结果已过期",
+                status_code=409,
+            )
+        return creation.task
 
     def start(self, task_id: UUID, now: datetime | None = None) -> CloudScanTask:
         return self._transition(
@@ -169,3 +212,10 @@ class TaskService:
                 message="云端分析任务状态不允许该操作",
                 status_code=409,
             ) from exc
+
+    def _target_digest(self, target_url: str, key_version: int) -> str:
+        secret = self.digest_secrets.get(key_version)
+        if secret is None:
+            raise ValueError("cloud task digest key version is unavailable")
+        payload = f"taplens-cloud-scan-v1\n{target_url}".encode("utf-8")
+        return hmac.new(secret, payload, hashlib.sha256).hexdigest()

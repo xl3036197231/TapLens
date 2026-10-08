@@ -1,8 +1,9 @@
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 SafeText = Annotated[str, Field(min_length=1, max_length=1500)]
@@ -22,6 +23,7 @@ class AnalysisTarget(StrictModel):
     type: Literal["url", "deep_link", "qr_payload"]
     value: SafeText
     label: Annotated[str | None, Field(max_length=200)] = None
+    redacted: Literal[True] | None = None
 
     @field_validator("value")
     @classmethod
@@ -34,6 +36,44 @@ class AnalysisTarget(StrictModel):
 class AnalysisInput(StrictModel):
     claims_text: Annotated[str | None, Field(max_length=1500)] = None
     targets: Annotated[list[AnalysisTarget], Field(min_length=1, max_length=20)]
+    qr_summary: "QrSanitizedSummary | None" = None
+
+
+QrPayloadType = Literal[
+    "intent",
+    "deep_link",
+    "wifi",
+    "sms",
+    "phone",
+    "email",
+    "contact",
+    "apk",
+    "app_store",
+    "plain_text",
+    "invalid",
+]
+QrPossibleAction = Literal[
+    "open_app",
+    "open_fallback_url",
+    "connect_wifi",
+    "send_sms",
+    "place_call",
+    "compose_email",
+    "import_contact",
+    "download_apk",
+    "open_app_store",
+    "display_text",
+    "unknown",
+]
+
+
+class QrSanitizedSummary(StrictModel):
+    payload_type: QrPayloadType
+    possible_actions: Annotated[list[QrPossibleAction], Field(min_length=1, max_length=4)]
+    redacted: Literal[True]
+    raw_image_sent: Literal[False]
+    target_accessed: Literal[False]
+    sensitive_values_omitted: Literal[True]
 
 
 class EvidenceItem(StrictModel):
@@ -75,6 +115,116 @@ class AiAnalyzeRequest(StrictModel):
         if value and any(not item.id.startswith("C") for item in value.evidence):
             raise ValueError("cloud evidence IDs must start with C")
         return value
+
+    @model_validator(mode="after")
+    def validate_qr_ai_only_contract(self) -> "AiAnalyzeRequest":
+        qr_targets = [
+            target
+            for target in self.analysis_input.targets
+            if target.type in {"deep_link", "qr_payload"}
+        ]
+        summary = self.analysis_input.qr_summary
+        if not qr_targets:
+            if summary is not None:
+                raise ValueError("qr_summary requires a deep_link or qr_payload target")
+            return self
+        if len(qr_targets) != 1 or len(self.analysis_input.targets) != 1:
+            raise ValueError("QR AI-only requests require exactly one sanitized target")
+        if summary is None:
+            raise ValueError("QR AI-only requests require qr_summary")
+        target = qr_targets[0]
+        expected_target_type = (
+            "deep_link"
+            if summary.payload_type in {"intent", "deep_link"}
+            else "qr_payload"
+        )
+        if target.type != expected_target_type:
+            raise ValueError("QR payload type does not match target type")
+        allowed_actions = QR_ALLOWED_ACTIONS[summary.payload_type]
+        if len(set(summary.possible_actions)) != len(summary.possible_actions) or not set(
+            summary.possible_actions
+        ) <= allowed_actions:
+            raise ValueError("QR payload type contains an invalid possible action")
+        if target.redacted is not True:
+            raise ValueError("QR AI-only target must declare redacted=true")
+        prefix = "taplens-deeplink" if target.type == "deep_link" else "taplens-qr"
+        if target.value != f"{prefix}:{summary.payload_type}":
+            raise ValueError("QR AI-only target must use the frozen opaque summary value")
+        if self.cloud_evidence is not None:
+            raise ValueError("QR AI-only requests cannot include cloud evidence")
+        if self.local_evidence is None or not self.local_evidence.evidence:
+            raise ValueError("QR AI-only requests require local evidence")
+        if not self.analysis_input.claims_text:
+            raise ValueError("QR AI-only requests require a sanitized claim")
+        local_ids = {item.id for item in self.local_evidence.evidence}
+        if any(item.title is None or item.detail is None for item in self.local_evidence.evidence):
+            raise ValueError("QR local evidence requires a title and detail")
+        for hint in self.local_evidence.risk_hints:
+            if not set(hint.evidence_ids) <= local_ids:
+                raise ValueError("QR local risk hints must reference local evidence")
+        for finding in self.hard_risk_findings:
+            if not set(finding.evidence_ids) <= local_ids:
+                raise ValueError("QR hard-risk findings must reference local evidence")
+        assert_qr_text_is_sanitized(
+            [
+                self.analysis_input.claims_text,
+                target.label,
+                *(
+                    value
+                    for item in self.local_evidence.evidence
+                    for value in (item.kind, item.title, item.detail)
+                ),
+                *(
+                    value
+                    for hint in self.local_evidence.risk_hints
+                    for value in (hint.code, hint.message)
+                ),
+                *(
+                    value
+                    for finding in self.hard_risk_findings
+                    for value in (finding.code, finding.message)
+                ),
+            ]
+        )
+        return self
+
+
+QR_FORBIDDEN_TEXT = (
+    re.compile(r"https?://", re.IGNORECASE),
+    re.compile(r"(?:intent|wifi|smsto|sms|tel|mailto):", re.IGNORECASE),
+    re.compile(r"BEGIN:VCARD", re.IGNORECASE),
+    re.compile(r"(?:https?|intent)%3A%2F%2F", re.IGNORECASE),
+    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+    re.compile(r"(?<![A-Za-z0-9])\+?\d[\d\s-]{5,}\d(?![A-Za-z0-9])"),
+    re.compile(r"\bBearer\s+\S+", re.IGNORECASE),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{8,}\b"),
+    re.compile(
+        r"(?:password|passwd|secret|token|api[_-]?key|authorization)\s*[:=]",
+        re.IGNORECASE,
+    ),
+)
+
+QR_ALLOWED_ACTIONS: dict[str, set[str]] = {
+    "intent": {"open_app", "open_fallback_url"},
+    "deep_link": {"open_app"},
+    "wifi": {"connect_wifi"},
+    "sms": {"send_sms"},
+    "phone": {"place_call"},
+    "email": {"compose_email"},
+    "contact": {"import_contact"},
+    "apk": {"download_apk"},
+    "app_store": {"open_app_store"},
+    "plain_text": {"display_text"},
+    "invalid": {"unknown"},
+}
+
+
+def assert_qr_text_is_sanitized(values: list[str | None]) -> None:
+    for value in values:
+        if value is None:
+            continue
+        if any(pattern.search(value) for pattern in QR_FORBIDDEN_TEXT):
+            raise ValueError("QR AI-only request contains a forbidden raw value")
 
 
 class AiUsage(StrictModel):

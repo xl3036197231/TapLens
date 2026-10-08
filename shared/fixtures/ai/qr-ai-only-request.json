@@ -1,0 +1,40 @@
+{
+  "report_context": {
+    "analysis_id": "91ef83d5-1b06-42a9-b668-70022a65404d",
+    "created_at": "2026-10-08T00:00:00.000000Z"
+  },
+  "analysis_input": {
+    "claims_text": "用户确认只发送二维码脱敏类型和本地静态证据，未执行外部动作。",
+    "targets": [
+      {
+        "type": "qr_payload",
+        "value": "taplens-qr:wifi",
+        "label": "二维码脱敏摘要",
+        "redacted": true
+      }
+    ],
+    "qr_summary": {
+      "payload_type": "wifi",
+      "possible_actions": [
+        "connect_wifi"
+      ],
+      "redacted": true,
+      "raw_image_sent": false,
+      "target_accessed": false,
+      "sensitive_values_omitted": true
+    }
+  },
+  "local_evidence": {
+    "evidence": [
+      {
+        "id": "L01",
+        "kind": "qr_payload",
+        "title": "二维码静态类型",
+        "detail": "识别为 wifi 类型；敏感值已省略，未执行外部动作。"
+      }
+    ],
+    "risk_hints": []
+  },
+  "cloud_evidence": null,
+  "hard_risk_findings": []
+}

@@ -3,16 +3,23 @@ from app.sandbox.fictional_fixture import fixture_for_url
 
 
 def test_only_exact_known_fictional_urls_receive_fixture_mapping() -> None:
-    mapped = fixture_for_url(
-        "https://scholarship.example.test/apply?source=poster"
-    )
+    mapped = fixture_for_url("https://campus.example.test/go/campus")
 
     assert mapped is not None
     assert mapped.site_path == "/go/campus"
-    assert fixture_for_url("https://scholarship.example.test/other") is None
-    assert fixture_for_url("https://other.example.test/apply") is None
-    assert fixture_for_url("https://scholarship.example.test:444/apply") is None
-    assert fixture_for_url("https://user@scholarship.example.test/apply") is None
+    rejected = (
+        "http://campus.example.test/go/campus",
+        "https://campus.example.test/go/campus?source=poster",
+        "https://campus.example.test/go/campus?",
+        "https://campus.example.test/go/campus#fragment",
+        "https://campus.example.test/go/campus#",
+        "https://campus.example.test./go/campus",
+        "https://campus.example.test:443/go/campus",
+        "https://user@campus.example.test/go/campus",
+        "https://campus.example.test/go/other",
+        "https://other.example.test/go/campus",
+    )
+    assert all(fixture_for_url(url) is None for url in rejected)
 
 
 def test_fixture_navigation_can_read_only_its_exact_internal_site_path() -> None:

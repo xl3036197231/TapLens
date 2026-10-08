@@ -59,6 +59,20 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_cloud_scan_tasks_expiry
                     ON cloud_scan_tasks(expires_at);
 
+                CREATE TABLE IF NOT EXISTS cloud_scan_requests (
+                    user_id TEXT NOT NULL,
+                    analysis_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    target_digest TEXT,
+                    digest_key_version INTEGER CHECK (
+                        digest_key_version IS NULL OR digest_key_version >= 1
+                    ),
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (user_id, analysis_id),
+                    UNIQUE (task_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS ai_analysis_calls (
                     user_id TEXT NOT NULL,
                     analysis_id TEXT NOT NULL,

@@ -15,6 +15,7 @@ from app.tasks.service import TaskService
 
 
 TEST_SECRET = "test-secret-that-is-long-enough-for-deep-scan-tests"
+TEST_DIGEST_SECRETS = {1: "test-cloud-task-digest-secret"}
 
 
 class FlowCollector:
@@ -63,6 +64,7 @@ def test_register_login_create_execute_and_query_complete_flow(tmp_path) -> None
         repository=repository,
         daily_limit=2,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets=TEST_DIGEST_SECRETS,
     )
     executor = TaskExecutor(
         repository=repository,
@@ -107,6 +109,52 @@ def test_create_and_poll_deep_scan(tmp_path) -> None:
     assert polled.json()["analysis_id"] == str(analysis_id)
     assert polled.json()["cloud_evidence"] is None
     assert polled.json()["error"] is None
+
+
+def test_replayed_create_returns_same_task_without_consuming_quota(tmp_path) -> None:
+    app = build_test_app(tmp_path)
+    token, _ = register_and_login(app, "Replay_User")
+    payload = {
+        "analysis_id": str(uuid4()),
+        "url": "https://8.8.8.8/replay",
+    }
+
+    first = request(app, "POST", "/api/v1/deep-scans", token=token, json=payload)
+    replay = request(app, "POST", "/api/v1/deep-scans", token=token, json=payload)
+    quota = request(app, "GET", "/api/v1/quota", token=token)
+
+    assert first.status_code == replay.status_code == 202
+    assert replay.json()["task_id"] == first.json()["task_id"]
+    assert first.json()["remaining"] == replay.json()["remaining"] == 1
+    assert replay.headers["location"] == first.headers["location"]
+    assert quota.json()["used"] == 1
+
+
+def test_changed_input_for_reserved_analysis_id_returns_conflict(tmp_path) -> None:
+    app = build_test_app(tmp_path)
+    token, _ = register_and_login(app, "Conflict_User")
+    analysis_id = str(uuid4())
+    first = request(
+        app,
+        "POST",
+        "/api/v1/deep-scans",
+        token=token,
+        json={"analysis_id": analysis_id, "url": "https://8.8.8.8/first"},
+    )
+    conflict = request(
+        app,
+        "POST",
+        "/api/v1/deep-scans",
+        token=token,
+        json={"analysis_id": analysis_id, "url": "https://8.8.8.8/changed"},
+    )
+    quota = request(app, "GET", "/api/v1/quota", token=token)
+
+    assert first.status_code == 202
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "CLOUD_ANALYSIS_INPUT_CONFLICT"
+    assert conflict.json()["error"]["retryable"] is False
+    assert quota.json()["used"] == 1
 
 
 def test_invalid_target_does_not_consume_endpoint_quota(tmp_path) -> None:
@@ -168,6 +216,7 @@ def test_screenshot_requires_owner_and_is_deleted_with_task(tmp_path) -> None:
         repository=TaskRepository(app.state.database),
         daily_limit=2,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets=TEST_DIGEST_SECRETS,
     )
     service.start(task_id)
     service.succeed(
@@ -235,6 +284,7 @@ def test_failed_task_returns_stable_error(tmp_path) -> None:
         repository=TaskRepository(app.state.database),
         daily_limit=2,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets=TEST_DIGEST_SECRETS,
     )
     service.start(task_id)
     service.fail(
