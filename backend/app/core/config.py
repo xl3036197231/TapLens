@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_protocol: Literal["openai_chat_completions"] = "openai_chat_completions"
-    llm_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
+    llm_timeout_seconds: float = Field(default=120.0, ge=1.0, le=120.0)
     llm_proxy_url: str = ""
     ai_digest_active_key_version: int = Field(default=1, ge=1)
     ai_digest_keys: SecretStr = SecretStr(DEFAULT_AI_DIGEST_KEYS)

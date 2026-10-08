@@ -38,6 +38,13 @@
   报告固定为 `sources.local=true`、`sources.cloud=false`、`sources.ai=true`。
 - 模型编造 Cxx 云证据时由正式报告守卫拒绝，不能缓存。
 
+### Provider 长调用与补充二维码边界
+
+- 学校 Provider 默认截止时间由 60 秒提高到 120 秒；Nginx 读超时提高到 135 秒，确保由 API 先持久化成功、失败或 `outcome_unknown`，而不是由网关在 65 秒提前截断。
+- 120 秒之后的 Provider 超时仍只会进入 `outcome_unknown`，同一 `analysis_id` 不会再次派发；既有单次派发、续租和迟到终态测试继续作为门禁。
+- 已只读核对 D 的 `fed1930`：QR12/QR13 与 FIX-DL-008/009 是本地预览及 Android 应用选择样例，清单固定为 `allow_cloud=false` / `skip_unmapped_fallback`，不新增 B 云任务或网页映射。
+- 后端增加防御性测试：若客户端越界提交 QR12/QR13 的原始淘宝 URL 或 Intent/fallback，必须在 Provider 派发前返回 422；B 不访问哔哩哔哩、淘宝、fallback 或商品页面。
+
 ## 合同与 fixture
 
 - `shared/interfaces/qr-cloud-analysis.md`：两条路径和冻结请求格式。
@@ -53,11 +60,14 @@
 
 | 检查 | 结果 |
 |---|---|
-| 后端完整回归 | 210/210 PASS |
-| QR/云任务相关收集 | 55 项（其中 QR AI-only 24 项） |
+| 后端完整回归 | 217/217 PASS |
+| 本轮超时、幂等及 QR 目标矩阵 | 64/64 PASS |
+| QR AI-only 测试收集 | 26 项 |
 | QR01 本机受控站 Playwright | PASS；仅绑定临时 `127.0.0.1` 端口 |
 | Python 编译检查 | PASS |
 | `git diff --check` | PASS |
+| Provider 120 秒 / Nginx 135 秒边界 | PASS；httpx 请求扩展及部署静态门禁已校验，候选 Nginx 配置通过同镜像 `nginx -t` |
+| QR12/QR13 原始目标预派发拒绝 | 2/2 PASS；Provider 调用数为 0 |
 | 真实学校模型调用 | 未调用 |
 | 新云任务 / ECS 部署 | 未创建、未部署 |
 

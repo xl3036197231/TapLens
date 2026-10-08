@@ -18,6 +18,13 @@ require_runtime() {
   command -v docker >/dev/null 2>&1 || die "docker is required"
   docker compose version >/dev/null 2>&1 || die "docker compose is required"
   [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE; copy deploy/.env.example and set its secrets"
+  local llm_enabled
+  local llm_timeout
+  llm_enabled="$(awk -F= '$1 == "TAPLENS_LLM_ENABLED" {value=$2} END {print tolower(value)}' "$ENV_FILE")"
+  llm_timeout="$(awk -F= '$1 == "TAPLENS_LLM_TIMEOUT_SECONDS" {value=$2} END {print value}' "$ENV_FILE")"
+  if [[ "$llm_enabled" == "true" && "$llm_timeout" != "120" ]]; then
+    die "enabled LLM requires TAPLENS_LLM_TIMEOUT_SECONDS=120"
+  fi
   docker compose -f "$COMPOSE_FILE" config --quiet
 }
 

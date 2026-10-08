@@ -84,3 +84,21 @@ def test_ai_digest_rotation_requires_active_version(tmp_path) -> None:
             ai_digest_active_key_version=2,
             ai_digest_keys=AI_DIGEST_KEYS,
         )
+
+
+def test_school_provider_default_timeout_is_120_seconds(tmp_path) -> None:
+    settings = Settings(
+        environment="test",
+        database_path=tmp_path / "test.db",
+    )
+
+    assert settings.llm_timeout_seconds == 120.0
+
+
+def test_school_provider_timeout_cannot_exceed_120_seconds(tmp_path) -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="test",
+            database_path=tmp_path / "test.db",
+            llm_timeout_seconds=121,
+        )

@@ -65,11 +65,15 @@ Pydantic 使用 `extra=forbid`。任何 `api_key`、`deepseek_key`、JWT、Cooki
 | 422 | `AI_REQUEST_INVALID` | 请求字段不符合接口合同；`details.fields` 只含字段路径和错误类型 | 否 |
 | 503 | `AI_PROVIDER_DISABLED` | 学校模型未启用 | 否 |
 | 503 | `AI_PROVIDER_UNAVAILABLE` / `AI_PROVIDER_AUTH_FAILED` / `AI_PROVIDER_RATE_LIMITED` | 上游不可用、服务端凭证失败或限流 | 可能 |
-| 504 | `AI_PROVIDER_TIMEOUT` | 学校模型超时 | 是 |
+| 409 | `AI_OUTCOME_UNKNOWN` | Provider 派发后达到 120 秒超时；结果和用量待核实，只能查询状态 | 是 |
 | 502 | `AI_PROVIDER_ERROR` / `AI_PROVIDER_INVALID_RESPONSE` | 上游错误或返回内容无法解析 | 是 |
 | 502 | `AI_REPORT_REJECTED` | 模型输出被证据或 Schema 守卫拒绝 | 是 |
 
 客户端可以记录 HTTP 状态、`error.code`、`retryable` 和脱敏后的字段路径/错误类型。不得记录 Authorization、JWT、Key、密码或完整原始响应。
+
+学校 Provider 的服务端截止时间为 120 秒，Nginx 等待 135 秒。客户端应等待超过服务端截止时间；如果连接中断，则只调用
+`GET /api/v1/ai/analyses/{analysis_id}/status`。达到服务端截止时间后记录固定为
+`outcome_unknown`，同一 `analysis_id` 永远不得重新派发 Provider。
 
 在不调用 Provider 的情况下，可以先发送真实请求结构但不附 JWT：请求结构合法时返回 `401 AUTH_TOKEN_MISSING`，结构不合法时返回 `422 AI_REQUEST_INVALID`。正式验收仍需使用有效 JWT。
 

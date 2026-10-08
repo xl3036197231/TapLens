@@ -18,11 +18,21 @@ compose exec -T api python - <<'PY'
 import os
 import sqlite3
 
+from app.core.config import get_settings
+
 with sqlite3.connect(os.environ["TAPLENS_DATABASE_PATH"]) as database:
     result = database.execute("PRAGMA quick_check").fetchone()[0]
     if result != "ok":
         raise SystemExit(f"SQLite quick_check failed: {result}")
 print("sqlite=ok")
+
+settings = get_settings()
+if settings.llm_enabled and settings.llm_timeout_seconds != 120:
+    raise SystemExit("enabled LLM timeout must be 120 seconds")
+print(
+    f"llm_enabled={str(settings.llm_enabled).lower()} "
+    f"llm_timeout_seconds={settings.llm_timeout_seconds:g}"
+)
 PY
 
 health="$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1/healthz)"

@@ -269,6 +269,35 @@ def test_qr_report_guard_rejects_invented_cloud_evidence(tmp_path) -> None:
     assert len(provider.calls) == 1
 
 
+@pytest.mark.parametrize(
+    "raw_value",
+    (
+        "https://item.taobao.com/item.htm?id=638523167031",
+        (
+            "intent://item.taobao.com/item.htm?id=574113508033#Intent;"
+            "scheme=taobao;package=com.taobao.taobao;"
+            "S.browser_fallback_url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm"
+            "%3Fid%3D574113508033;end"
+        ),
+    ),
+)
+def test_supplemental_qr12_qr13_raw_targets_are_rejected_before_provider(
+    tmp_path,
+    raw_value: str,
+) -> None:
+    provider = QrFakeProvider()
+    app = build_app(tmp_path, provider)
+    token = register_and_login(app, f"Qr_Supplemental_Reject_{uuid4().hex[:8]}")
+    body = qr_body("intent", "deep_link", ["open_app"])
+    body["analysis_input"]["claims_text"] = raw_value
+
+    response = request(app, "POST", "/api/v1/ai/analyze", token=token, json=body)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "AI_REQUEST_INVALID"
+    assert provider.calls == []
+
+
 def qr_body(payload_type: str, target_type: str, actions: list[str]) -> dict:
     prefix = "taplens-deeplink" if target_type == "deep_link" else "taplens-qr"
     return {

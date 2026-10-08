@@ -78,9 +78,13 @@ TAPLENS_LLM_BASE_URL=https://openai.cuc.edu.cn/v1
 TAPLENS_LLM_API_KEY=replace-on-the-server-only
 TAPLENS_LLM_MODEL=cuc/deepseek
 TAPLENS_LLM_PROTOCOL=openai_chat_completions
-TAPLENS_LLM_TIMEOUT_SECONDS=60
+TAPLENS_LLM_TIMEOUT_SECONDS=120
 TAPLENS_LLM_PROXY_URL=http://192.168.250.2:8888
 ```
+
+API 超时固定为 120 秒，因为学校模型生成完整 Schema 报告可能超过一分钟。Nginx
+等待 135 秒，确保由 API 先持久化最终幂等状态，而不是由网关提前截断请求。客户端
+必须等待超过 API 截止时间，或转为只读状态查询；Provider 派发后永远不得重复 POST。
 
 The API rejects client-supplied model keys. The server credential is never stored
 in SQLite, returned to the client, or included in backups.
