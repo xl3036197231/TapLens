@@ -12,6 +12,8 @@ enum QrPayloadKind {
   plainText,
 }
 
+enum QrCloudAnalysisMode { webSandbox, aiOnly }
+
 class QrPayloadInspection {
   final QrPayloadKind kind;
   final String title;
@@ -19,7 +21,7 @@ class QrPayloadInspection {
   final String advice;
   final String safePreview;
   final String? localCheckValue;
-  final bool cloudAllowed;
+  final bool webSandboxAllowed;
 
   const QrPayloadInspection({
     required this.kind,
@@ -27,14 +29,19 @@ class QrPayloadInspection {
     required this.behavior,
     required this.advice,
     required this.safePreview,
-    this.cloudAllowed = false,
+    this.webSandboxAllowed = false,
     this.localCheckValue,
   });
 
   bool get canInspectLocally =>
       kind == QrPayloadKind.webLink || kind == QrPayloadKind.deepLink;
 
-  bool get canSubmitToCloud => kind == QrPayloadKind.webLink && cloudAllowed;
+  bool get canSubmitToCloud => true;
+
+  QrCloudAnalysisMode get cloudAnalysisMode =>
+      kind == QrPayloadKind.webLink && webSandboxAllowed
+          ? QrCloudAnalysisMode.webSandbox
+          : QrCloudAnalysisMode.aiOnly;
 }
 
 /// Classifies a QR payload without opening it, contacting its destination,
@@ -134,7 +141,7 @@ class QrPayloadInspector {
         safePreview: _safeUriPreview(uri),
         // The preview is what the user may choose to submit. Credentials are
         // removed before the cloud option is offered.
-        cloudAllowed: canOfferCloudAnalysis(_safeUriPreview(uri)),
+        webSandboxAllowed: canOfferCloudAnalysis(_safeUriPreview(uri)),
         localCheckValue: _safeUriPreview(uri),
       );
     }

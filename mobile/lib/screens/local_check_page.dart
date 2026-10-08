@@ -10,6 +10,7 @@ import '../services/local_safety_service.dart';
 import '../services/qr_payload_inspector.dart';
 import 'report_page.dart';
 import 'cloud_analysis_page.dart';
+import 'payload_ai_report_page.dart';
 
 class LocalCheckPage extends StatefulWidget {
   final String? initialValue;
@@ -35,6 +36,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   bool _loading = false;
   bool _continueToCloud = false;
   CloudAiMode _selectedAiMode = CloudAiMode.school;
+  String? _analysisCreatedAtText;
 
   @override
   void initState() {
@@ -80,6 +82,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
     final analysisId = widget.analysisId?.trim().isNotEmpty == true
         ? widget.analysisId!.trim()
         : LocalEvidence.createAnalysisId();
+    final createdAtText = DateTime.now().toUtc().toIso8601String();
     try {
       final analysis = await _service.analyzeWithEvidence(
         _controller.text,
@@ -103,6 +106,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
       setState(() {
         _result = result;
         _evidence = evidence;
+        _analysisCreatedAtText = createdAtText;
         _loading = false;
         _continueToCloud = false;
         _selectedAiMode = CloudAiMode.school;
@@ -117,6 +121,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
       setState(() {
         _result = result;
         _evidence = LocalEvidence.fromResult(result, analysisId: analysisId);
+        _analysisCreatedAtText = createdAtText;
         _loading = false;
         _continueToCloud = false;
       });
@@ -342,6 +347,54 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                   ),
                 ),
               ],
+              if (_canSubmitDeepLinkToAi(result)) ...[
+                const SizedBox(height: 16),
+                Card(
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '继续云端 AI 研判',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '可将脱敏后的 Deep Link 摘要和本地 Lxx 证据发送给你选择的模型。TapLens 不会启动目标 APP，也不会访问 fallback 地址。',
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => PayloadAiReportPage(
+                                    rawPayload: result.safeValue,
+                                    inspection: const QrPayloadInspector()
+                                        .inspect(result.safeValue),
+                                    analysisId: evidence.analysisId,
+                                    createdAtText: _analysisCreatedAtText,
+                                    initialApiBaseUrl: widget.initialApiBaseUrl,
+                                    localEvidence: evidence.toJson(),
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.cloud_outlined),
+                            label: const Text('选择模型并进行云端研判'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 onPressed: () {
@@ -374,6 +427,9 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
         !uri.path.toLowerCase().endsWith('.apk') &&
         canOfferCloudAnalysis(result.safeValue);
   }
+
+  bool _canSubmitDeepLinkToAi(LocalSafetyResult result) =>
+      result.isSuccess && result.inputType == 'deep_link' && _evidence != null;
 }
 
 class _LinkTypeGuide extends StatelessWidget {

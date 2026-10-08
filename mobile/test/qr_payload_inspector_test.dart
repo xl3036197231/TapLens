@@ -30,17 +30,15 @@ void main() {
     expect(result.canSubmitToCloud, isTrue);
   });
 
-  test('本机和内部主机名不提供云端入口', () {
+  test('本机和内部主机名允许 AI 研判但不会送网页沙箱访问', () {
     for (final value in [
       'http://localhost/login',
       'http://printer.local/login',
       'http://backend.internal/login',
     ]) {
-      expect(
-        inspector.inspect(value).canSubmitToCloud,
-        isFalse,
-        reason: value,
-      );
+      final result = inspector.inspect(value);
+      expect(result.canSubmitToCloud, isTrue, reason: value);
+      expect(result.cloudAnalysisMode, QrCloudAnalysisMode.aiOnly);
     }
   });
 
@@ -52,7 +50,8 @@ void main() {
 
     expect(result.kind, QrPayloadKind.deepLink);
     expect(result.canInspectLocally, isTrue);
-    expect(result.canSubmitToCloud, isFalse);
+    expect(result.canSubmitToCloud, isTrue);
+    expect(result.cloudAnalysisMode, QrCloudAnalysisMode.aiOnly);
     expect(result.safePreview, contains('com.example.campus'));
     expect(result.safePreview, isNot(contains('123456')));
     expect(result.localCheckValue, contains('package=com.example.campus'));
@@ -72,7 +71,7 @@ void main() {
     expect(result.localCheckValue, contains('REDACTED'));
   });
 
-  test('系统动作型 QR 只给本机说明，不开放本地或云端链接分析', () {
+  test('系统动作型 QR 可选云端 AI 研判，但不能执行或做网页沙箱访问', () {
     final cases = <String, QrPayloadKind>{
       'WIFI:T:WPA;S=Campus;P=wifi-secret;;': QrPayloadKind.wifi,
       'SMSTO:+8613812345678:transfer money': QrPayloadKind.sms,
@@ -88,11 +87,8 @@ void main() {
       final result = inspector.inspect(entry.key);
       expect(result.kind, entry.value, reason: entry.key);
       expect(result.canInspectLocally, isFalse, reason: entry.key);
-      expect(
-        result.canSubmitToCloud,
-        result.kind == QrPayloadKind.webLink,
-        reason: entry.key,
-      );
+      expect(result.canSubmitToCloud, isTrue, reason: entry.key);
+      expect(result.cloudAnalysisMode, QrCloudAnalysisMode.aiOnly);
     }
 
     expect(
@@ -101,7 +97,7 @@ void main() {
     );
   });
 
-  test('D 的 Day 4 二维码样例都落入预期类型和云端边界', () {
+  test('D 的 Day 4 二维码样例都支持云端研判并区分沙箱与 AI-only', () {
     const cases = <String, QrPayloadKind>{
       'https://campus.example.test/go/campus': QrPayloadKind.webLink,
       'intent://scan/#Intent;scheme=taplens;package=com.example.otherapp;'
@@ -127,7 +123,14 @@ void main() {
       expect(result.kind, entry.value, reason: entry.key);
       expect(
         result.canSubmitToCloud,
-        result.kind == QrPayloadKind.webLink,
+        isTrue,
+        reason: entry.key,
+      );
+      expect(
+        result.cloudAnalysisMode,
+        result.kind == QrPayloadKind.webLink
+            ? QrCloudAnalysisMode.webSandbox
+            : QrCloudAnalysisMode.aiOnly,
         reason: entry.key,
       );
       if (result.kind != QrPayloadKind.webLink &&

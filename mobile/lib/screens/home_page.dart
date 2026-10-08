@@ -235,7 +235,6 @@ class _HomePageState extends State<HomePage> {
       MaterialPageRoute<void>(
         builder: (_) => QrPayloadReviewPage(
           payload: payload,
-          analysisId: _day4AnalysisId.isEmpty ? null : _day4AnalysisId,
           initialApiBaseUrl: _day4ApiBaseUrl.isEmpty ? null : _day4ApiBaseUrl,
         ),
       ),

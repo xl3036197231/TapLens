@@ -20,6 +20,8 @@ class DeepSeekAiClient implements AiClient {
             endpoint ?? Uri.parse('https://api.deepseek.com/chat/completions'),
         _httpClient = httpClient ?? HttpClient();
 
+  void close({bool force = false}) => _httpClient.close(force: force);
+
   @override
   Future<AiClientResponse> analyze({
     required String apiKey,
