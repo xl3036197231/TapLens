@@ -14,17 +14,76 @@ die() {
   exit 1
 }
 
+env_file_value() {
+  local key="$1"
+  local file="$2"
+  awk -v wanted="$key" '
+    function trim(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    {
+      line=$0
+      sub(/\r$/, "", line)
+      if (line ~ /^[[:space:]]*(#|$)/) next
+      separator=index(line, "=")
+      if (separator == 0) next
+      name=trim(substr(line, 1, separator - 1))
+      if (name != wanted) next
+      value=trim(substr(line, separator + 1))
+      quote=substr(value, 1, 1)
+      if (quote == "\"" || quote == "\047") {
+        tail=substr(value, 2)
+        closing=index(tail, quote)
+        if (closing == 0) {
+          value="__INVALID_ENV_VALUE__"
+        } else {
+          remainder=trim(substr(tail, closing + 1))
+          if (remainder != "" && substr(remainder, 1, 1) != "#") {
+            value="__INVALID_ENV_VALUE__"
+          } else {
+            value=substr(tail, 1, closing - 1)
+          }
+        }
+      } else {
+        sub(/[[:space:]]+#.*$/, "", value)
+        value=trim(value)
+      }
+      found=value
+      seen=1
+    }
+    END { if (seen) print found }
+  ' "$file"
+}
+
+validate_llm_timeout_env() {
+  local env_file="${1:-$ENV_FILE}"
+  local llm_enabled
+  local llm_timeout
+  llm_enabled="$(env_file_value TAPLENS_LLM_ENABLED "$env_file" | tr '[:upper:]' '[:lower:]')"
+  llm_timeout="$(env_file_value TAPLENS_LLM_TIMEOUT_SECONDS "$env_file")"
+  case "$llm_enabled" in
+    ""|false|0|no|off|n|f)
+      return 0
+      ;;
+    true|1|yes|on|y|t)
+      ;;
+    *)
+      die "TAPLENS_LLM_ENABLED must be a supported boolean value"
+      ;;
+  esac
+  awk -v value="$llm_timeout" 'BEGIN {
+    valid = value ~ /^[0-9]+([.][0-9]+)?$/ && value + 0 == 120
+    exit !valid
+  }' || die "enabled LLM requires TAPLENS_LLM_TIMEOUT_SECONDS=120"
+}
+
 require_runtime() {
   command -v docker >/dev/null 2>&1 || die "docker is required"
   docker compose version >/dev/null 2>&1 || die "docker compose is required"
   [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE; copy deploy/.env.example and set its secrets"
-  local llm_enabled
-  local llm_timeout
-  llm_enabled="$(awk -F= '$1 == "TAPLENS_LLM_ENABLED" {value=$2} END {print tolower(value)}' "$ENV_FILE")"
-  llm_timeout="$(awk -F= '$1 == "TAPLENS_LLM_TIMEOUT_SECONDS" {value=$2} END {print value}' "$ENV_FILE")"
-  if [[ "$llm_enabled" == "true" && "$llm_timeout" != "120" ]]; then
-    die "enabled LLM requires TAPLENS_LLM_TIMEOUT_SECONDS=120"
-  fi
+  validate_llm_timeout_env "$ENV_FILE"
   docker compose -f "$COMPOSE_FILE" config --quiet
 }
 
