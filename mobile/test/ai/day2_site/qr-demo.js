@@ -16,7 +16,7 @@ const tones = {
   broken: { wash: "#dcdfdb", paper: "#f7f7f2", ink: "#68716c", angle: "-5deg" }
 };
 const groups = {
-  link: new Set(["QR01", "QR02", "QR08", "QR09"]),
+  link: new Set(["QR01", "QR02", "QR08", "QR09", "QR12", "QR13"]),
   system: new Set(["QR03", "QR04", "QR05", "QR06", "QR07"]),
   content: new Set(["QR10", "QR11"])
 };
@@ -34,6 +34,17 @@ function el(tag, className, value) {
   return node;
 }
 
+function productUrl(item) {
+  if (!item.related_deep_link_fixture_id) return null;
+  const url = new URL(item.source_product_url);
+  if (url.protocol !== "https:" || url.hostname !== "item.taobao.com" || url.pathname !== "/item.htm" ||
+      url.username || url.password || url.hash || [...url.searchParams.keys()].join() !== "id" ||
+      !/^\d+$/.test(url.searchParams.get("id") || "") || url.href !== item.payload) {
+    throw new Error("商品二维码必须编码固定淘宝商品 HTTPS 地址");
+  }
+  return url.href;
+}
+
 function showPreview(item) {
   const fields = {
     "preview-id": item.id + " / 预期结果", "preview-title": item.scene.headline,
@@ -42,6 +53,25 @@ function showPreview(item) {
     "preview-risk": item.risk_explanation, "preview-safe": item.taplens_action
   };
   for (const [id, value] of Object.entries(fields)) document.getElementById(id).textContent = value;
+  const pair = document.getElementById("preview-pair");
+  pair.replaceChildren();
+  pair.hidden = !item.related_deep_link_fixture_id;
+  if (item.related_deep_link_fixture_id) {
+    pair.append(document.createTextNode(`场景声称打开 ${item.claimed_app}；二维码实际指向 ${item.target_app}商品网页。配对 Deep Link 另行声明淘宝应用包名。`));
+    const link = el("a", "", `查看配对 Deep Link ${item.related_deep_link_fixture_id}`);
+    link.href = `deep-link-preview.html?case=${encodeURIComponent(item.related_deep_link_fixture_id)}`;
+    pair.append(link);
+  }
+  const product = document.getElementById("preview-product");
+  product.replaceChildren();
+  product.hidden = !item.related_deep_link_fixture_id;
+  if (item.related_deep_link_fixture_id) {
+    const link = el("a", "", "打开实际编码的淘宝商品页 ↗");
+    link.href = productUrl(item);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    product.append(link);
+  }
   document.getElementById("preview-dialog").showModal();
 }
 
@@ -51,6 +81,9 @@ function showQr(item) {
   const image = document.getElementById("scan-image");
   image.src = PNG_BASE + item.png;
   image.alt = item.id + " 放大的测试二维码";
+  document.getElementById("scan-guidance").textContent = item.related_deep_link_fixture_id
+    ? "使用手机扫码可打开二维码中的链接；使用 TapLens 会先看到安全预览，再决定是否访问。放大图片本身不会打开外站。"
+    : "请使用另一台设备上的 TapLens 安全预览进行实扫，或从相册导入原始 PNG。不要用系统扫码器直接打开链接或执行动作。这里展示的是固定样例，不会自动产生 Lxx/Cxx 证据。";
   document.getElementById("scan-dialog").showModal();
 }
 
@@ -59,6 +92,7 @@ function card(item, index) {
     throw new Error("二维码清单包含无效的展示字段");
   }
   const node = el("article", "scene-card");
+  node.id = item.id;
   node.dataset.id = item.id;
   node.dataset.tone = item.scene.tone;
   const tone = tones[item.scene.tone];
@@ -83,12 +117,19 @@ function card(item, index) {
   art.append(artifact);
   const body = el("div", "scene-body");
   const meta = el("div", "scene-meta");
-  meta.append(el("span", "", item.id), el("span", "", typeLabels[item.expected_type] || item.expected_type));
+  meta.append(el("span", "", item.id), el("span", "", item.related_deep_link_fixture_id ? "哔哩哔哩视频" : typeLabels[item.expected_type] || item.expected_type));
   const button = el("button", "preview-button");
   button.type = "button";
-  button.append(document.createTextNode("模拟扫码 · 查看预期预览"), el("span", "", "↗"));
+  button.append(document.createTextNode(item.related_deep_link_fixture_id ? "TapLens 扫码 · 安全预览" : "模拟扫码 · 查看预期预览"), el("span", "", "↗"));
   button.addEventListener("click", () => showPreview(item));
   body.append(meta, el("h3", "", item.scene.headline), el("p", "", item.scene.body), button);
+  if (item.related_deep_link_fixture_id) {
+    const product = el("a", "external-product-link", "在哔哩哔哩观看 ↗");
+    product.href = productUrl(item);
+    product.target = "_blank";
+    product.rel = "noopener noreferrer";
+    body.append(product);
+  }
   node.append(art, body);
   return node;
 }
@@ -99,8 +140,12 @@ async function init() {
     const response = await fetch(MANIFEST_URL, { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
     const manifest = await response.json();
-    if (!Array.isArray(manifest.cases) || manifest.cases.length !== 11) throw new Error("样例数量不匹配");
-    grid.replaceChildren(...manifest.cases.map(card));
+    if (!Array.isArray(manifest.cases) || manifest.cases.length !== 11 || !Array.isArray(manifest.supplemental_cases) || manifest.supplemental_cases.length !== 2) throw new Error("样例数量不匹配");
+    const cases = [...manifest.cases, ...manifest.supplemental_cases];
+    grid.replaceChildren(...cases.map(card));
+    if (/^#QR\d{2}$/.test(window.location.hash)) {
+      document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
+    }
   } catch (error) {
     grid.replaceChildren(el("p", "loading", "无法读取二维码样例。请在仓库根目录启动本地 HTTP 服务（端口 8767），再刷新页面。"));
     console.error("QR demo fixture load failed:", error);

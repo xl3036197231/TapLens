@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="case-id" content="day2-deep-link-realistic-entry">
-  <meta name="data-policy" content="test-only-no-external-launch">
+  <meta name="data-policy" content="test-only-explicit-external-launch">
   <title>槐序 Campus · 本周校园生活</title>
-  <link rel="stylesheet" href="deep-link-demo.css">
-  <script src="deep-link-demo.js" defer></script>
+  <link rel="stylesheet" href="deep-link-demo.css?v=2">
+  <script src="deep-link-demo.js?v=5" defer></script>
 </head>
 <body data-page="entry">
-  <div class="notice-bar">虚构校园 · 本地演示页面 · 请勿输入真实个人资料</div>
+  <div class="notice-bar">虚构校园 · 本地教学演示 · 无品牌关联 · 请勿输入真实个人资料</div>
   <header class="masthead">
     <a class="wordmark" href="deep-link-demo.html" aria-label="槐序 Campus 首页"><span class="wordmark-symbol">槐</span><span>槐序 <small>CAMPUS LIFE</small></span></a>
-    <nav aria-label="主导航"><a href="#featured">精选活动</a><a href="#inbox">我的消息</a><a href="#all-cases">服务入口</a></nav>
+    <nav aria-label="主导航"><a href="#featured">精选活动</a><a href="#inbox">我的消息</a><a href="#all-cases">服务入口</a><a href="qr-demo.html#QR12">配对二维码</a></nav>
     <span class="semester">2026 · 秋季学期</span>
   </header>
 
@@ -34,7 +34,7 @@
       <div>
         <p class="kicker">IN YOUR INBOX</p>
         <h2>校园消息，也可能藏着不同的去向。</h2>
-        <p class="section-intro">真实使用中，Deep Link 常出现在活动卡片、消息提醒和服务入口里。下面是由固定样例构造的七种受控情境。</p>
+        <p class="section-intro">真实使用中，Deep Link 常出现在活动卡片、消息提醒和服务入口里。这里有七种原有情境及两张哔哩哔哩视频推荐卡。选择入口继续，也可以先查看静态预检。</p>
       </div>
       <div class="inbox-preview" aria-label="消息预览">
         <div class="inbox-top"><span class="avatar">校</span><div><strong>校园服务通知</strong><small>今天 09:41 · 演示消息</small></div><span class="unread-dot"></span></div>
@@ -44,13 +44,13 @@
     </section>
 
     <section class="section" id="all-cases">
-      <div class="section-heading"><div><p class="kicker">SEVEN CONTROLLED ROUTES</p><h2>从哪种入口开始？</h2></div><p>每个入口都有一条固定、无害的测试 URI。<br>预检结果是基于 C 的静态规则预期，不是真机运行记录。</p></div>
+      <div class="section-heading"><div><p class="kicker">NINE CONTROLLED ROUTES</p><h2>从哪种入口开始？</h2></div><p>每个入口都有一条固定的测试 URI。<br>选择入口继续，或先查看静态预检；预检不是运行记录。</p></div>
       <div class="case-grid" id="case-grid" aria-live="polite"><p>正在载入本地测试样例…</p></div>
     </section>
 
     <section class="method-strip"><div><span class="method-index">01</span><strong>选择入口</strong><p>从活动、消息或服务卡片进入。</p></div><div><span class="method-index">02</span><strong>查看 URI</strong><p>对照 Scheme、包名、fallback 与参数。</p></div><div><span class="method-index">03</span><strong>验证证据</strong><p>复制到手机端解析；云端证据由 B 单独采集。</p></div></section>
   </main>
 
-  <footer><span>槐序 Campus 是虚构品牌，仅用于 TapLens 本地安全演示。</span><span>无真实账号 · 无自动唤起 · 无第三方资源</span></footer>
+  <footer><span>槐序 Campus 是虚构品牌，仅用于 TapLens 本地安全演示。</span><span>无真实账号 · 无自动唤起 · 无第三方资源加载</span></footer>
 </body>
 </html>

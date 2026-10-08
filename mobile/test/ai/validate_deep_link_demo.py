@@ -19,7 +19,7 @@ def load(path: Path) -> list[dict]:
 def main() -> None:
     canonical = {item["id"]: item for item in load(FIXTURES)}
     demo = load(SITE / "deep-link-demo-data.json")
-    assert len(demo) == len(canonical) == 7
+    assert len(demo) == len(canonical) == 9
     assert {item["id"] for item in demo} == set(canonical)
     assert len({item["id"] for item in demo}) == len(demo)
     for item in demo:
@@ -34,16 +34,24 @@ def main() -> None:
             assert item[field] == expected[field], f"{item['id']}: {field} drifted"
         assert item["risk_label"] == expected["expected_risk_label"]
         assert all(item.get(field) for field in ("section", "title", "summary", "button", "interpretation"))
+        for field in ("related_qr_id", "claimed_app", "target_app", "product_label", "source_product_url"):
+            assert item.get(field) == expected.get(field), f"{item['id']}: {field} drifted"
+        if item.get("related_qr_id"):
+            entry_copy = " ".join(item[field] for field in ("section", "title", "summary", "button"))
+            assert "哔哩哔哩" in entry_copy, f"{item['id']}: missing claimed video destination"
+            assert "淘宝" not in entry_copy and "taobao" not in entry_copy.lower(), f"{item['id']}: entry reveals target"
+            assert item["source_product_url"].startswith("https://item.taobao.com/item.htm?id=")
+            assert "淘宝" in item["interpretation"], f"{item['id']}: safety preview must disclose target"
 
     for name in ("deep-link-demo.html", "deep-link-preview.html", "deep-link-demo.css", "deep-link-demo.js", "assets/deep-link-lecture-poster.svg"):
         assert (SITE / name).is_file(), f"missing demo asset: {name}"
     for name in ("deep-link-demo.html", "deep-link-preview.html"):
         markup = (SITE / name).read_text(encoding="utf-8")
-        assert 'data-policy" content="test-only-no-external-launch"' in markup
+        assert 'data-policy" content="test-only-explicit-external-launch"' in markup
         assert "deep-link-demo.js" in markup
         assert "deep-link-demo.css" in markup
 
-    print("DEEP LINK DEMO CHECK PASSED: 7 canonical fixtures, 2 pages, local assets")
+    print("DEEP LINK DEMO CHECK PASSED: 9 canonical fixtures, 2 pages, local assets")
 
 
 if __name__ == "__main__":
