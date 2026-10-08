@@ -148,6 +148,10 @@ cd backend
 | `https://campus.example.test/go/campus` | `/controlled/go/campus` |
 | `https://short.example.test/go/campus` | `/controlled/go/campus` |
 
+匹配要求为 HTTPS、无显式端口、无用户信息、无 query、无 fragment 且主机不能带尾点；
+当前二维码 QR01 固定使用 `https://campus.example.test/go/campus`。任何变体都不会
+命中 fixture，而是回到常规 DNS 与 SSRF 检查。
+
 采集器只读取该站点自身的页面资源，并继续阻止表单提交和所有站外请求。证据的
 `limitations` 与 App 报告“证据范围”会注明这是模拟云端证据、原虚构域名未被访问，
 因此不能把结果当成该域名真实网页的行为。未列出的虚构域名仍执行常规 DNS 与 SSRF

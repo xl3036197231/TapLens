@@ -35,6 +35,8 @@ def task_service(request: Request) -> TaskService:
         quota_timezone=ZoneInfo(settings.quota_timezone),
         artifact_ttl=timedelta(minutes=settings.artifact_ttl_minutes),
         allowed_test_origins=settings.allowed_test_origins,
+        digest_secrets=settings.ai_digest_secret_map,
+        active_digest_key_version=settings.ai_digest_active_key_version,
     )
 
 

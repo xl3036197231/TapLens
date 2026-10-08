@@ -27,6 +27,8 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         repository=repository,
         daily_limit=settings.daily_quota_limit,
         quota_timezone=ZoneInfo(settings.quota_timezone),
+        digest_secrets=settings.ai_digest_secret_map,
+        active_digest_key_version=settings.ai_digest_active_key_version,
         artifact_ttl=timedelta(minutes=settings.artifact_ttl_minutes),
         allowed_test_origins=settings.allowed_test_origins,
     )

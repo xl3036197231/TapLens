@@ -676,24 +676,30 @@ class AiCallCleanupWorker:
 
 
 def canonical_sanitized_payload(payload: dict[str, object]) -> dict[str, object]:
-    """Return the fixed v3 whitelist with exact time text and order-independent lists.
+    """Return the fixed whitelist with exact time text and order-independent lists.
 
     The report guard requires the Provider report to preserve ``created_at`` text.
     Binding that exact text prevents an equivalent offset representation from
-    receiving a cached report containing a different representation.
+    receiving a cached report containing a different representation. Legacy
+    requests remain v3; QR summaries use v4 so their structured safety claims
+    are included in the idempotency digest.
     """
     context = _mapping(payload.get("report_context"))
     analysis_input = _mapping(payload.get("analysis_input"))
+    normalized_input: dict[str, object] = {
+        "claims_text": analysis_input.get("claims_text"),
+        "targets": _canonical_targets(analysis_input.get("targets")),
+    }
+    qr_summary = analysis_input.get("qr_summary")
+    if qr_summary is not None:
+        normalized_input["qr_summary"] = _normalize(qr_summary)
     return {
-        "normalization_version": 3,
+        "normalization_version": 4 if qr_summary is not None else 3,
         "report_context": {
             "analysis_id": context.get("analysis_id"),
             "created_at": _report_created_at_text(context.get("created_at")),
         },
-        "analysis_input": {
-            "claims_text": analysis_input.get("claims_text"),
-            "targets": _sorted_objects(analysis_input.get("targets")),
-        },
+        "analysis_input": normalized_input,
         "local_evidence": _canonical_evidence(payload.get("local_evidence")),
         "cloud_evidence": _canonical_evidence(payload.get("cloud_evidence")),
         "hard_risk_findings": _sorted_objects(payload.get("hard_risk_findings")),
@@ -806,6 +812,25 @@ def _sorted_objects(value: object) -> list[object]:
     normalized = [_normalize(item) for item in items]
     return sorted(
         normalized,
+        key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+    )
+
+
+def _canonical_targets(value: object) -> list[object]:
+    items = value if isinstance(value, list) else []
+    targets: list[object] = []
+    for item in items:
+        if not isinstance(item, dict):
+            targets.append(_normalize(item))
+            continue
+        target = {
+            key: item.get(key)
+            for key in ("type", "value", "label", "redacted")
+            if item.get(key) is not None
+        }
+        targets.append(_normalize(target))
+    return sorted(
+        targets,
         key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
     )
 

@@ -107,6 +107,7 @@ def build_executor(tmp_path, collector):
         repository=repository,
         daily_limit=10,
         quota_timezone=ZoneInfo("Asia/Shanghai"),
+        digest_secrets={1: "test-cloud-task-digest-secret"},
     )
     task = service.create(
         user_id=user_id,

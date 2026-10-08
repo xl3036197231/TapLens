@@ -131,6 +131,7 @@ def test_school_provider_uses_documented_openai_request_without_extra_parameters
         captured["url"] = str(request.url)
         captured["authorization"] = request.headers.get("authorization")
         captured["body"] = json.loads(request.content)
+        captured["timeout"] = request.extensions.get("timeout")
         report = REPORT_FIXTURE.read_text(encoding="utf-8")
         return Response(
             200,
@@ -160,6 +161,7 @@ def test_school_provider_uses_documented_openai_request_without_extra_parameters
     assert captured["authorization"] == "Bearer school-key-test-placeholder"
     assert captured["body"]["model"] == "cuc/deepseek"
     assert captured["body"]["stream"] is False
+    assert captured["timeout"]["read"] == 120.0
     assert "thinking" not in captured["body"]
     assert "response_format" not in captured["body"]
     assert result.model == "cuc/deepseek"

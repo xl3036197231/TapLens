@@ -1,5 +1,7 @@
 import json
+import hmac
 import sqlite3
+from dataclasses import dataclass
 from datetime import date, datetime
 from uuid import UUID
 
@@ -19,6 +21,20 @@ class InvalidTaskTransitionError(Exception):
     pass
 
 
+class TaskInputConflictError(Exception):
+    pass
+
+
+class TaskResultExpiredError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class TaskCreation:
+    task: CloudScanTask
+    replayed: bool
+
+
 class TaskRepository:
     def __init__(self, database: Database) -> None:
         self.database = database
@@ -29,9 +45,72 @@ class TaskRepository:
         *,
         quota_date: date,
         daily_limit: int,
-    ) -> CloudScanTask:
+        target_digest: str,
+        digest_key_version: int,
+        candidate_digests: dict[int, str],
+    ) -> TaskCreation:
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            reservation = connection.execute(
+                """
+                SELECT task_id, target_digest, digest_key_version
+                FROM cloud_scan_requests
+                WHERE user_id = ? AND analysis_id = ?
+                """,
+                (str(task.user_id), str(task.analysis_id)),
+            ).fetchone()
+            if reservation is not None:
+                stored_digest = reservation["target_digest"]
+                stored_version = reservation["digest_key_version"]
+                candidate = candidate_digests.get(int(stored_version)) if stored_version else None
+                if (
+                    stored_digest is None
+                    or candidate is None
+                    or not hmac.compare_digest(str(stored_digest), candidate)
+                ):
+                    raise TaskInputConflictError
+                existing = connection.execute(
+                    "SELECT * FROM cloud_scan_tasks WHERE id = ?",
+                    (reservation["task_id"],),
+                ).fetchone()
+                if existing is None:
+                    raise TaskResultExpiredError
+                return TaskCreation(row_to_task(existing), replayed=True)
+
+            # Older databases may contain tasks created before durable request
+            # reservations existed. Fail closed instead of binding a possibly
+            # different URL or consuming quota again for the same analysis ID.
+            legacy = connection.execute(
+                """
+                SELECT id, created_at
+                FROM cloud_scan_tasks
+                WHERE user_id = ? AND analysis_id = ?
+                ORDER BY created_at ASC, id ASC
+                LIMIT 1
+                """,
+                (str(task.user_id), str(task.analysis_id)),
+            ).fetchone()
+            if legacy is not None:
+                connection.execute(
+                    """
+                    INSERT INTO cloud_scan_requests (
+                        user_id, analysis_id, task_id, target_digest,
+                        digest_key_version, created_at
+                    ) VALUES (?, ?, ?, NULL, NULL, ?)
+                    """,
+                    (
+                        str(task.user_id),
+                        str(task.analysis_id),
+                        legacy["id"],
+                        legacy["created_at"],
+                    ),
+                )
+                # Preserve the conservative migration tombstone even though
+                # the caller receives a conflict. The surrounding context
+                # manager's later rollback is a no-op after this commit.
+                connection.commit()
+                raise TaskInputConflictError
+
             row = connection.execute(
                 """
                 SELECT used
@@ -56,6 +135,22 @@ class TaskRepository:
             )
             connection.execute(
                 """
+                INSERT INTO cloud_scan_requests (
+                    user_id, analysis_id, task_id, target_digest,
+                    digest_key_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(task.user_id),
+                    str(task.analysis_id),
+                    str(task.id),
+                    target_digest,
+                    digest_key_version,
+                    task.created_at.isoformat(),
+                ),
+            )
+            connection.execute(
+                """
                 INSERT INTO daily_quota_usage (user_id, quota_date, used)
                 VALUES (?, ?, 1)
                 ON CONFLICT(user_id, quota_date)
@@ -63,7 +158,7 @@ class TaskRepository:
                 """,
                 (str(task.user_id), quota_date.isoformat()),
             )
-        return task
+        return TaskCreation(task, replayed=False)
 
     def get_for_owner(self, task_id: UUID, user_id: UUID) -> CloudScanTask | None:
         with self.database.connect() as connection:

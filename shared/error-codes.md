@@ -55,6 +55,8 @@ CLOUD_EVIDENCE_BUILD_FAILED
 CLOUD_TASK_EXPIRED
 CLOUD_TASK_NOT_FOUND
 CLOUD_TASK_INVALID_STATE
+CLOUD_ANALYSIS_INPUT_CONFLICT
+CLOUD_TASK_RESULT_EXPIRED
 CLOUD_SCREENSHOT_NOT_READY
 CLOUD_SCREENSHOT_NOT_FOUND
 CLOUD_ARTIFACT_EXPIRED
@@ -76,6 +78,13 @@ REPORT_HARD_RISK_DOWNGRADED
 ```
 
 正式冻结时，每个错误码必须补充：触发条件、HTTP或模块状态、是否可重试、A应展示的提示以及降级行为。
+
+云扫描创建幂等错误：
+
+| 错误码 | HTTP | 触发条件 | 可重试 | APP行为 |
+|---|---:|---|---:|---|
+| `CLOUD_ANALYSIS_INPUT_CONFLICT` | 409 | 同一用户的 `analysis_id` 已绑定不同的规范化 URL，或历史摘要密钥不可用 | 否 | 停止创建；必须由用户建立新的分析上下文并重新确认 |
+| `CLOUD_TASK_RESULT_EXPIRED` | 409 | 同一输入的旧任务已删除或过期，只剩最小防重放墓碑 | 否 | 提示旧结果已清除；不得用原 `analysis_id` 再次创建任务 |
 
 ## C：本地安全错误映射
 

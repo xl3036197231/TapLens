@@ -151,6 +151,18 @@ Retry-After: 2
 - 任务后续超时、Playwright失败或服务端采集异常不退还额度，因为已消耗云端沙箱资源；
 - `remaining`是本次任务已扣除后的剩余次数，与`GET /api/v1/quota`的同名字段语义一致。
 
+创建接口按 `(JWT user_id, analysis_id)` 幂等。服务端在 SQLite 同一写事务中完成
+防重放预留、任务写入和额度扣减：
+
+- 相同 `analysis_id` 和相同规范化 URL 重放时返回原 `task_id`、原状态和当前剩余额度，
+  `Location` 仍指向原任务；不会再次扣额度或产生第二个 Worker 任务；
+- 相同 `analysis_id` 改变 URL 时返回 HTTP 409
+  `CLOUD_ANALYSIS_INPUT_CONFLICT`；
+- 任务删除或过期后只保留 HMAC 输入摘要、摘要密钥版本和原 `task_id`，不保留 URL、
+  页面证据或截图；旧 ID 重放返回 HTTP 409 `CLOUD_TASK_RESULT_EXPIRED`；
+- 摘要密钥轮换期间保留历史版本才能确认重放；历史 Key 缺失时保守返回输入冲突，
+  不重新创建任务。
+
 ## 7. 查询任务
 
 ### `GET /api/v1/deep-scans/{task_id}`
@@ -278,3 +290,20 @@ ISO 时间文本排序。租约过期后的迟到请求必须在调用 Provider 
 ```
 
 用量已知的终态失败示例见 [`../contracts/ai-analysis-status.example.json`](../contracts/ai-analysis-status.example.json)。
+
+## 13. 二维码 AI-only 脱敏请求
+
+QR02–QR11 不调用 `POST /deep-scans`，直接在用户选择学校模型并确认后调用
+`POST /ai/analyze`。完整冻结格式见
+[`qr-cloud-analysis.md`](qr-cloud-analysis.md)。关键约束为：
+
+- 只能有一个 `deep_link` 或 `qr_payload` 目标；
+- 目标必须为 `taplens-deeplink:<payload_type>` 或
+  `taplens-qr:<payload_type>`，不得包含原始二维码载荷；
+- `analysis_input.qr_summary` 必须声明 `redacted=true`、
+  `raw_image_sent=false`、`target_accessed=false` 和
+  `sensitive_values_omitted=true`；
+- 必须有 Lxx 本地证据，`cloud_evidence` 必须为 `null`；
+- URL、Intent、Wi-Fi/SMS/电话/邮件/vCard 原文、长号码、邮箱、JWT、Key 和密码赋值
+  会在 Provider 派发前返回 `422 AI_REQUEST_INVALID`；
+- GET 状态及 Provider 幂等行为继续使用本文件第 12 节合同。
