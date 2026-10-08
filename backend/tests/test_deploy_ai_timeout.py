@@ -92,6 +92,8 @@ def test_llm_timeout_preflight_matches_compose_boolean_forms(
         ("TAPLENS_LLM_ENABLED:true", "TAPLENS_LLM_TIMEOUT_SECONDS:120", True),
         ("TAPLENS_LLM_ENABLED: yes", 'TAPLENS_LLM_TIMEOUT_SECONDS: "120"', True),
         ("TAPLENS_LLM_ENABLED: false", "TAPLENS_LLM_TIMEOUT_SECONDS: 60", True),
+        ("export TAPLENS_LLM_ENABLED: true", "export TAPLENS_LLM_TIMEOUT_SECONDS: 60", False),
+        ("export TAPLENS_LLM_ENABLED=true", "export TAPLENS_LLM_TIMEOUT_SECONDS=120", True),
     ),
 )
 def test_llm_timeout_preflight_supports_compose_colon_separator(
@@ -164,9 +166,13 @@ def test_resolved_compose_json_has_an_authoritative_second_gate(
     assert "test-only-secret-must-not-be-printed" not in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("separator", ("=", ": "))
+@pytest.mark.parametrize(
+    ("prefix", "separator"),
+    (("", "="), ("", ": "), ("export ", "="), ("export ", ": ")),
+)
 def test_update_stops_before_compose_up_for_quoted_true_with_old_timeout(
     tmp_path: Path,
+    prefix: str,
     separator: str,
 ) -> None:
     project = tmp_path / "project"
@@ -175,8 +181,8 @@ def test_update_stops_before_compose_up_for_quoted_true_with_old_timeout(
     shutil.copy2(COMMON_SCRIPT, scripts / "_common.sh")
     shutil.copy2(ROOT / "deploy/scripts/update.sh", scripts / "update.sh")
     (project / "deploy/.env").write_text(
-        f'TAPLENS_LLM_ENABLED{separator}"true"\n'
-        f"TAPLENS_LLM_TIMEOUT_SECONDS{separator}60\n",
+        f'{prefix}TAPLENS_LLM_ENABLED{separator}"true"\n'
+        f"{prefix}TAPLENS_LLM_TIMEOUT_SECONDS{separator}60\n",
         encoding="utf-8",
     )
 

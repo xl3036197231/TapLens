@@ -38,6 +38,7 @@ env_file_value() {
       }
       if (separator == 0) next
       name=trim(substr(line, 1, separator - 1))
+      sub(/^export[[:space:]]+/, "", name)
       if (name != wanted) next
       value=trim(substr(line, separator + 1))
       quote=substr(value, 1, 1)
@@ -122,7 +123,7 @@ try:
         timeout = float(raw_timeout)
         if not math.isfinite(timeout) or timeout != 120:
             raise ValueError("invalid timeout")
-except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+except (AttributeError, KeyError, OverflowError, TypeError, ValueError, json.JSONDecodeError):
     print("error: resolved Compose LLM settings failed the 120-second gate", file=sys.stderr)
     raise SystemExit(1)
 '
