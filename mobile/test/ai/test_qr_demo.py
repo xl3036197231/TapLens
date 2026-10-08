@@ -24,7 +24,11 @@ class QrDemoTest(unittest.TestCase):
                 for key in ("surface", "headline", "body", "scan_prompt"):
                     self.assertTrue(case["scene"][key].strip())
                 self.assertTrue(case["expected_preview"].strip())
-                self.assertFalse(case["allow_cloud"])
+                self.assertTrue(case["allow_cloud"])
+                self.assertIn(
+                    case["cloud_analysis_mode"],
+                    {"web_sandbox_then_selected_ai", "ai_only_sanitized_summary"},
+                )
         for case_id in ("QR03", "QR04", "QR05", "QR06", "QR07"):
             preview = next(case["expected_preview"] for case in cases if case["id"] == case_id)
             self.assertNotIn("+00000000000", preview)

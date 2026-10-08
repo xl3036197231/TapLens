@@ -1,20 +1,53 @@
 import 'package:flutter/material.dart';
 
+import '../models/local_evidence.dart';
 import '../services/qr_payload_inspector.dart';
 import 'local_check_page.dart';
+import 'payload_ai_report_page.dart';
 
 class QrPayloadReviewPage extends StatelessWidget {
   final String payload;
-  final String? analysisId;
+  final String analysisId;
+  final String createdAtText;
   final String? initialApiBaseUrl;
   final QrPayloadInspection inspection;
 
   QrPayloadReviewPage({
     super.key,
     required this.payload,
-    this.analysisId,
+    String? analysisId,
+    String? createdAtText,
     this.initialApiBaseUrl,
-  }) : inspection = const QrPayloadInspector().inspect(payload);
+  })  : analysisId = analysisId ?? LocalEvidence.createAnalysisId(),
+        createdAtText =
+            createdAtText ?? DateTime.now().toUtc().toIso8601String(),
+        inspection = const QrPayloadInspector().inspect(payload);
+
+  void _openCloudAnalysis(BuildContext context) {
+    if (inspection.cloudAnalysisMode == QrCloudAnalysisMode.webSandbox) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => LocalCheckPage(
+            initialValue: inspection.localCheckValue,
+            analysisId: analysisId,
+            initialApiBaseUrl: initialApiBaseUrl,
+          ),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PayloadAiReportPage(
+          rawPayload: payload,
+          inspection: inspection,
+          analysisId: analysisId,
+          createdAtText: createdAtText,
+          initialApiBaseUrl: initialApiBaseUrl,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,17 +120,50 @@ class QrPayloadReviewPage extends StatelessWidget {
               ),
             if (inspection.canSubmitToCloud) ...[
               const SizedBox(height: 10),
-              Text(
-                '完成本地预检后，你可以选择提交云端；云端分析不会自动开始。',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ] else ...[
-              const SizedBox(height: 10),
-              _LocalOnlyNotice(
-                message: inspection.canInspectLocally
-                    ? '此链接不支持云端网页分析；TapLens 只会在本机做静态预检。'
-                    : '此类内容只在本机显示说明，不会发送到云端，也不会触发对应的系统操作。',
+              Card(
+                color: colors.tertiaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '可选云端分析',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        inspection.cloudAnalysisMode ==
+                                QrCloudAnalysisMode.webSandbox
+                            ? '网页二维码会先做本地预检；你确认后，云端沙箱才会访问链接。'
+                            : '将二维码脱敏摘要发送给你选择的云端模型；不会上传二维码图片，也不会打开链接或执行系统动作。',
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          key: const ValueKey('qr_cloud_analysis_button'),
+                          onPressed: () => _openCloudAnalysis(context),
+                          icon: const Icon(Icons.cloud_outlined),
+                          label: Text(
+                            inspection.cloudAnalysisMode ==
+                                    QrCloudAnalysisMode.webSandbox
+                                ? '继续到云端网页分析'
+                                : '选择模型并进行云端研判',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '进入后仍需确认模型和调用；学校模型可能消耗 Token，自定义模型 Key 只保存在手机。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ],
@@ -137,27 +203,6 @@ class _InfoCard extends StatelessWidget {
             const SizedBox(height: 10),
             SelectableText(body),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LocalOnlyNotice extends StatelessWidget {
-  final String message;
-
-  const _LocalOnlyNotice({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Card(
-      color: colors.surfaceContainerHighest,
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
         ),
       ),
     );

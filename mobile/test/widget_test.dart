@@ -167,6 +167,12 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('应用内链接（Deep Link）'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('选择模型并进行云端研判'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('选择模型并进行云端研判'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "purpose": "Day 4 synthetic QR decoding and safe-preview fixtures; not live field evidence",
+  "purpose": "Day 4 synthetic QR decoding, safe preview and optional user-selected cloud analysis; not live field evidence",
   "cases": [
     {
       "id": "QR01",
@@ -16,10 +16,11 @@
       "payload": "https://campus.example.test/go/campus",
       "expected_type": "http_url",
       "possible_action": "打开虚构校园短链接并可能跳转到登录页",
-      "risk_explanation": "二维码只提供链接文本；扫描时无法确认跳转目标或页面真实运营者。静态 .test 地址不可用作现场云任务。",
-      "taplens_action": "本地预览并静态解析；仅用户确认后才考虑云分析，现场改用 B 当次受控站动态二维码。",
+      "risk_explanation": "二维码只提供链接文本；扫描时无法确认跳转目标或页面真实运营者。该 .test 地址仅能映射到受控页面进行模拟云分析，不能作为真实网站证据。",
+      "taplens_action": "本地静态解析；用户明确选择后可创建受控模拟云扫描，并按所选模型研判；不自动打开链接。",
       "local_route": "analyzeLocalEvidence",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "web_sandbox_then_selected_ai"
     },
     {
       "id": "QR02",
@@ -36,9 +37,10 @@
       "expected_type": "intent_deep_link",
       "possible_action": "启动指定应用或打开 fallback 链接",
       "risk_explanation": "目标包名与预期 com.taplens.app 不一致，fallback 也不能自动访问。",
-      "taplens_action": "只展示脱敏的目标包名和 fallback，静态解析并提示不一致；不启动应用。",
+      "taplens_action": "本地解析；用户明确选择后只提交脱敏 Intent 摘要给云端 AI；不启动应用或访问 fallback。",
       "local_route": "analyzeLocalEvidence",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR03",
@@ -55,9 +57,10 @@
       "expected_type": "wifi",
       "possible_action": "连接二维码指定的 Wi-Fi 网络",
       "risk_explanation": "自动入网可能改变网络环境；这里的 SSID 和密码均为无效训练值。",
-      "taplens_action": "只显示网络类型、虚构 SSID 和已遮盖的密码；不连接、不上传。",
+      "taplens_action": "先显示网络类型、虚构 SSID 和遮盖的密码；用户明确选择后只提交脱敏摘要；不连接 Wi-Fi。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR04",
@@ -74,9 +77,10 @@
       "expected_type": "sms",
       "possible_action": "向二维码指定号码发送预填短信",
       "risk_explanation": "发送短信可能产生费用或泄露信息；号码为不可用的虚构示例。",
-      "taplens_action": "只显示已遮盖的号码和预填内容摘要；不打开短信应用、不发送、不上传。",
+      "taplens_action": "先显示遮盖后的号码和短信正文摘要；用户明确选择后只提交脱敏摘要；不打开短信应用或发送短信。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR05",
@@ -93,9 +97,10 @@
       "expected_type": "phone",
       "possible_action": "拨打二维码指定号码",
       "risk_explanation": "拨号属于系统外部行为，号码仅为虚构训练值。",
-      "taplens_action": "只显示遮盖后的号码和拨号风险；不唤起拨号器、不上传。",
+      "taplens_action": "先显示遮盖后的号码和拨号风险；用户明确选择后只提交脱敏摘要；不唤起拨号器。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR06",
@@ -112,9 +117,10 @@
       "expected_type": "email",
       "possible_action": "打开邮件应用并预填收件人与主题",
       "risk_explanation": "预填邮件可能把内容发往不明收件人；.test 邮箱为虚构值。",
-      "taplens_action": "只预览脱敏收件人及主题；不唤起邮件应用、不发送、不上传。",
+      "taplens_action": "先显示脱敏邮件摘要；用户明确选择后只提交脱敏摘要；不唤起邮件应用或发送邮件。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR07",
@@ -131,9 +137,10 @@
       "expected_type": "vcard",
       "possible_action": "导入联系人信息",
       "risk_explanation": "联系人卡片可能包含个人信息；此样例全部是虚构值。",
-      "taplens_action": "只显示字段类型与脱敏摘要；不导入联系人、不上传。",
+      "taplens_action": "先显示字段类型和脱敏摘要；用户明确选择后只提交脱敏摘要；不导入联系人。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR08",
@@ -150,9 +157,10 @@
       "expected_type": "apk_download",
       "possible_action": "下载并可能安装 APK",
       "risk_explanation": "即使是 HTTPS，APK 下载仍有安装未知程序的风险；该域名不可解析，仅作样例。",
-      "taplens_action": "只预览下载地址与安装风险；不打开、不下载、不安装、不提交云端。",
+      "taplens_action": "先预览 APK 下载类型和风险；用户明确选择后只提交脱敏摘要；不访问、不下载、不安装 APK。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR09",
@@ -169,9 +177,10 @@
       "expected_type": "app_store",
       "possible_action": "打开应用商店的应用详情页",
       "risk_explanation": "应用商店链接也是外部系统动作，不能把包名视为已验证发布者。",
-      "taplens_action": "只预览虚构包名和外部跳转风险；不打开商店、不安装、不上传。",
+      "taplens_action": "先预览虚构包名和外部跳转风险；用户明确选择后只提交脱敏摘要；不打开商店或安装应用。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR10",
@@ -188,9 +197,10 @@
       "expected_type": "plain_text",
       "possible_action": "无系统动作",
       "risk_explanation": "普通文本不等于链接，也不能推断目标安全性。",
-      "taplens_action": "只显示文本预览；不触发本地链接解析、不上传。",
+      "taplens_action": "先显示脱敏文本预览；用户明确选择后可提交遮盖后的文本摘要；不把普通文本当作网址。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     },
     {
       "id": "QR11",
@@ -207,9 +217,10 @@
       "expected_type": "invalid_content",
       "possible_action": "无可识别的安全操作",
       "risk_explanation": "内容不构成合法 URL 或受支持二维码格式。",
-      "taplens_action": "明确提示无法识别，不执行、不上传。",
+      "taplens_action": "先提示内容格式无效；用户明确选择后只提交无效类型摘要；不执行原始内容。",
       "local_route": "preview_only",
-      "allow_cloud": false
+      "allow_cloud": true,
+      "cloud_analysis_mode": "ai_only_sanitized_summary"
     }
   ]
 }
