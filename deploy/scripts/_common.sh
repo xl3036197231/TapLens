@@ -27,7 +27,15 @@ env_file_value() {
       line=$0
       sub(/\r$/, "", line)
       if (line ~ /^[[:space:]]*(#|$)/) next
-      separator=index(line, "=")
+      equals=index(line, "=")
+      colon=index(line, ":")
+      if (equals == 0) {
+        separator=colon
+      } else if (colon == 0) {
+        separator=equals
+      } else {
+        separator=(equals < colon ? equals : colon)
+      }
       if (separator == 0) next
       name=trim(substr(line, 1, separator - 1))
       if (name != wanted) next
@@ -79,12 +87,55 @@ validate_llm_timeout_env() {
   }' || die "enabled LLM requires TAPLENS_LLM_TIMEOUT_SECONDS=120"
 }
 
+validate_resolved_compose_llm_timeout() {
+  python3 -c '
+import json
+import math
+import sys
+
+TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
+FALSE_VALUES = {"", "0", "false", "f", "no", "n", "off"}
+
+try:
+    config = json.load(sys.stdin)
+    environment = config["services"]["api"].get("environment", {})
+    if isinstance(environment, list):
+        environment = dict(
+            item.split("=", 1) if "=" in item else (item, "")
+            for item in environment
+        )
+    raw_enabled = environment.get("TAPLENS_LLM_ENABLED", "false")
+    if isinstance(raw_enabled, bool):
+        enabled = raw_enabled
+    else:
+        normalized = str(raw_enabled).strip().lower()
+        if normalized in TRUE_VALUES:
+            enabled = True
+        elif normalized in FALSE_VALUES:
+            enabled = False
+        else:
+            raise ValueError("invalid boolean")
+    if enabled:
+        raw_timeout = environment.get("TAPLENS_LLM_TIMEOUT_SECONDS")
+        if isinstance(raw_timeout, bool):
+            raise ValueError("invalid timeout")
+        timeout = float(raw_timeout)
+        if not math.isfinite(timeout) or timeout != 120:
+            raise ValueError("invalid timeout")
+except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+    print("error: resolved Compose LLM settings failed the 120-second gate", file=sys.stderr)
+    raise SystemExit(1)
+'
+}
+
 require_runtime() {
   command -v docker >/dev/null 2>&1 || die "docker is required"
   docker compose version >/dev/null 2>&1 || die "docker compose is required"
+  command -v python3 >/dev/null 2>&1 || die "python3 is required for safe Compose validation"
   [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE; copy deploy/.env.example and set its secrets"
   validate_llm_timeout_env "$ENV_FILE"
-  docker compose -f "$COMPOSE_FILE" config --quiet
+  docker compose -f "$COMPOSE_FILE" config --format json \
+    | validate_resolved_compose_llm_timeout
 }
 
 compose() {

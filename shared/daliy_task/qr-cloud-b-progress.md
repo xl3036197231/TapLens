@@ -43,6 +43,7 @@
 - 学校 Provider 默认截止时间由 60 秒提高到 120 秒；Nginx 读超时提高到 135 秒，确保由 API 先持久化成功、失败或 `outcome_unknown`，而不是由网关在 65 秒提前截断。
 - 部署前检查按 Compose/Pydantic 兼容形式解析 LLM 开关；单引号、双引号、大小写及 `1/yes/on/y/t` 均不能绕过 120 秒门禁，未知布尔值直接 fail-closed。
 - D 对 `c0a429a` 发现的带引号真值绕过已加入脚本级回归：`TAPLENS_LLM_ENABLED="true"` 搭配 60 秒时，真实 `update.sh` 在任何 `compose config/build/up` 前退出；模拟日志不包含 Key 或代理地址。
+- D 对 `c12e650` 发现的 Compose 冒号分隔符绕过也已纳入同一脚本级回归；原始 `.env` 门禁同时解析 `=`/`:`，随后再对 `docker compose config --format json` 的最终环境做第二层权威校验，完整配置和秘密不会输出。
 - 120 秒之后的 Provider 超时仍只会进入 `outcome_unknown`，同一 `analysis_id` 不会再次派发；既有单次派发、续租和迟到终态测试继续作为门禁。
 - 已只读核对 D 的 `fed1930`：QR12/QR13 与 FIX-DL-008/009 是本地预览及 Android 应用选择样例，清单固定为 `allow_cloud=false` / `skip_unmapped_fallback`，不新增 B 云任务或网页映射。
 - 后端增加防御性测试：若客户端越界提交 QR12/QR13 的原始淘宝 URL 或 Intent/fallback，必须在 Provider 派发前返回 422；B 不访问哔哩哔哩、淘宝、fallback 或商品页面。
@@ -62,8 +63,8 @@
 
 | 检查 | 结果 |
 |---|---|
-| 后端完整回归 | 228/228 PASS |
-| 本轮超时、幂等及 QR 目标矩阵 | 75/75 PASS |
+| 后端完整回归 | 238/238 PASS |
+| 本轮超时、幂等及 QR 目标矩阵 | 85/85 PASS |
 | QR AI-only 测试收集 | 26 项 |
 | QR01 本机受控站 Playwright | PASS；仅绑定临时 `127.0.0.1` 端口 |
 | Python 编译检查 | PASS |
