@@ -25,8 +25,8 @@ void main() {
         return <String, dynamic>{
           'input_type': 'url',
           'scheme': 'https',
-          'host': 'scholarship.example.test',
-          'path': '/apply',
+          'host': 'campus.example.test',
+          'path': '/go/campus',
           'parameters': <String, List<String>>{},
           'extras': <String, String>{},
           'candidate_apps': <Map<String, dynamic>>[],
@@ -45,14 +45,14 @@ void main() {
       MaterialApp(
         theme: ThemeData(splashFactory: InkRipple.splashFactory),
         home: const LocalCheckPage(
-          initialValue: 'https://scholarship.example.test/apply',
+          initialValue: 'https://campus.example.test/go/campus',
         ),
       ),
     );
 
     await tester.tap(find.text('开始本地预检'));
     await tester.pumpAndSettle();
-    final testDomainNotice = find.textContaining('会映射到受控样例页');
+    final testDomainNotice = find.textContaining('QR01 虚构样例');
     await tester.scrollUntilVisible(
       testDomainNotice,
       240,
@@ -73,7 +73,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('继续云端分析'));
     await tester.pumpAndSettle();
-    expect(find.text('选择 AI 模型'), findsOneWidget);
+    expect(find.text('选择云端分析方式'), findsOneWidget);
+    expect(find.text('仅规则扫描'), findsOneWidget);
     await tester.ensureVisible(find.text('自定义模型'));
     await tester.tap(find.text('自定义模型'));
     await tester.pumpAndSettle();

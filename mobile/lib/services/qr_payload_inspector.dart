@@ -135,13 +135,16 @@ class QrPayloadInspector {
         kind: QrPayloadKind.webLink,
         title: '网页链接',
         behavior: '打开后可能跳转到其他网页、要求登录或下载文件。',
-        advice: isFictionalOrReservedHttpUrl(value)
-            ? '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 规则处理。'
-            : '先核对脱敏后的域名和跳转情况；网页内容仍需进一步检查。',
+        advice: isQr01ControlledFixture(value)
+            ? '这是 QR01 虚构样例。只有用户主动选择云端分析后，才会映射到受控页面；报告会标注为受控模拟证据。'
+            : isFictionalOrReservedHttpUrl(value)
+                ? '这是虚构或保留示例域名。该二维码只把脱敏摘要交给云端模型分析，不访问原地址。'
+                : '先核对脱敏后的域名和跳转情况；除 QR01 受控样例外，二维码云端分析只发送脱敏摘要，不访问原地址。',
         safePreview: _safeUriPreview(uri),
-        // The preview is what the user may choose to submit. Credentials are
-        // removed before the cloud option is offered.
-        webSandboxAllowed: canOfferCloudAnalysis(_safeUriPreview(uri)),
+        // Among the fixed QR fixtures only the exact QR01 payload may enter
+        // the controlled web sandbox. Other QR links use a sanitized AI-only
+        // analysis and never cause the worker to visit their target.
+        webSandboxAllowed: isQr01ControlledFixture(value),
         localCheckValue: _safeUriPreview(uri),
       );
     }
@@ -304,6 +307,11 @@ bool canOfferCloudAnalysis(String value) {
       !host.endsWith('.lan') &&
       !host.endsWith('.internal');
 }
+
+/// Exact QR01 fixed sample allowlist. QR previews do not infer cloud
+/// permission from an HTTP(S) scheme or from a .test hostname.
+bool isQr01ControlledFixture(String value) =>
+    value.trim() == 'https://campus.example.test/go/campus';
 
 bool isFictionalOrReservedHttpUrl(String value) {
   final uri = Uri.tryParse(value.trim());
