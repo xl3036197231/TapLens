@@ -14,16 +14,16 @@ class QrSamplesTest(unittest.TestCase):
         for case in cases:
             with self.subTest(case=case["id"]):
                 self.assertEqual(_decode(HERE / case["png"]), case["payload"])
-                self.assertTrue(case["allow_cloud"])
-                self.assertIn(
-                    case["cloud_analysis_mode"],
-                    {"web_sandbox_then_selected_ai", "ai_only_sanitized_summary"},
-                )
                 if case["id"] == "QR01":
+                    self.assertTrue(case["allow_cloud"])
                     self.assertEqual(
-                        case["cloud_analysis_mode"], "web_sandbox_then_selected_ai"
+                        case["payload"], "https://campus.example.test/go/campus"
+                    )
+                    self.assertEqual(
+                        case["cloud_analysis_mode"], "web_sandbox_optional_ai"
                     )
                 else:
+                    self.assertTrue(case["allow_cloud"])
                     self.assertEqual(
                         case["cloud_analysis_mode"], "ai_only_sanitized_summary"
                     )

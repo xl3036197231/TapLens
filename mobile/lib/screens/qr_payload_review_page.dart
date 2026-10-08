@@ -31,6 +31,7 @@ class QrPayloadReviewPage extends StatelessWidget {
             initialValue: inspection.localCheckValue,
             analysisId: analysisId,
             initialApiBaseUrl: initialApiBaseUrl,
+            allowCloudAnalysis: inspection.canSubmitToCloud,
           ),
         ),
       );

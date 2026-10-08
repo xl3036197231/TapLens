@@ -16,12 +16,14 @@ class LocalCheckPage extends StatefulWidget {
   final String? initialValue;
   final String? analysisId;
   final String? initialApiBaseUrl;
+  final bool allowCloudAnalysis;
 
   const LocalCheckPage({
     super.key,
     this.initialValue,
     this.analysisId,
     this.initialApiBaseUrl,
+    this.allowCloudAnalysis = true,
   });
 
   @override
@@ -35,7 +37,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   LocalEvidence? _evidence;
   bool _loading = false;
   bool _continueToCloud = false;
-  CloudAiMode _selectedAiMode = CloudAiMode.school;
+  CloudAiMode _selectedAiMode = CloudAiMode.rulesOnly;
   String? _analysisCreatedAtText;
 
   @override
@@ -109,7 +111,7 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
         _analysisCreatedAtText = createdAtText;
         _loading = false;
         _continueToCloud = false;
-        _selectedAiMode = CloudAiMode.school;
+        _selectedAiMode = CloudAiMode.rulesOnly;
       });
     } catch (_) {
       if (!mounted) return;
@@ -246,14 +248,14 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
               const SizedBox(height: 20),
               _ResultCard(result: result, evidence: evidence),
               if (result.inputType == 'url' &&
-                  isFictionalOrReservedHttpUrl(result.safeValue)) ...[
+                  isQr01ControlledFixture(result.safeValue)) ...[
                 const SizedBox(height: 12),
                 Card(
                   color: Theme.of(context).colorScheme.tertiaryContainer,
                   child: const Padding(
                     padding: EdgeInsets.all(16),
                     child: Text(
-                      '这是虚构或保留示例域名。TapLens 内置的少数测试地址会映射到受控样例页，报告会标注为模拟证据；其他地址仍按正常 DNS 和安全规则处理。',
+                      '这是 QR01 虚构样例。只有你主动选择云端分析后，后端才会把它映射到受控页面；报告会标注为受控模拟证据。',
                     ),
                   ),
                 ),
@@ -294,11 +296,16 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                           const Text('当前只显示手机上的静态解析，不创建云任务，也不调用模型。'),
                         if (_continueToCloud) ...[
                           const SizedBox(height: 16),
-                          Text('选择 AI 模型',
+                          Text('选择云端分析方式',
                               style: Theme.of(context).textTheme.titleSmall),
                           const SizedBox(height: 8),
                           SegmentedButton<CloudAiMode>(
                             segments: const [
+                              ButtonSegment(
+                                value: CloudAiMode.rulesOnly,
+                                label: Text('仅规则扫描'),
+                                icon: Icon(Icons.rule_outlined),
+                              ),
                               ButtonSegment(
                                 value: CloudAiMode.school,
                                 label: Text('学校模型'),
@@ -317,9 +324,11 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _selectedAiMode == CloudAiMode.school
-                                ? '云任务成功后将自动调用一次学校模型，可能消耗模型 Token。'
-                                : '云任务成功后手机会调用一次你的模型；API Key 只在手机端填写和保存。',
+                            _selectedAiMode == CloudAiMode.rulesOnly
+                                ? '只运行受控网页沙箱和规则分析，不调用 AI，也不消耗模型 Token。'
+                                : _selectedAiMode == CloudAiMode.school
+                                    ? '云任务成功后将自动调用一次学校模型，可能消耗模型 Token。'
+                                    : '云任务成功后手机会调用一次你的模型；API Key 只在手机端填写和保存。',
                           ),
                           const SizedBox(height: 12),
                           FilledButton.icon(
@@ -421,7 +430,11 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   }
 
   bool _canSubmitToCloud(LocalSafetyResult result) {
-    if (!result.isSuccess || result.inputType != 'url') return false;
+    if (!widget.allowCloudAnalysis ||
+        !result.isSuccess ||
+        result.inputType != 'url') {
+      return false;
+    }
     final uri = Uri.tryParse(result.safeValue);
     return uri != null &&
         !uri.path.toLowerCase().endsWith('.apk') &&
@@ -429,7 +442,10 @@ class _LocalCheckPageState extends State<LocalCheckPage> {
   }
 
   bool _canSubmitDeepLinkToAi(LocalSafetyResult result) =>
-      result.isSuccess && result.inputType == 'deep_link' && _evidence != null;
+      widget.allowCloudAnalysis &&
+      result.isSuccess &&
+      result.inputType == 'deep_link' &&
+      _evidence != null;
 }
 
 class _LinkTypeGuide extends StatelessWidget {

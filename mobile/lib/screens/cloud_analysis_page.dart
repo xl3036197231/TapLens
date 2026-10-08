@@ -26,7 +26,7 @@ import '../services/secure_ai_key_store.dart';
 import 'account_page.dart';
 import 'report_page.dart';
 
-enum CloudAiMode { school, custom }
+enum CloudAiMode { rulesOnly, school, custom }
 
 class CloudAnalysisPage extends StatefulWidget {
   final String initialUrl;
@@ -191,6 +191,10 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     String? customModel,
   }) async {
     if (task.status != 'succeeded') return;
+    if (mode == CloudAiMode.rulesOnly) {
+      if (mounted) await _openCompletedReport(task);
+      return;
+    }
     final isSchoolMode = mode == CloudAiMode.school;
     final ownerId = _sessionController?.activeLogin?.userId;
     final savedAttempt =
@@ -335,6 +339,9 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
           analysisId: analysisId,
           url: url,
         );
+        // Retain the task ID before polling. If polling times out, the next
+        // action in this page will GET this task instead of creating another.
+        _taskIdController.text = task.taskId;
         _newTaskIds.add(task.taskId);
         _pendingAiMode = mode;
         _pendingCustomKey = customKey;
@@ -1026,7 +1033,11 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
     final recoveringTask = _taskIdController.text.trim().isNotEmpty;
     final actionLabel = _loading
         ? (_loadingStage ?? '分析中…')
-        : (recoveringTask ? '查询已有任务' : '开始云端及 AI 分析');
+        : (recoveringTask
+            ? '查询已有任务'
+            : _aiMode == CloudAiMode.rulesOnly
+                ? '开始规则云扫描'
+                : '开始云端及 AI 分析');
     return Scaffold(
       appBar: AppBar(title: const Text('云端深度分析')),
       body: SafeArea(
@@ -1085,10 +1096,15 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Text('AI 研判模型', style: Theme.of(context).textTheme.titleMedium),
+            Text('云端分析方式', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             SegmentedButton<CloudAiMode>(
               segments: const [
+                ButtonSegment(
+                  value: CloudAiMode.rulesOnly,
+                  label: Text('仅规则扫描'),
+                  icon: Icon(Icons.rule_outlined),
+                ),
                 ButtonSegment(
                   value: CloudAiMode.school,
                   label: Text('学校模型'),
@@ -1109,9 +1125,11 @@ class _CloudAnalysisPageState extends State<CloudAnalysisPage> {
             Text(
               recoveringTask
                   ? '已有任务仅查看云端规则报告，不会重复消耗 AI 额度。'
-                  : _aiMode == CloudAiMode.school
-                      ? '云端沙箱完成后自动调用一次学校模型，可能消耗模型 Token。学校 Key 不进入手机；当前 HTTP 服务只适合受控测试网络。'
-                      : '云端沙箱完成后，手机直接调用你选择的 DeepSeek 模型一次。自定义 Key 只保存在本机，不发送给 TapLens 后端。',
+                  : _aiMode == CloudAiMode.rulesOnly
+                      ? '只运行受控网页沙箱和规则分析，不调用 AI，也不消耗模型 Token。'
+                      : _aiMode == CloudAiMode.school
+                          ? '云端沙箱完成后自动调用一次学校模型，可能消耗模型 Token。学校 Key 不进入手机；当前 HTTP 服务只适合受控测试网络。'
+                          : '云端沙箱完成后，手机直接调用你选择的 DeepSeek 模型一次。自定义 Key 只保存在本机，不发送给 TapLens 后端。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (_aiMode == CloudAiMode.custom && !recoveringTask) ...[

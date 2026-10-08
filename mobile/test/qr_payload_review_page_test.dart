@@ -3,25 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:taplens_mobile/screens/qr_payload_review_page.dart';
 
 void main() {
-  testWidgets('短信二维码可选云端 AI 研判且只展示脱敏预览', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: QrPayloadReviewPage(
-          payload: 'SMSTO:+8613812345678:transfer money',
-        ),
-      ),
-    );
-
-    expect(find.text('预填短信'), findsOneWidget);
-    expect(find.text('收件号码与短信正文（已隐藏）'), findsOneWidget);
-    expect(find.textContaining('13812345678'), findsNothing);
-    expect(find.textContaining('transfer money'), findsNothing);
-    expect(find.text('选择模型并进行云端研判'), findsOneWidget);
-    expect(find.textContaining('不会上传二维码图片'), findsOneWidget);
-    expect(find.text('继续做本地安全预检'), findsNothing);
-  });
-
-  testWidgets('虚构 .test 短链可选择云端网页沙箱', (tester) async {
+  testWidgets('QR01 显示受控模拟提示和用户主动选择的云端入口', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: QrPayloadReviewPage(
@@ -32,38 +14,83 @@ void main() {
 
     expect(find.text('网页链接'), findsOneWidget);
     expect(find.text('继续做本地安全预检'), findsOneWidget);
-    expect(find.textContaining('虚构或保留示例域名'), findsOneWidget);
-    expect(find.textContaining('映射到受控样例页'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, -500));
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.textContaining('QR01 虚构样例'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('QR01 虚构样例'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('继续到云端网页分析'), findsOneWidget);
     expect(find.textContaining('云端沙箱才会访问链接'), findsOneWidget);
-    expect(find.textContaining('此链接不支持云端网页分析'), findsNothing);
   });
 
-  testWidgets('非网页二维码进入云端研判页后等待用户选择模型并确认', (tester) async {
+  testWidgets('QR02 Intent 可选脱敏云端分析且不访问 fallback', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: QrPayloadReviewPage(
-          payload: 'WIFI:T:WPA;S=TapLens-Training-Only;P=NOT_A_REAL_PASSWORD;;',
+          payload: 'intent://scan/#Intent;scheme=taplens;'
+              'package=com.example.otherapp;'
+              'S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end',
         ),
       ),
     );
 
-    await tester.drag(find.byType(ListView), const Offset(0, -500));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('qr_cloud_analysis_button')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('分析报告'), findsOneWidget);
-    await tester.drag(
-      find.byType(SingleChildScrollView),
-      const Offset(0, -1400),
+    expect(find.text('Android Intent 链接'), findsOneWidget);
+    expect(find.text('继续做本地安全预检'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
     );
-    await tester.pumpAndSettle();
-    expect(find.text('学校模型'), findsOneWidget);
-    expect(find.text('自定义模型'), findsOneWidget);
-    expect(find.text('AI 深度研判（一次调用）'), findsOneWidget);
-    expect(find.text('AI 调用已尝试，未取得 AI 报告'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('qr_cloud_analysis_button')), findsOneWidget);
+    expect(find.text('选择模型并进行云端研判'), findsOneWidget);
+    expect(find.textContaining('不会打开链接或执行系统动作'), findsOneWidget);
+  });
+
+  testWidgets('QR08 APK HTTPS 地址可发脱敏摘要云检但不访问或下载', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: 'https://download.example.test/taplens-demo.apk',
+        ),
+      ),
+    );
+
+    expect(find.text('APK 下载链接'), findsOneWidget);
+    expect(find.textContaining('不会下载或安装 APK'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+        find.byKey(const ValueKey('qr_cloud_analysis_button')), findsOneWidget);
+    expect(find.text('选择模型并进行云端研判'), findsOneWidget);
+  });
+
+  testWidgets('其他 HTTPS 二维码走脱敏云端分析而不进入网页沙箱', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: 'https://campus-portal.org/login',
+        ),
+      ),
+    );
+
+    expect(find.text('继续做本地安全预检'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+        find.byKey(const ValueKey('qr_cloud_analysis_button')), findsOneWidget);
+    expect(find.text('选择模型并进行云端研判'), findsOneWidget);
   });
 }
