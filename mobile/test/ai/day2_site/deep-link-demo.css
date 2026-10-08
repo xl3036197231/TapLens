@@ -71,6 +71,8 @@ main { overflow: hidden; }
 .route-kind { color: #819184; font-size: .62rem; white-space: nowrap; }
 .route-action { font-size: .7rem; font-weight: 850; text-align: right; text-decoration: none; }
 .route-action:hover { color: #aa5736; }
+.route-secondary { display: block; align-self: flex-end; margin-top: .45rem; color: #5c6b5f; font-size: .68rem; font-weight: 750; text-decoration: underline; text-underline-offset: 2px; }
+.route-secondary:hover { color: #aa5736; }
 .method-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; padding: 2.5rem max(1.5rem, calc((100vw - 1220px) / 2)); color: #e8ede4; background: var(--forest); }
 .method-strip > div { border-left: 1px solid #617166; padding-left: 1rem; }
 .method-index { display: block; margin-bottom: .7rem; color: #d9a878; font: 1.5rem Georgia, serif; }

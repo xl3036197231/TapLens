@@ -47,7 +47,8 @@ def _render(payload: str, path: Path, *, overwrite: bool = False) -> None:
 
 
 def _cases() -> list[dict]:
-    cases = json.loads(MANIFEST.read_text(encoding="utf-8"))["cases"]
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    cases = [*manifest["cases"], *manifest.get("supplemental_cases", [])]
     if len({case["id"] for case in cases}) != len(cases):
         raise ValueError("duplicate QR case ID")
     if len({case["png"] for case in cases}) != len(cases):

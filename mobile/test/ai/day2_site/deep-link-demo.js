@@ -19,6 +19,28 @@ function addDetail(parent, label, value) {
   parent.append(item);
 }
 
+function productUrl(item) {
+  if (!item.related_qr_id) return null;
+  const url = new URL(item.source_product_url);
+  if (url.protocol !== "https:" || url.hostname !== "item.taobao.com" || url.pathname !== "/item.htm" ||
+      url.username || url.password || url.hash || [...url.searchParams.keys()].join() !== "id" ||
+      !/^\d+$/.test(url.searchParams.get("id") || "")) {
+    throw new Error("Deep Link 与淘宝商品 URL 不一致");
+  }
+  return url.href;
+}
+
+function appIntentUrl(item) {
+  const url = productUrl(item);
+  if (!url) return null;
+  const expected = `intent://${url.slice("https://".length)}#Intent;scheme=taobao;package=com.taobao.taobao;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  if (item.input !== expected || item.expected_parse.package_name !== "com.taobao.taobao" ||
+      item.expected_parse.scheme !== "taobao" || item.expected_parse.fallback_url !== url) {
+    throw new Error("Deep Link 与淘宝 App 跳转契约不一致");
+  }
+  return item.input;
+}
+
 function showCards(cases) {
   const grid = document.querySelector("#case-grid");
   grid.replaceChildren();
@@ -28,11 +50,16 @@ function showCards(cases) {
     top.append(element("span", "route-number", String(index + 1).padStart(2, "0")), element("span", "route-source", item.section));
     card.append(top, element("h3", "route-title", item.title), element("p", "route-summary", item.summary));
     const bottom = element("div", "route-bottom");
-    bottom.append(element("span", "route-kind", item.expected_parse.input_type === "intent" ? "Intent URI" : item.expected_parse.input_type === "url" ? "网页链接" : "自定义 Scheme"));
+    bottom.append(element("span", "route-kind", item.related_qr_id ? "哔哩哔哩视频" : item.expected_parse.input_type === "intent" ? "Intent URI" : item.expected_parse.input_type === "url" ? "网页链接" : "自定义 Scheme"));
     const link = element("a", "route-action", item.button + " ↗");
-    link.href = `deep-link-preview.html?case=${encodeURIComponent(item.id)}`;
+    link.href = item.related_qr_id ? appIntentUrl(item) : `deep-link-preview.html?case=${encodeURIComponent(item.id)}`;
     bottom.append(link);
     card.append(bottom);
+    if (item.related_qr_id) {
+      const preview = element("a", "route-secondary", "查看 Deep Link 静态预检 →");
+      preview.href = `deep-link-preview.html?case=${encodeURIComponent(item.id)}`;
+      card.append(preview);
+    }
     grid.append(card);
   });
 }
@@ -42,7 +69,7 @@ function showPreview(item) {
   main.replaceChildren();
 
   const intro = element("section", "preview-intro");
-  intro.append(element("p", "kicker", `STATIC ROUTE CHECK / ${item.id}`), element("h1", "", "打开 App 之前，先看清链接会去哪里。"), element("p", "preview-lead", `你刚从「${item.section}」点击了「${item.button}」。这一步只展示测试样例的静态预期，不会启动任何应用。`));
+  intro.append(element("p", "kicker", `STATIC ROUTE CHECK / ${item.id}`), element("h1", "", "打开 App 之前，先看清链接会去哪里。"), element("p", "preview-lead", `你正在查看「${item.section}」中的「${item.button}」入口。这一步只展示测试样例的静态预期，不会启动任何应用。`));
   main.append(intro);
 
   const layout = element("div", "preview-layout");
@@ -80,6 +107,15 @@ function showPreview(item) {
   addDetail(fields, "预期本地证据", item.expected_local_ids.join(", ") || "无");
   report.append(fields);
 
+  if (item.related_qr_id) {
+    const pair = element("p", "cloud-note");
+    pair.append(`入口声称打开 ${item.claimed_app}（${item.expected_package_name}），Intent 却声明 ${item.target_app}（${parsed.package_name}），目标商品为 ${item.product_label}。主按钮会尝试打开淘宝 App；Android 可能先要求选择应用，淘宝也可能要求登录。若浏览器无法唤起 App，可能回退到同一商品网页。`);
+    const qr = element("a", "", `查看指向同一商品的 ${item.related_qr_id} 二维码`);
+    qr.href = `qr-demo.html#${encodeURIComponent(item.related_qr_id)}`;
+    pair.append(qr);
+    report.append(pair);
+  }
+
   const evidence = element("div", "evidence-note");
   evidence.append(element("strong", "", "规则提示"), element("span", "", item.expected_local_risk_hints.join("  ·  ")));
   report.append(evidence);
@@ -88,7 +124,12 @@ function showPreview(item) {
   payload.append(element("span", "payload-label", "用于 C 模块解析的固定输入"), element("code", "", item.input));
   report.append(payload);
   const actions = element("div", "preview-actions");
-  const copy = element("button", "button button-dark", "复制测试链接");
+  if (item.related_qr_id) {
+    const intent = element("a", "button button-dark", "尝试在淘宝 App 打开商品 ↗");
+    intent.href = appIntentUrl(item);
+    actions.append(intent);
+  }
+  const copy = element("button", item.related_qr_id ? "button button-outline" : "button button-dark", "复制测试链接");
   copy.type = "button";
   copy.addEventListener("click", async () => {
     try {
@@ -99,6 +140,13 @@ function showPreview(item) {
     }
   });
   actions.append(copy);
+  if (item.related_qr_id) {
+    const product = element("a", "button button-outline", "在浏览器查看商品网页 ↗");
+    product.href = productUrl(item);
+    product.target = "_blank";
+    product.rel = "noopener noreferrer";
+    actions.append(product);
+  }
   const back = element("a", "button button-outline", "换一个入口");
   back.href = "deep-link-demo.html#all-cases";
   actions.append(back);

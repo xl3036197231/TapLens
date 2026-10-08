@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[3]
 DATASETS = ROOT / "shared" / "datasets"
 PUBLIC = DATASETS / "public-cases" / "deep-link-cases.json"
 FIXTURES = DATASETS / "constructed-fixtures" / "deep-link-fixtures.json"
+QR_MANIFEST = DATASETS / "qr" / "manifest.json"
 EVALUATION = DATASETS / "evaluation" / "deep-link-evaluation.json"
 REQUIRED_CATEGORIES = {
     "normal_deep_link",
@@ -88,7 +89,10 @@ def check() -> tuple[int, int, int]:
         assert row["expected_risk_label"] in {"low", "medium", "high", "insufficient_evidence"}
         assert row["input"].isascii() and len(row["input"]) <= 4096
         assert not any(secret in row["input"].lower() for secret in ("sk-", "bearer ", "password=", "token="))
-        assert row["expected_package_name"] is None or row["expected_package_name"].startswith("org.example.")
+        assert row["expected_package_name"] is None or row["expected_package_name"].startswith("org.example.") or (
+            row["id"] in {"FIX-DL-008", "FIX-DL-009"}
+            and row["expected_package_name"] == "tv.danmaku.bili"
+        )
 
         parsed = row["expected_parse"]
         assert parsed["status"] in {"succeeded", "failed"}
@@ -110,6 +114,34 @@ def check() -> tuple[int, int, int]:
             assert row["expected_cloud_ids"] == []
 
     assert len([row for row in public if row["record_type"] in {"published_research", "published_case"}]) >= 2
+    supplemental = json.loads(QR_MANIFEST.read_text(encoding="utf-8"))["supplemental_cases"]
+    assert {row["id"] for row in supplemental} == {"QR12", "QR13"}
+    for qr in supplemental:
+        fixture = fixtures_by_id[qr["related_deep_link_fixture_id"]]
+        assert fixture["related_qr_id"] == qr["id"]
+        for qr_field, fixture_field in (
+            ("expected_package_name", "expected_package_name"),
+            ("claimed_app", "claimed_app"),
+            ("target_app", "target_app"),
+            ("product_label", "product_label"),
+            ("source_product_url", "source_product_url"),
+            ("source_reference_url", "source_reference_url"),
+        ):
+            assert qr[qr_field] == fixture[fixture_field], f"{qr['id']}: {qr_field} drifted"
+        assert qr["expected_type"] == "http_url"
+        assert qr["payload"] == qr["source_product_url"]
+        assert qr["payload"].startswith("https://item.taobao.com/item.htm?id=")
+        expected_intent = (
+            "intent://" + qr["payload"].removeprefix("https://")
+            + "#Intent;scheme=taobao;package=com.taobao.taobao;S.browser_fallback_url="
+            + quote(qr["payload"], safe="") + ";end"
+        )
+        assert fixture["input"] == expected_intent
+        assert fixture["expected_parse"]["package_name"] == "com.taobao.taobao"
+        assert fixture["expected_parse"]["scheme"] == "taobao"
+        assert fixture["expected_parse"]["fallback_url"] == qr["payload"]
+        assert fixture["expected_local_risk_hints"] == ["LOCAL_STATIC_ONLY", "LOCAL_FALLBACK_PRESENT", "LOCAL_PACKAGE_MISMATCH"]
+        assert qr["local_route"] == "analyzeLocalEvidence" and qr["allow_cloud"] is False
     return len(public), len(fixtures), len(evaluation)
 
 

@@ -5,12 +5,12 @@
 | 目录 | 内容 | 使用方式 |
 |---|---|---|
 | `public-cases/deep-link-cases.json` | 已核对的公开研究、平台文档与安全指南；仅保存行为摘要和来源位置 | 查阅事实依据，不将公开 PoC 原样导入 APP |
-| `constructed-fixtures/deep-link-fixtures.json` | D 构造的 7 条无害输入，编号 `FIX-DL-001` 至 `FIX-DL-007` | C 解析与本地证据测试、A 展示、B 精确映射网页 |
+| `constructed-fixtures/deep-link-fixtures.json` | D 构造的 7 条原有输入及 2 条真实商品 ID 补充输入，编号 `FIX-DL-001` 至 `FIX-DL-009` | C 解析与本地证据测试、A 展示、B 精确映射网页 |
 | `evaluation/deep-link-evaluation.json` | 3 条不同输入的独立评测，编号 `EVAL-DL-001` 至 `EVAL-DL-003` | 回归评估，不用作开发时的预填演示数据 |
 
 每条输入都给出预期解析字段、`Lxx` 编号、规则提示、风险标签、云端观察要求和复现步骤。公开来源不等于本地样例；自建样例也不声称复现原研究的完整漏洞链。转换方法见 [deep-link-conversion.md](deep-link-conversion.md)。
 
-演示用的真实场景入口在 `mobile/test/ai/day2_site/deep-link-demo.html`，对应的预检页为 `deep-link-preview.html`。网站显示的是上述 7 条自建样例的**预期**静态结果，不代替 C 的真机解析或 B 的真实 `Cxx` 采集；镜像数据由 `mobile/test/ai/validate_deep_link_demo.py` 与本目录核对。
+演示场景入口在 `mobile/test/ai/day2_site/deep-link-demo.html`，对应的预检页为 `deep-link-preview.html`。网站显示的是上述 9 条自建样例的**预期**静态结果，不代替 C 的真机解析或 B 的真实 `Cxx` 采集；镜像数据由 `mobile/test/ai/validate_deep_link_demo.py` 与本目录核对。新增 `FIX-DL-008/009` 的 Intent 与 `QR12/13` 的 HTTPS 网址指向同一商品；网页上的主按钮由用户主动点击后尝试打开淘宝 App。原有验收矩阵不变。
 
 ## 分类与风险口径
 
@@ -19,6 +19,7 @@
 | 正常 Deep Link | FIX-DL-001、EVAL-DL-001 | 结构可解析；接收 APP 未验证，因此证据不足 |
 | Scheme 冒充 | FIX-DL-002 | Scheme/host 字符串不足以证明接收 APP 身份；证据不足 |
 | 包名不一致 | FIX-DL-003、EVAL-DL-002 | 声明包名与预期不同，规则高风险 |
+| 真实商品配对样例 | FIX-DL-008/009、QR12/13 | QR 编码淘宝商品 HTTPS 网址；Intent 使用 `taobao` scheme、声明淘宝包名，并把同一商品 URL 设为 Android Chrome 的失败回退地址。Android 15 模拟器点击后出现应用选择框；选择淘宝后，008 进入商品详情 Activity 但显示网络错误，009 进入登录 Activity。商品内容未核验。Intent 静态包名不一致为规则高风险 |
 | fallback 地址 | FIX-DL-004、EVAL-DL-002 | 存在不同回退目标，规则中风险；不自动访问 |
 | 敏感 extras | FIX-DL-005 | 仅字段名触发中风险；值为 `REDACTED` |
 | 格式错误 | FIX-DL-006、EVAL-DL-003 | 解析失败、证据不足 |
@@ -26,11 +27,15 @@
 
 `expected_risk_label` 是当前可用证据下的预期标签，并非对真实站点或安装 APP 的安全认证。相同 `L01` 在不同分析中是独立编号，不可跨样例合并。
 
+`FIX-DL-008/009` 的 `S.browser_fallback_url` 遵循 [Chrome 官方 Android Intent 说明](https://developer.chrome.com/docs/android/intents)：用户主动点击 Intent 链接、目标应用无法处理时，Chrome 可尝试打开回退 HTTPS 商品页。本机 Android 15 模拟器在已安装淘宝的情况下仍弹出应用选择框；选择淘宝后已确认进入淘宝 App。商品内容受网络与登录状态影响，其他设备行为需单独验收。
+
+在该模拟器上，Chrome 对 `intent://` 和 HTTPS 商品链接均主动启动 `android.intent.action.PICK_ACTIVITY`。给 Intent 增加组件、移除 fallback、临时启用淘宝的域名打开偏好，都没有消除浏览器的选择框；域名偏好测试后已恢复。原生 Android Intent 指定淘宝包名可直接打开淘宝，但属于另一种入口条件，不能作为网页点击无选择框的证据。
+
 ## 给 C 的本地解析输入
 
 逐条读取 `constructed-fixtures/deep-link-fixtures.json` 与 `evaluation/deep-link-evaluation.json` 的 `input` 和 `expected_package_name`，调用 `analyzeLocalEvidence`。对比 `expected_parse`、`expected_local_ids`、`expected_local_risk_hints`。所有样例均只解析，不启动 APP 或访问网络。
 
-重点核对：FIX-DL-003 的 `LOCAL_PACKAGE_MISMATCH`、FIX-DL-004 解码后的 fallback、FIX-DL-005 的 `student_id` 字段名、FIX-DL-006 的无证据失败结果。
+重点核对：FIX-DL-003 与 FIX-DL-008/009 的 `LOCAL_PACKAGE_MISMATCH`、FIX-DL-004 解码后的 fallback、FIX-DL-005 的 `student_id` 字段名、FIX-DL-006 的无证据失败结果。
 
 ## 给 B 的云端沙箱输入
 
