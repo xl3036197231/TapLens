@@ -1,4 +1,5 @@
 import '../services/qr_payload_inspector.dart';
+import 'ai_payload_sanitizer.dart';
 
 class QrAiReportBundle {
   final Map<String, dynamic> payload;
@@ -28,13 +29,12 @@ class QrAiReportInput {
     final possibleActions = _possibleActions(payloadType, rawPayload);
     final evidenceItems = _evidenceItems(
       analysisId: analysisId,
-      payloadType: payloadType,
+      rawPayload: rawPayload,
+      inspection: inspection,
       localEvidence: localEvidence,
     );
-    final evidenceIds = evidenceItems
-        .map((item) => item['id'])
-        .whereType<String>()
-        .toSet();
+    final evidenceIds =
+        evidenceItems.map((item) => item['id']).whereType<String>().toSet();
     final riskHints = _riskHints(localEvidence, evidenceIds);
     final hardRisks = riskHints
         .where((item) => item['risk_level'] == 'high')
@@ -42,10 +42,12 @@ class QrAiReportInput {
     final targetType = {'intent', 'deep_link'}.contains(payloadType)
         ? 'deep_link'
         : 'qr_payload';
+    // Keep the backend target opaque and stable. The structured qr_summary
+    // carries the allowed type/actions; no payload or preview text enters it.
     final targetValue =
         '${targetType == 'deep_link' ? 'taplens-deeplink' : 'taplens-qr'}:$payloadType';
 
-    final payload = <String, dynamic>{
+    final payload = AiPayloadSanitizer.sanitize({
       'report_context': {
         'analysis_id': analysisId,
         'created_at': createdAtText,
@@ -74,15 +76,17 @@ class QrAiReportInput {
           },
         ],
       },
-      'local_evidence': {'evidence': evidenceItems, 'risk_hints': riskHints},
+      'local_evidence': {
+        'evidence': evidenceItems,
+        'risk_hints': riskHints,
+      },
       'cloud_evidence': null,
       'hard_risk_findings': hardRisks,
-    };
+    });
 
     final hardRiskLevel = hardRisks.isEmpty ? null : 'high';
     final createdAt = DateTime.parse(createdAtText).toUtc();
-    final summary =
-        '当前为手机端静态预览；确认调用模型后，只会发送二维码类型和脱敏本地证据。TapLens 没有访问目标或执行二维码中的操作。';
+    final summary = '云端 AI 只收到二维码的脱敏预览摘要和本地证据；TapLens 没有访问目标或执行二维码中的操作。';
     final evidence = evidenceItems
         .map(
           (item) => {
@@ -99,7 +103,7 @@ class QrAiReportInput {
       'created_at': createdAt.toIso8601String(),
       'risk_level': hardRiskLevel ?? 'insufficient_evidence',
       'consistency': 'unknown',
-      'title': '二维码静态预览报告',
+      'title': '二维码云端 AI 研判',
       'target': {
         'type': targetType,
         'display': inspection.safePreview,
@@ -128,10 +132,17 @@ class QrAiReportInput {
       'uncertainty': {
         'status': hardRiskLevel == null ? 'insufficient' : 'partial',
         'summary': '该结论基于手机端静态预览和脱敏摘要；未访问网页、未启动应用，也未执行 Wi-Fi、短信、电话、邮件或下载动作。',
-        'reasons': <String>['未验证二维码发布者身份。', '未执行载荷所描述的外部行为。'],
+        'reasons': <String>[
+          '未验证二维码发布者身份。',
+          '未执行载荷所描述的外部行为。',
+        ],
         'missing_evidence': <String>['发布者身份和目标在真实环境中的行为'],
       },
-      'sources': {'local': evidenceIds.isNotEmpty, 'cloud': false, 'ai': false},
+      'sources': {
+        'local': evidenceIds.isNotEmpty,
+        'cloud': false,
+        'ai': false,
+      },
       'token_usage': {
         'request_count': 0,
         'prompt_tokens': 0,
@@ -151,7 +162,8 @@ class QrAiReportInput {
 
   static List<Map<String, dynamic>> _evidenceItems({
     required String analysisId,
-    required String payloadType,
+    required String rawPayload,
+    required QrPayloadInspection inspection,
     required Map<String, dynamic>? localEvidence,
   }) {
     if (localEvidence != null && localEvidence['analysis_id'] != analysisId) {
@@ -160,34 +172,31 @@ class QrAiReportInput {
     final rawItems = localEvidence?['evidence'];
     final items = rawItems is List
         ? rawItems
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .where(
-                (item) =>
-                    item['id'] is String &&
-                    RegExp(r'^L[0-9]{2,}$').hasMatch(item['id'] as String),
-              )
-              .map(
-                (item) => {
-                  'id': item['id'],
-                  'kind': 'qr_payload',
-                  'title': '本地静态证据',
-                  'detail': '识别为 $payloadType 类型；具体值已省略，未执行外部动作。',
-                },
-              )
-              .toList()
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .where((item) =>
+                item['id'] is String &&
+                RegExp(r'^L[0-9]{2,}$').hasMatch(item['id'] as String))
+            .map(
+              (item) => {
+                'id': item['id'],
+                'kind': _safeText(item['kind'], maxLength: 100) ?? 'qr_payload',
+                'title': _safeText(item['title'], maxLength: 200) ?? '本地二维码证据',
+                'detail':
+                    _safeText(item['detail'], maxLength: 1000) ?? '没有提供安全证据详情',
+              },
+            )
+            .toList()
         : <Map<String, dynamic>>[];
-    if (items.isNotEmpty) {
-      final seen = <String>{};
-      return items.where((item) => seen.add(item['id'] as String)).toList();
-    }
+    if (items.isNotEmpty) return items;
 
+    final summary = _cloudSummary(rawPayload, inspection);
     return [
       {
         'id': 'L01',
         'kind': 'qr_payload',
-        'title': '二维码静态类型',
-        'detail': '识别为 $payloadType 类型；具体值已省略，未执行外部动作。',
+        'title': '二维码静态预览',
+        'detail': '识别类型：${inspection.title}。$summary TapLens 未执行载荷中的操作。',
       },
     ];
   }
@@ -207,9 +216,10 @@ class QrAiReportInput {
               ? rawIds.whereType<String>().where(evidenceIds.contains).toSet()
               : <String>{};
           return {
-            'code': 'LOCAL_QR_OBSERVATION',
+            'code': _safeText(item['code'], maxLength: 100) ??
+                'LOCAL_QR_OBSERVATION',
             'risk_level': _riskValue(item['risk_level']),
-            'message': '本地静态预检提示风险；具体值未上传，未执行外部动作。',
+            'message': _safeText(item['message'], maxLength: 500) ?? '本地静态观察。',
             'evidence_ids': ids.toList()..sort(),
           };
         })
@@ -220,33 +230,33 @@ class QrAiReportInput {
   static String _payloadType(
     String rawPayload,
     QrPayloadInspection inspection,
-  ) => switch (inspection.kind) {
-    QrPayloadKind.deepLink =>
-      rawPayload.trim().toLowerCase().startsWith('intent://')
-          ? 'intent'
-          : 'deep_link',
-    QrPayloadKind.wifi => 'wifi',
-    QrPayloadKind.sms => 'sms',
-    QrPayloadKind.phone => 'phone',
-    QrPayloadKind.email => 'email',
-    QrPayloadKind.contact => 'contact',
-    QrPayloadKind.appStore => 'app_store',
-    QrPayloadKind.apkDownload => 'apk',
-    QrPayloadKind.invalidContent => 'invalid',
-    // Non-fixture web links are previewed as text, never visited by AI-only.
-    QrPayloadKind.webLink || QrPayloadKind.plainText => 'plain_text',
-  };
+  ) =>
+      switch (inspection.kind) {
+        QrPayloadKind.deepLink =>
+          rawPayload.trim().toLowerCase().startsWith('intent://')
+              ? 'intent'
+              : 'deep_link',
+        QrPayloadKind.wifi => 'wifi',
+        QrPayloadKind.sms => 'sms',
+        QrPayloadKind.phone => 'phone',
+        QrPayloadKind.email => 'email',
+        QrPayloadKind.contact => 'contact',
+        QrPayloadKind.appStore => 'app_store',
+        QrPayloadKind.apkDownload => 'apk',
+        QrPayloadKind.invalidContent => 'invalid',
+        QrPayloadKind.webLink || QrPayloadKind.plainText => 'plain_text',
+      };
 
   static List<String> _possibleActions(String payloadType, String rawPayload) =>
       switch (payloadType) {
         'intent' => [
-          'open_app',
-          if (RegExp(
-            r'S\.browser_fallback_url=',
-            caseSensitive: false,
-          ).hasMatch(rawPayload))
-            'open_fallback_url',
-        ],
+            'open_app',
+            if (RegExp(
+              r'S\.browser_fallback_url=',
+              caseSensitive: false,
+            ).hasMatch(rawPayload))
+              'open_fallback_url',
+          ],
         'deep_link' => ['open_app'],
         'wifi' => ['connect_wifi'],
         'sms' => ['send_sms'],
@@ -259,8 +269,70 @@ class QrAiReportInput {
         _ => ['unknown'],
       };
 
+  static String _cloudSummary(
+    String rawPayload,
+    QrPayloadInspection inspection,
+  ) {
+    if (inspection.kind == QrPayloadKind.plainText) {
+      return '普通文本预览：${inspection.safePreview}';
+    }
+    if (inspection.kind == QrPayloadKind.deepLink) {
+      return 'Deep Link 预览：${inspection.safePreview}';
+    }
+    if (inspection.kind == QrPayloadKind.webLink) {
+      return '网页链接预览：${inspection.safePreview}';
+    }
+    if (inspection.kind == QrPayloadKind.apkDownload) {
+      return 'APK 下载载荷；下载地址已隐藏；TapLens 未访问或下载该地址。';
+    }
+    if (inspection.kind == QrPayloadKind.invalidContent) {
+      return '二维码内容无法识别；原始内容已省略。';
+    }
+    if (inspection.kind == QrPayloadKind.wifi ||
+        inspection.kind == QrPayloadKind.sms ||
+        inspection.kind == QrPayloadKind.phone ||
+        inspection.kind == QrPayloadKind.email ||
+        inspection.kind == QrPayloadKind.contact) {
+      return '${inspection.title}；具体账号、号码、密码、正文和联系人值均已省略。可能行为：${inspection.behavior}';
+    }
+    if (inspection.kind == QrPayloadKind.appStore) {
+      return '应用商店载荷；目标包名预览：${inspection.safePreview}；TapLens 未打开商店。';
+    }
+    final length = rawPayload.runes.length;
+    return '${inspection.title}；安全预览：${inspection.safePreview}；内容长度：$length。';
+  }
+
+  static String? _safeText(Object? value, {required int maxLength}) {
+    if (value is! String) return null;
+    // Reuse the sanitizer's evidence text filtering without allowing a raw
+    // target or credential to cross the app/backend boundary.
+    final result = AiPayloadSanitizer.sanitize({
+      'analysis_input': {
+        'privacy': {'raw_image_sent': false},
+        'targets': [
+          {
+            'type': 'qr_payload',
+            'value': 'taplens-qr:safe-preview',
+            'redacted': true,
+          },
+        ],
+      },
+      'local_evidence': {
+        'evidence': [
+          {'id': 'L01', 'title': 'safe', 'detail': value},
+        ],
+      },
+    });
+    final local = result['local_evidence'] as Map<String, dynamic>;
+    final evidence = local['evidence'] as List;
+    final detail = (evidence.first as Map<String, dynamic>)['detail'];
+    if (detail is! String) return null;
+    if (detail.length <= maxLength) return detail;
+    return '${detail.substring(0, maxLength - 1)}…';
+  }
+
   static String? _riskValue(Object? value) =>
       const {'low', 'medium', 'high', 'insufficient_evidence'}.contains(value)
-      ? value as String
-      : 'insufficient_evidence';
+          ? value as String
+          : 'insufficient_evidence';
 }
