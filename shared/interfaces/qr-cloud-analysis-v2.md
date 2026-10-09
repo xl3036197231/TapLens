@@ -45,8 +45,9 @@ payload。固定样例由服务端读取仓库副本；未来若启用正式 HTT
 
 固定样例请求使用：
 
-- `sample_id`：`QR01`–`QR13` 中的固定 ID；
+- `sample_id`：`QR02`–`QR13` 中的固定 ID；QR01 不属于新接口；
 - `catalog_schema_version`：服务端静态分析目录版本，v2 固定为 `2.0`；
+- `catalog_revision`：目录内容修订号，首版固定为 `2026-10-09.1`；
 - `manifest_schema_version`：客户端所使用清单的版本；
 - `payload_sha256`：清单中 canonical payload 的 UTF-8 原始字节 SHA-256，小写十六进制；
 - `mode`：必须与服务端清单中该样例的允许模式一致。
@@ -60,13 +61,18 @@ payload。固定样例由服务端读取仓库副本；未来若启用正式 HTT
 3. 计算前不得 `trim`、大小写转换、URL decode、换行转换、Unicode 规范化或 URL 规范化。
 4. 只有摘要与索引完全匹配才选择固定 `sample_id`；否则必须进入
    `client_sanitized_summary` 兼容路径。
-5. `catalog_schema_version` 和 `manifest_schema_version` 来自生成索引，不得由页面自由填写。
+5. `catalog_schema_version`、`catalog_revision` 和 `manifest_schema_version` 来自生成索引，
+   不得由页面自由填写。
 
 服务端 canonical payload 的唯一运行时来源是
 `shared/fixtures/qr/qr-cloud-fixture-catalog-v2.json`。该目录固定包含 QR02–QR13、分析器
-profile、网络/外部动作 deny 策略和 payload SHA-256；其 `source_manifest` 字段钉定生成它的
-集成主线与 manifest 版本。实现测试必须逐项核对目录 payload 哈希，并在集成 main 已包含
-QR12/QR13 manifest 和 PNG 后才允许启用这两项。
+profile、`analysis_mode=repository_fixture_static`、网络/外部动作 deny 策略和 payload
+SHA-256；其 `source_manifest` 字段钉定生成它的
+集成主线与 manifest 版本。`source_manifest.integration_commit` 指向用于构建时审计的 Git
+对象，不表示运行时读取当前分支同路径文件；运行时只读取本 catalog。实现测试必须逐项
+核对目录 payload 哈希。构建时审计必须合并 manifest 的 `cases` 和 `supplemental_cases` 两个
+数组，并对重复 ID fail-closed；QR12/QR13 位于 `supplemental_cases`，不能因只遍历 `cases`
+而静默遗漏。只有集成 main 同时包含 QR12/QR13 条目和 PNG 时才允许启用这两项。
 
 服务端必须使用自身目录重新计算摘要。摘要不一致、样例不存在或模式不一致时，在
 创建 Worker 任务或调用 Provider 前拒绝。服务端不能使用客户端上传的预览文字替代
@@ -93,6 +99,7 @@ canonical payload。
   "sample_ref": {
     "sample_id": "QR02",
     "catalog_schema_version": "2.0",
+    "catalog_revision": "2026-10-09.1",
     "manifest_schema_version": "1.0",
     "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7"
   },
@@ -121,7 +128,8 @@ canonical payload。
 约束：
 
 - `schema_version` 固定为 `2.0`；未知字段严格拒绝。
-- `analysis_id`、规范化 `created_at`、完整 `sample_ref`、`mode`、`ai_mode` 和本地证据摘要全部
+- `analysis_id`、`created_at` 的完整原始文本及解析后的 UTC 时刻、完整 `sample_ref`、
+  `mode`、`ai_mode` 和本地证据摘要全部
   进入幂等 HMAC。
 - `ai_mode` 只能为 `none` 或 `school`。自定义模型继续由手机直连，不能把用户 Key 发送
   到后端。
@@ -147,6 +155,10 @@ canonical payload。
 响应必须带 `Location` 和 `Retry-After`。创建结果不确定时客户端不得再次 POST，只能通过
 `analysis_id` 查询状态。
 
+`Location` 必须逐字等于响应正文中的确定性 `status_path`；`Retry-After` 必须逐字等于
+`poll_after_seconds` 的十进制秒数。客户端应按当前 API origin 解析相对路径并继续执行
+同源校验，不能信任响应中出现的绝对外站地址。
+
 ### POST 前客户端持久化
 
 在任何 POST 之前，客户端必须同步写盘并读回验证以下字段：
@@ -157,7 +169,8 @@ canonical payload。
 - `created_at` 的完整原始 RFC 3339 文本；
 - 规范化 API origin；
 - 确定性 `status_path=/api/v1/qr-analyses/{analysis_id}/status`；
-- `sample_id`、`catalog_schema_version`、`manifest_schema_version`、`payload_sha256`；
+- `sample_id`、`catalog_schema_version`、`catalog_revision`、`manifest_schema_version`、
+  `payload_sha256`；
 - `mode`、`ai_mode`；
 - consent 布尔值；
 - `request_body_sha256`：实际将发送的 UTF-8 JSON 正文字节 SHA-256；
@@ -184,13 +197,14 @@ userinfo、query 或 fragment 时客户端必须拒绝。写盘失败、读回�
 | `queued` | 已持久化，尚未开始 | 只读轮询 |
 | `in_progress` | 某个阶段正在执行 | 按 `poll_after_seconds` 轮询 |
 | `succeeded` | 证据已完成；若选择 AI，报告也已通过守卫 | 展示结果，停止轮询 |
-| `failed` | Provider 派发前或确定性失败 | 展示错误，禁止自动新建 ID |
+| `failed` | 派发前分析失败，或 Provider 已有确定失败/报告被守卫拒绝 | 展示错误，禁止自动新建 ID |
 | `outcome_unknown` | Provider 已派发但结果未知 | 提示待核实，只读轮询 |
 | `result_expired` | 响应缓存已清除且墓碑保留 | 提示已清除，禁止重新调用 |
 
 `phase` 用于表达步骤，不扩展 `state`：
 
-`fixture_resolution`、`static_analysis`、`browser_analysis`、`ai_dispatch`、`complete`。
+`fixture_resolution`、`static_analysis`、`ai_dispatch`、`complete`。`browser_analysis` 不属于
+该新接口；QR01 继续使用既有 deep-scan 状态合同。
 
 成功响应见 `shared/fixtures/qr/qr-cloud-analysis-v2-status.json`；其他状态和 404 见
 `shared/fixtures/qr/qr-cloud-analysis-v2-status-matrix.json`。所有 HTTP 200 状态必须包含：
@@ -226,8 +240,9 @@ GET 返回 404 `CLOUD_TASK_NOT_FOUND` 或任务属于其他用户时，不增加
 
 ## 6. 云端静态分析矩阵
 
-静态分析器必须在独立、无外网、无 Android Intent handler、无文件下载能力的进程中运行，
-设置输入长度、解析时间、内存和递归深度上限。
+静态分析器由现有单 Worker 串行消费，在同一 Worker 容器内使用受限子进程或等价隔离边界
+执行；不得增加第二个常驻 Worker。该边界必须无外网、无 Android Intent handler、无文件
+下载能力，并设置输入长度、解析时间、内存和递归深度上限。
 
 | 类型 | 可以观察并生成证据 | 禁止行为 |
 |---|---|---|
@@ -256,7 +271,10 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
   "fixture_binding": {
     "sample_id": "QR02",
     "catalog_schema_version": "2.0",
+    "catalog_revision": "2026-10-09.1",
     "manifest_schema_version": "1.0",
+    "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7",
+    "analyzer_profile": "intent",
     "request_claim_matches_catalog": true,
     "image_received": false,
     "publisher_verified": false
@@ -312,6 +330,8 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 - `controlled_browser` 只用于确实经过浏览器 Worker 的证据；当前仅 QR01。
 - `fixture_binding` 必须明确它只是请求声明与目录匹配、图片未上传、发布者未验证；目录
   匹配不能升级为客户端解码证明、扫码证明或来源认证。
+- `fixture_binding` 必须回显 catalog schema/revision、manifest schema、payload SHA-256 和
+  服务端选中的 analyzer profile；客户端不得用这些回显推断服务端收到过原始图片。
 - 证据 `detail` 必须脱敏、可展示、可持久化，不能包含上述禁止值。
 - AI 只能引用 bundle 中存在的 ID；模型新增、改写或遗漏证据 ID 时守卫拒绝缓存。
 
@@ -333,6 +353,19 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 
 因此“内容看起来像 C01”不是可信来源；只有由后端分析器生成、事务持久化并经 HMAC/任务
 身份复核的 bundle 才能进入内部 AI 路径。
+
+实现时必须新建**非路由输入**的内部类型（建议名 `TrustedQrAiInput`）及唯一工厂。该工厂
+只能接收从仓库重新加载并校验过的 finalized `ServerEvidenceBundle`；不能被 FastAPI 请求
+体反序列化，也不能接收 handler 传入的普通字典。现有公开 `AiAnalyzeRequest` 对 Cxx 和
+`cloud_evidence` 的拒绝规则保持不变，不能为复用旧路由而放宽公开 Pydantic 校验器。
+
+bundle HMAC 的规范输入必须是确定性序列化后的完整可信绑定，至少覆盖：`user_id`、
+`analysis_id`、`task_id`、catalog schema/revision、sample ID、canonical payload digest、
+分析模式、local evidence digest、按顺序排列的全部 Lxx/Cxx 内容、全部 execution 布尔值、
+`generated_at` 和 `evidence_finalized_at`。数据库同时保存 `bundle_digest` 和
+`digest_key_version`；HMAC 本身不得返回客户端或写入日志。校验复用现有版本化摘要密钥和
+轮换窗口；历史密钥缺失、版本未知或摘要不一致时必须在 Provider 前 fail-closed，不能把
+旧 bundle 当作新证据重建。finalized 后 bundle 不可修改。
 
 ## 8. 后端编排与幂等
 
@@ -357,6 +390,20 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 - Provider 派发后的超时进入 `outcome_unknown`，禁止第二次派发。
 - 24 小时后清理报告缓存；30 天后压缩可恢复元数据；HMAC 防重放墓碑永久保留。
 - 备份和恢复继续剥离 AI 响应正文，不备份二维码 canonical payload 的运行时副本。
+
+### 配额和崩溃恢复
+
+- 鉴权、请求 Schema、consent、目录版本/修订号、样例摘要及模式校验全部发生在扣额度前；
+  这些校验失败不创建任务、不扣额度、不派发 Provider。
+- 首次被接受的 `(user_id, analysis_id)` 只扣一次云任务额度。相同输入重放、状态 GET、
+  Worker 续租或崩溃恢复均不再次扣额度。
+- `ai_mode=none` 的 Provider 请求数必须为 0；`ai_mode=school` 在同一分析上下文内最多写入
+  一次 dispatch 标记并最多调用一次 Provider。
+- 静态分析无外部副作用。Worker 若在 bundle finalized 前退出，可在同一 `task_id`、同一
+  持久化输入和租约规则下重新执行静态分析；这属于内部恢复，不允许客户端再次 POST。
+- bundle finalized 后恢复流程只能重新加载并验证不可变 bundle。Provider dispatch 标记
+  写入后，无论超时、进程退出或迟到结果如何，都不得重跑分析器改变 bundle，也不得第二次
+  调用 Provider；未知结果进入 `outcome_unknown`，迟到终态沿用既有收敛规则。
 
 ### 自定义模型二阶段流程
 
@@ -394,7 +441,8 @@ UI 文案按路径固定为：
 | 503 | `CLOUD_EVIDENCE_BUILD_FAILED` | true | 未派发 Provider 的分析器或证据构建失败 |
 
 `CLOUD_REQUEST_INVALID` 的 `details.reason` 只能为 `mode_blocked`、`fixture_not_found`、
-`catalog_version_mismatch`、`manifest_version_mismatch`、`fixture_digest_mismatch`、
+`catalog_version_mismatch`、`catalog_revision_mismatch`、`manifest_version_mismatch`、
+`fixture_digest_mismatch`、
 `raw_image_forbidden`、`raw_payload_forbidden` 或 `client_cloud_evidence_forbidden`。
 
 错误响应继续使用现有统一 `error.code/message/retryable/details` 结构和已登记的责任前缀，

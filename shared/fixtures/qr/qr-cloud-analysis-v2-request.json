@@ -5,6 +5,7 @@
   "sample_ref": {
     "sample_id": "QR02",
     "catalog_schema_version": "2.0",
+    "catalog_revision": "2026-10-09.1",
     "manifest_schema_version": "1.0",
     "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7"
   },

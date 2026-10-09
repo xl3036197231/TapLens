@@ -5,6 +5,20 @@
   "normative": true,
   "examples": [
     {
+      "name": "catalog_revision_mismatch",
+      "http_status": 422,
+      "body": {
+        "error": {
+          "code": "CLOUD_REQUEST_INVALID",
+          "message": "固定样例目录修订号不一致",
+          "retryable": false,
+          "details": {
+            "reason": "catalog_revision_mismatch"
+          }
+        }
+      }
+    },
+    {
       "name": "fixture_digest_mismatch",
       "http_status": 422,
       "body": {

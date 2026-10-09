@@ -20,6 +20,9 @@
 - D 对旧固定提交 `631a30a` 的审阅也为 `NEEDS_CHANGES`。后续草案复用现有统一错误码，
   增加 QR02–QR13 服务端 canonical fixture catalog，弱化公开摘要的证明语义，并定义只有
   finalized、HMAC 校验通过的后端证据 bundle 才能把 Cxx 送入 Provider/报告守卫。
+- 交付复审前的 B 二次自审进一步补齐 catalog 内容修订号、内部可信输入类型、bundle HMAC
+  的完整覆盖与 Key 轮换、单 Worker 崩溃恢复、一次性配额/Provider 派发语义，并明确新接口
+  不出现浏览器阶段；这些仍是合同设计，不代表 v2 已实现或部署。
 
 ## 完成内容
 
@@ -90,6 +93,8 @@
 | `git diff --check` | PASS |
 | Provider 120 秒 / Nginx 135 秒边界 | PASS；httpx 请求扩展及部署静态门禁已校验，候选 Nginx 配置通过同镜像 `nginx -t` |
 | QR12/QR13 原始目标预派发拒绝 | 2/2 PASS；Provider 调用数为 0 |
+| v2 合同 fixture 自审 | PASS；JSON、统一错误 Schema、报告 Schema、六状态、证据引用、Token 算术及 created_at 原文绑定通过 |
+| v2 服务端目录来源 | PASS；QR02–QR13 12/12 与 `20b8848` 的 `cases + supplemental_cases` payload 及 UTF-8 SHA-256 一致 |
 | 真实学校模型调用 | 未调用 |
 | 新云任务 / ECS 部署 | 未创建、未部署 |
 
