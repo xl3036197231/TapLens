@@ -10,6 +10,8 @@
 | `backend-lan-integration.md` | B | A | 局域网启动、手机端地址、完整API流程和失败场景验证 |
 | `method-channel.md` | C | A | Flutter/Kotlin Channel、方法名、参数、返回值、取消和崩溃处理 |
 | `ai-client.md` | D | A | DeepSeek客户端输入输出、Key生命周期、Token用量、校验和错误映射 |
+| `qr-cloud-analysis.md` | B | A、D | 已部署的二维码 v1 分流与 AI-only 脱敏摘要合同 |
+| `qr-cloud-analysis-v2.md` | B | A、D | 待冻结的服务端先取证、再调用 AI 的二维码 v2 草案 |
 
 接口文档必须包含：
 

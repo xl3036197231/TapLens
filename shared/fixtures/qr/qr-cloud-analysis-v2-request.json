@@ -1,0 +1,29 @@
+{
+  "schema_version": "2.0",
+  "analysis_id": "00000000-0000-4000-8000-000000000202",
+  "created_at": "2026-10-09T12:00:00.000000Z",
+  "sample_ref": {
+    "sample_id": "QR02",
+    "manifest_schema_version": "1.0",
+    "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7"
+  },
+  "mode": "repository_fixture_static",
+  "ai_mode": "school",
+  "consent": {
+    "cloud_analysis_confirmed": true,
+    "ai_call_confirmed": true,
+    "raw_image_sent": false,
+    "raw_payload_sent": false
+  },
+  "local_evidence": {
+    "evidence": [
+      {
+        "id": "L01",
+        "kind": "qr_payload",
+        "title": "Android Intent 静态预览",
+        "detail": "识别为 Android Intent；手机未启动应用或访问 fallback。"
+      }
+    ],
+    "risk_hints": []
+  }
+}
