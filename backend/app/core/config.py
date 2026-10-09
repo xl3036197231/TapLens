@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     quota_timezone: str = "Asia/Shanghai"
     test_allowed_origins: str = ""
     llm_enabled: bool = False
+    qr_fake_provider_enabled: bool = False
     llm_base_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
@@ -89,6 +90,10 @@ class Settings(BaseSettings):
         )
         if self.environment in {"staging", "production"} and normalized_test_origins:
             raise ValueError("staging and production forbid test_allowed_origins")
+        if self.environment in {"staging", "production"} and self.qr_fake_provider_enabled:
+            raise ValueError("staging and production forbid qr_fake_provider_enabled")
+        if self.llm_enabled and self.qr_fake_provider_enabled:
+            raise ValueError("llm_enabled and qr_fake_provider_enabled are mutually exclusive")
         self.public_base_url = self.public_base_url.rstrip("/")
         self.test_allowed_origins = ",".join(dict.fromkeys(normalized_test_origins))
         if self.llm_enabled:

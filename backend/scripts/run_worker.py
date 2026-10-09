@@ -11,9 +11,9 @@ from app.storage.database import Database
 from app.storage.tasks import TaskRepository
 from app.tasks.executor import TaskExecutor
 from app.tasks.service import TaskService
-from app.ai.provider import SchoolOpenAiProvider
 from app.qr_analysis.catalog import QrFixtureCatalog
 from app.qr_analysis.executor import QrAnalysisExecutor
+from app.qr_analysis.fake_provider import build_qr_analysis_provider
 from app.storage.qr_analyses import QrAnalysisRepository
 
 
@@ -56,7 +56,7 @@ async def run(*, once: bool, poll_seconds: float) -> None:
     qr_executor = QrAnalysisExecutor(
         qr_repository,
         QrFixtureCatalog(),
-        SchoolOpenAiProvider(settings) if settings.llm_enabled else None,
+        build_qr_analysis_provider(settings),
     )
     repository.requeue_running()
     qr_repository.recover_interrupted()

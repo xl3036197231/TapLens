@@ -37,6 +37,7 @@ async def create_qr_analysis(
     if (
         payload.ai_mode == "school"
         and not request.app.state.settings.llm_enabled
+        and not request.app.state.settings.qr_fake_provider_enabled
         and getattr(request.app.state, "ai_provider", None) is None
     ):
         raise AppError(code="AI_PROVIDER_DISABLED", message="学校模型尚未启用", status_code=503)

@@ -15,6 +15,7 @@ from app.core.config import Settings
 from app.main import create_app
 from app.qr_analysis.catalog import QrFixtureCatalog
 from app.qr_analysis.executor import QrAnalysisExecutor
+from app.qr_analysis.fake_provider import build_qr_analysis_provider
 from app.qr_analysis.models import QrAnalysisState
 
 
@@ -286,6 +287,62 @@ def test_qr_v2_school_mode_dispatches_once_after_finalized_evidence(tmp_path) ->
     database_bytes = (tmp_path / "taplens.db").read_bytes()
     canonical = app.state.qr_fixture_catalog.cases["QR02"].payload.encode()
     assert canonical not in database_bytes
+
+
+def test_qr_v2_configured_fake_provider_completes_without_network(tmp_path) -> None:
+    settings = Settings(
+        environment="test",
+        database_path=tmp_path / "taplens.db",
+        jwt_secret=TEST_SECRET,
+        qr_fake_provider_enabled=True,
+    )
+    app = create_app(settings)
+    app.state.database.initialize()
+    token = login(app, "QrV2_Configured_Fake")
+    body = request_body()
+    created = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+
+    run_worker_once(app, build_qr_analysis_provider(settings))
+    status = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert status["state"] == "succeeded"
+    assert status["usage"] == {
+        "status": "known",
+        "request_count": 1,
+        "prompt_tokens": 40,
+        "completion_tokens": 20,
+        "total_tokens": 60,
+        "model": "taplens/qr-v2-fake",
+    }
+    assert status["report"]["token_usage"] == {
+        key: value for key, value in status["usage"].items() if key != "status"
+    }
+
+
+def test_qr_v2_fake_provider_cannot_be_combined_with_real_llm() -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        Settings(
+            environment="test",
+            jwt_secret=TEST_SECRET,
+            llm_enabled=True,
+            qr_fake_provider_enabled=True,
+            llm_base_url="https://provider.example.test/v1",
+            llm_api_key="fake-key",
+            llm_model="fake-model",
+        )
+
+
+@pytest.mark.parametrize("environment", ("staging", "production"))
+def test_qr_v2_fake_provider_is_forbidden_outside_local_environments(environment) -> None:
+    secret = "x" * 40
+    with pytest.raises(ValueError, match="forbid qr_fake_provider_enabled"):
+        Settings(
+            environment=environment,
+            public_base_url="https://taplens.example.test",
+            jwt_secret=secret,
+            ai_digest_keys=json.dumps({"1": secret}),
+            qr_fake_provider_enabled=True,
+        )
 
 
 @pytest.mark.parametrize("sample_id", [f"QR{value:02d}" for value in range(2, 14)])
