@@ -84,6 +84,19 @@ object NativeBridge : MethodChannel.MethodCallHandler {
                     SecureKeyStore.clearAiAttempts(applicationContext)
                     result.success(null)
                 }
+                "saveQrAnalysisAttempts" -> {
+                    val value = call.argument<String>("attempts")
+                    if (value == null || value.length > 65536) {
+                        result.error("QR_ATTEMPTS_INVALID", "QR attempt metadata is invalid", null)
+                    } else {
+                        saveQrAnalysisAttempts(value, result)
+                    }
+                }
+                "readQrAnalysisAttempts" -> {
+                    runCatching { SecureKeyStore.readQrAnalysisAttempts(applicationContext) }
+                        .onSuccess(result::success)
+                        .onFailure { result.error("QR_ATTEMPTS_STORAGE_ERROR", "Unable to read QR attempt metadata", null) }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -111,6 +124,33 @@ object NativeBridge : MethodChannel.MethodCallHandler {
             result.error(
                 "AI_ATTEMPTS_STORAGE_ERROR",
                 "Unable to durably save AI attempt metadata",
+                null,
+            )
+        }
+    }
+
+    private fun saveQrAnalysisAttempts(value: String, result: MethodChannel.Result) {
+        try {
+            secureStorageExecutor.execute {
+                val failure = runCatching {
+                    SecureKeyStore.saveQrAnalysisAttempts(applicationContext, value)
+                }.exceptionOrNull()
+                mainThreadHandler.post {
+                    if (failure == null) {
+                        result.success(null)
+                    } else {
+                        result.error(
+                            "QR_ATTEMPTS_STORAGE_ERROR",
+                            "Unable to durably save QR attempt metadata",
+                            null,
+                        )
+                    }
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            result.error(
+                "QR_ATTEMPTS_STORAGE_ERROR",
+                "Unable to durably save QR attempt metadata",
                 null,
             )
         }

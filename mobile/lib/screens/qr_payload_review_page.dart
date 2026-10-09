@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../models/local_evidence.dart';
+import '../qr/qr_analysis_attempt_store.dart';
+import '../qr/qr_analysis_client.dart';
+import '../qr/qr_sample_catalog.dart';
 import '../services/qr_payload_inspector.dart';
 import 'local_check_page.dart';
 import 'payload_ai_report_page.dart';
+import 'qr_analysis_page.dart';
 
 class QrPayloadReviewPage extends StatelessWidget {
   final String payload;
@@ -11,6 +15,8 @@ class QrPayloadReviewPage extends StatelessWidget {
   final String createdAtText;
   final String? initialApiBaseUrl;
   final QrPayloadInspection inspection;
+  final QrAnalysisTransport? qrV2Transport;
+  final QrAnalysisAttemptStore? qrAttemptStore;
 
   QrPayloadReviewPage({
     super.key,
@@ -18,12 +24,35 @@ class QrPayloadReviewPage extends StatelessWidget {
     String? analysisId,
     String? createdAtText,
     this.initialApiBaseUrl,
+    this.qrV2Transport,
+    this.qrAttemptStore,
   })  : analysisId = analysisId ?? LocalEvidence.createAnalysisId(),
         createdAtText =
             createdAtText ?? DateTime.now().toUtc().toIso8601String(),
         inspection = const QrPayloadInspector().inspect(payload);
 
   void _openCloudAnalysis(BuildContext context) {
+    // Fixed QR02–QR13 samples use the v2 repository-fixture contract only when
+    // the scanner's original decoded text matches byte-for-byte. QR01 has
+    // already taken the legacy deep-scan path above; all non-matches stay on
+    // the existing v1 sanitized-summary flow.
+    final fixedSample = QrFixedSample.matchRawDecodedText(payload);
+    if (fixedSample != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => QrAnalysisPage(
+            sample: fixedSample,
+            inspection: inspection,
+            analysisId: analysisId,
+            createdAtText: createdAtText,
+            initialApiBaseUrl: initialApiBaseUrl,
+            transport: qrV2Transport,
+            attemptStore: qrAttemptStore,
+          ),
+        ),
+      );
+      return;
+    }
     if (inspection.cloudAnalysisMode == QrCloudAnalysisMode.webSandbox) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -66,8 +95,10 @@ class QrPayloadReviewPage extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.shield_outlined,
-                        color: colors.onSecondaryContainer),
+                    Icon(
+                      Icons.shield_outlined,
+                      color: colors.onSecondaryContainer,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -82,8 +113,10 @@ class QrPayloadReviewPage extends StatelessWidget {
             const SizedBox(height: 20),
             Text('识别类型', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 6),
-            Text(inspection.title,
-                style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              inspection.title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 20),
             _InfoCard(
               icon: Icons.visibility_outlined,
@@ -197,8 +230,10 @@ class _InfoCard extends StatelessWidget {
               children: [
                 Icon(icon, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(heading,
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  heading,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ],
             ),
             const SizedBox(height: 10),

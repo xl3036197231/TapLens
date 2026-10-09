@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.6
   http: ^1.2.2
   image_picker: ^1.2.3
   mobile_scanner: ^7.4.2
@@ -26,3 +27,4 @@ flutter:
     - assets/branding/taplens-app-icon.png
     - assets/fixtures/analysis-report-high-risk.json
     - assets/acceptance/day5-unified-test1.json
+    - assets/fixtures/qr/

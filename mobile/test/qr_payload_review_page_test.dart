@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:taplens_mobile/qr/qr_analysis_attempt_store.dart';
+import 'package:taplens_mobile/qr/qr_analysis_mock_transport.dart';
+import 'package:taplens_mobile/screens/local_check_page.dart';
+import 'package:taplens_mobile/screens/payload_ai_report_page.dart';
+import 'package:taplens_mobile/screens/qr_analysis_page.dart';
 import 'package:taplens_mobile/screens/qr_payload_review_page.dart';
 
 void main() {
@@ -92,5 +97,98 @@ void main() {
     expect(
         find.byKey(const ValueKey('qr_cloud_analysis_button')), findsOneWidget);
     expect(find.text('选择模型并进行云端研判'), findsOneWidget);
+  });
+
+  testWidgets('QR02 exact payload routes to v2 Mock client without a socket',
+      (tester) async {
+    final transport = QrAnalysisMockTransport();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: 'intent://scan/#Intent;scheme=taplens;'
+              'package=com.example.otherapp;'
+              'S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end',
+          qrV2Transport: transport,
+          qrAttemptStore: MemoryQrAnalysisAttemptStore(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('qr_cloud_analysis_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QrAnalysisPage), findsOneWidget);
+    expect(find.text('Mock 验收模式'), findsOneWidget);
+    expect(find.textContaining('QR02'), findsOneWidget);
+    expect(transport.postCount, 0);
+  });
+
+  testWidgets(
+      'QR12 exact payload routes to v2 while a one-byte change stays v1',
+      (tester) async {
+    final qr12 = 'https://item.taobao.com/item.htm?id=638523167031';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: qr12,
+          qrAttemptStore: MemoryQrAnalysisAttemptStore(),
+          qrV2Transport: QrAnalysisMockTransport(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('qr_cloud_analysis_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(QrAnalysisPage), findsOneWidget);
+    expect(find.textContaining('QR12'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: qr12.replaceFirst('638523167031', '638523167032'),
+          qrAttemptStore: MemoryQrAnalysisAttemptStore(),
+          qrV2Transport: QrAnalysisMockTransport(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('qr_cloud_analysis_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PayloadAiReportPage), findsOneWidget);
+    expect(find.byType(QrAnalysisPage), findsNothing);
+  });
+
+  testWidgets('QR01 remains on legacy local/deep-scan path', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QrPayloadReviewPage(
+          payload: 'https://campus.example.test/go/campus',
+          qrAttemptStore: MemoryQrAnalysisAttemptStore(),
+          qrV2Transport: QrAnalysisMockTransport(),
+        ),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qr_cloud_analysis_button')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('qr_cloud_analysis_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(LocalCheckPage), findsOneWidget);
+    expect(find.byType(QrAnalysisPage), findsNothing);
   });
 }
