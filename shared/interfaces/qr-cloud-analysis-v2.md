@@ -24,6 +24,15 @@ APK、提交网页表单。
 | `repository_fixture_static` | QR02–QR13 固定样例 | 后端按样例 ID 和摘要读取仓库 canonical payload | `cloud_static` | 否 |
 | `client_sanitized_summary` | 任意用户二维码的兼容路径 | 手机端脱敏结构 | 不生成独立 `Cxx` | 否 |
 
+接口边界固定如下：
+
+- QR01 **不调用**新增的 `/qr-analyses`。它继续使用现有
+  `POST /api/v1/deep-scans`、任务 GET 和可选 AI 流程。
+- QR02–QR13 只有匹配固定样例后才能调用 `POST /api/v1/qr-analyses`；请求必须包含完整
+  `sample_ref`，且 `mode=repository_fixture_static`。
+- 普通非固定二维码不调用 `/qr-analyses`，继续使用 v1 的
+  `POST /api/v1/ai/analyze` 脱敏摘要路径；不传 `sample_ref`、不生成 Cxx。
+
 `client_sanitized_summary` 仍属于“云端 AI 研判（基于本地脱敏摘要）”，不是独立云端检测；
 成功报告必须保持 `sources.cloud=false`。只有前两种模式可以产生 `Cxx` 并令
 `sources.cloud=true`。
@@ -40,6 +49,16 @@ payload。固定样例由服务端读取仓库副本；未来若启用正式 HTT
 - `manifest_schema_version`：客户端所使用清单的版本；
 - `payload_sha256`：清单中 canonical payload 的 UTF-8 原始字节 SHA-256，小写十六进制；
 - `mode`：必须与服务端清单中该样例的允许模式一致。
+
+客户端固定样例识别规则：
+
+1. 构建时从 manifest 生成 QR02–QR13 的 `payload_sha256 → sample_id` 只读索引，并用测试
+   保证生成结果未漂移；无需把 canonical payload 作为新的运行时请求字段。
+2. 哈希输入是扫码器返回的**完整原始解码文本的 UTF-8 原始字节**。
+3. 计算前不得 `trim`、大小写转换、URL decode、换行转换、Unicode 规范化或 URL 规范化。
+4. 只有摘要与索引完全匹配才选择固定 `sample_id`；否则必须进入
+   `client_sanitized_summary` 兼容路径。
+5. `manifest_schema_version` 来自生成索引，不得由页面自由填写。
 
 服务端必须使用自身仓库清单重新计算摘要。摘要不一致、样例不存在或模式不一致时，在
 创建 Worker 任务或调用 Provider 前拒绝。服务端不能使用客户端上传的预览文字替代
@@ -118,6 +137,32 @@ canonical payload。
 响应必须带 `Location` 和 `Retry-After`。创建结果不确定时客户端不得再次 POST，只能通过
 `analysis_id` 查询状态。
 
+### POST 前客户端持久化
+
+在任何 POST 之前，客户端必须同步写盘并读回验证以下字段：
+
+- 记录版本；
+- TapLens `owner_id`；
+- `analysis_id`；
+- `created_at` 的完整原始 RFC 3339 文本；
+- 规范化 API origin；
+- 确定性 `status_path=/api/v1/qr-analyses/{analysis_id}/status`；
+- `sample_id`、`manifest_schema_version`、`payload_sha256`；
+- `mode`、`ai_mode`；
+- consent 布尔值；
+- `request_body_sha256`：实际将发送的 UTF-8 JSON 正文字节 SHA-256；
+- 本地状态 `prepared`。
+
+记录不得保存原始二维码文本、二维码图片、本地证据全文、JWT、学校 Key、自定义模型 Key
+或完整请求正文。POST 返回后可追加 `task_id`，但不能改变上述绑定字段。服务端返回的
+`status_path` 必须与预计算路径一致，并且解析到当前 API 的同源地址；包含其他 host、
+userinfo、query 或 fragment 时客户端必须拒绝。写盘失败、读回不一致、记录损坏或达到
+容量上限时不得 POST。
+
+客户端必须先生成最终请求正文的确定字节序列，计算并持久化 `request_body_sha256`，读回
+成功后将**同一字节序列**作为 POST body；不能在写盘后重新组装 JSON。该摘要只用于本地
+防重和诊断，不能替代服务端对各绑定字段的 HMAC。
+
 ## 5. 状态接口
 
 ### `GET /api/v1/qr-analyses/{analysis_id}/status`
@@ -137,9 +182,37 @@ canonical payload。
 
 `fixture_resolution`、`static_analysis`、`browser_analysis`、`ai_dispatch`、`complete`。
 
-完整响应示例见 `shared/fixtures/qr/qr-cloud-analysis-v2-status.json`。`state=succeeded`
-必须包含 `evidence_bundle`；`ai_mode=school` 时还必须包含 `report` 和实际
-`token_usage`。规则模式下 `report` 可以是后端确定性规则报告，Token 用量必须为零。
+成功响应见 `shared/fixtures/qr/qr-cloud-analysis-v2-status.json`；其他状态和 404 见
+`shared/fixtures/qr/qr-cloud-analysis-v2-status-matrix.json`。所有 HTTP 200 状态必须包含：
+
+- `schema_version`、`analysis_id`、`task_id`、`mode`、`ai_mode`、`state`、`phase`、
+  `terminal`、`actions`、`updated_at`；
+- 非终态必须提供 1–10 秒的 `poll_after_seconds`；终态固定为 `null`；
+- `evidence_bundle`、`report`、`error` 和 `cache_expires_at`，没有值时显式为 `null`；
+- 顶层 `usage`，其 `status` 只能是 `not_started`、`unknown` 或 `known`。
+
+字段位置固定如下：
+
+- `evidence_bundle` 只在顶层；静态/浏览器证据完成后必填，即使后续 AI 失败也要保留。
+- `report` 只在顶层；`succeeded` 必填，其他状态为 `null`。
+- 顶层 `usage` 是客户端读取模型用量的唯一权威位置。
+- 报告 Schema 要求的 `report.token_usage` 是顶层 `usage` 的镜像；两者不一致时客户端和
+  服务端守卫都必须拒绝报告。
+- `ai_mode=none` 成功时，`usage.status=not_started`，报告为后端确定性规则报告，且
+  `report.token_usage` 全零。
+- `ai_mode=school` 成功时，`usage.status=known` 且提供实际 Token；失败时根据 Provider
+  是否派发及能否取得用量返回 `not_started`、`unknown` 或 `known`。
+
+`report.created_at` 必须逐字复用创建请求中的原始 `created_at`，不能只按同一时刻重新
+格式化。状态 `updated_at` 和证据 `generated_at` 则使用服务端规范 UTC 文本。
+
+GET 返回 404 `QR_ANALYSIS_NOT_FOUND` 或任务属于其他用户时，不增加第七种 state。客户端
+必须保留本地防重记录、显示“状态待核实”并继续禁止 POST；只有用户显式放弃旧上下文后
+才能开始新的、重新确认的分析。
+
+客户端恢复规则：只要本地记录达到 `prepared`，无论是否保存了 `task_id`，应用重启、
+页面重进、网络超时或解析失败后都只能访问预计算状态 GET。任何响应均不得解锁同一
+`analysis_id` 的第二次 POST。
 
 ## 6. 云端静态分析矩阵
 
@@ -252,6 +325,25 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 - Provider 派发后的超时进入 `outcome_unknown`，禁止第二次派发。
 - 24 小时后清理报告缓存；30 天后压缩可恢复元数据；HMAC 防重放墓碑永久保留。
 - 备份和恢复继续剥离 AI 响应正文，不备份二维码 canonical payload 的运行时副本。
+
+### 自定义模型二阶段流程
+
+用户选择自定义模型时，客户端向后端发送 `ai_mode=none`。后端只生成并返回服务端证据和
+确定性规则报告，不接收用户 Key，也不调用学校模型。状态 `succeeded` 后，客户端再次向
+用户展示将发送的脱敏 `Lxx/Cxx`，取得独立的自定义模型调用确认，再由手机直连用户选择的
+Provider。
+
+客户端在直连前也必须持久化独立 BYOK 阶段状态；重启后不得自动调用自定义模型。Key 只
+从 Android Keystore 临时读取，不进入 QR 任务记录、请求 fixture、日志或后端。BYOK 结果
+必须通过相同报告 Schema、证据 ID、风险下调和 Token 守卫，但不能写回后端并伪装成学校
+模型结果。
+
+UI 文案按路径固定为：
+
+- QR01：`受控网页沙箱分析`；
+- QR02–QR13 的后端阶段：`仓库固定样例的服务端静态分析`；
+- 普通非固定二维码：`云端 AI 研判（基于本地脱敏摘要）`；
+- 固定样例随后调用学校或自定义模型：`AI 研判（基于本地与服务端脱敏证据）`。
 
 ## 9. 错误合同
 
