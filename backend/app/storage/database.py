@@ -117,6 +117,60 @@ class Database:
 
                 CREATE INDEX IF NOT EXISTS idx_ai_analysis_calls_cache_expiry
                     ON ai_analysis_calls(cache_expires_at);
+
+                CREATE TABLE IF NOT EXISTS qr_analysis_tasks (
+                    user_id TEXT NOT NULL,
+                    analysis_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL UNIQUE,
+                    report_created_at TEXT NOT NULL,
+                    input_digest TEXT NOT NULL,
+                    digest_key_version INTEGER NOT NULL CHECK (digest_key_version >= 1),
+                    state TEXT NOT NULL CHECK (
+                        state IN ('queued', 'in_progress', 'succeeded', 'failed',
+                                  'outcome_unknown', 'result_expired')
+                    ),
+                    phase TEXT NOT NULL CHECK (
+                        phase IN ('fixture_resolution', 'static_analysis',
+                                  'ai_dispatch', 'complete')
+                    ),
+                    ai_mode TEXT NOT NULL CHECK (ai_mode IN ('none', 'school')),
+                    sample_id TEXT NOT NULL,
+                    catalog_schema_version TEXT NOT NULL,
+                    catalog_revision TEXT NOT NULL,
+                    manifest_schema_version TEXT NOT NULL,
+                    payload_sha256 TEXT NOT NULL,
+                    analyzer_profile TEXT NOT NULL,
+                    local_evidence_json TEXT NOT NULL,
+                    evidence_bundle_json TEXT,
+                    bundle_digest TEXT,
+                    bundle_digest_key_version INTEGER,
+                    evidence_finalized_at TEXT,
+                    provider_dispatch_started_at TEXT,
+                    report_json TEXT,
+                    usage_status TEXT NOT NULL CHECK (
+                        usage_status IN ('not_started', 'unknown', 'known')
+                    ),
+                    prompt_tokens INTEGER CHECK (prompt_tokens IS NULL OR prompt_tokens >= 0),
+                    completion_tokens INTEGER CHECK (completion_tokens IS NULL OR completion_tokens >= 0),
+                    total_tokens INTEGER CHECK (total_tokens IS NULL OR total_tokens >= 0),
+                    model TEXT,
+                    error_code TEXT,
+                    retryable INTEGER NOT NULL DEFAULT 0 CHECK (retryable IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    cache_expires_at TEXT,
+                    record_expires_at TEXT NOT NULL,
+                    compacted_at TEXT,
+                    PRIMARY KEY (user_id, analysis_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_qr_analysis_tasks_state
+                    ON qr_analysis_tasks(state, created_at);
+                CREATE INDEX IF NOT EXISTS idx_qr_analysis_tasks_cache_expiry
+                    ON qr_analysis_tasks(cache_expires_at);
+                CREATE INDEX IF NOT EXISTS idx_qr_analysis_tasks_record_expiry
+                    ON qr_analysis_tasks(record_expires_at);
                 """
             )
             columns = {

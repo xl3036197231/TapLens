@@ -70,6 +70,21 @@ try:
                 WHERE response_json IS NOT NULL
                 """
             )
+        has_qr_calls = check.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'qr_analysis_tasks'"
+        ).fetchone()
+        if has_qr_calls:
+            check.execute(
+                """
+                UPDATE qr_analysis_tasks
+                SET state = CASE WHEN state = 'succeeded' THEN 'result_expired' ELSE state END,
+                    phase = CASE WHEN state = 'succeeded' THEN 'complete' ELSE phase END,
+                    evidence_bundle_json = NULL, bundle_digest = NULL,
+                    bundle_digest_key_version = NULL, evidence_finalized_at = NULL,
+                    report_json = NULL, cache_expires_at = NULL
+                WHERE evidence_bundle_json IS NOT NULL OR report_json IS NOT NULL
+                """
+            )
         result = check.execute("PRAGMA quick_check").fetchone()[0]
         if result != "ok":
             raise RuntimeError(f"SQLite quick_check failed: {result}")

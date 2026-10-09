@@ -47,6 +47,22 @@ try:
                 WHERE response_json IS NOT NULL
                 """
             ).rowcount
+        has_qr_calls = check.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'qr_analysis_tasks'"
+        ).fetchone()
+        removed_qr_response_cache = 0
+        if has_qr_calls:
+            removed_qr_response_cache = check.execute(
+                """
+                UPDATE qr_analysis_tasks
+                SET state = CASE WHEN state = 'succeeded' THEN 'result_expired' ELSE state END,
+                    phase = CASE WHEN state = 'succeeded' THEN 'complete' ELSE phase END,
+                    evidence_bundle_json = NULL, bundle_digest = NULL,
+                    bundle_digest_key_version = NULL, evidence_finalized_at = NULL,
+                    report_json = NULL, cache_expires_at = NULL
+                WHERE evidence_bundle_json IS NOT NULL OR report_json IS NOT NULL
+                """
+            ).rowcount
         result = check.execute("PRAGMA quick_check").fetchone()[0]
         if result != "ok":
             raise RuntimeError(f"SQLite quick_check failed: {result}")
@@ -58,6 +74,8 @@ try:
         "artifacts": "artifacts",
         "ai_response_cache_included": False,
         "ai_response_cache_rows_removed": removed_ai_response_cache,
+        "qr_response_cache_included": False,
+        "qr_response_cache_rows_removed": removed_qr_response_cache,
     }
     (work / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",

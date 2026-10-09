@@ -47,7 +47,7 @@ def install_error_handlers(app: FastAPI) -> None:
         path = request.url.path
         if path.startswith("/api/v1/auth/"):
             code = "AUTH_REQUEST_INVALID"
-        elif path.startswith("/api/v1/deep-scans"):
+        elif path.startswith("/api/v1/deep-scans") or path.startswith("/api/v1/qr-analyses"):
             code = "CLOUD_REQUEST_INVALID"
         elif path.startswith("/api/v1/ai/"):
             code = "AI_REQUEST_INVALID"
@@ -59,6 +59,29 @@ def install_error_handlers(app: FastAPI) -> None:
             location = ".".join(str(part) for part in error.get("loc", ()))
             fields.append({"path": location, "type": error.get("type", "invalid")})
 
+        details: dict[str, Any] = {"fields": fields}
+        if path.startswith("/api/v1/qr-analyses"):
+            locations = {field["path"] for field in fields}
+            reason = next(
+                (
+                    reason
+                    for field, reason in (
+                        ("body.mode", "mode_blocked"),
+                        ("body.sample_ref.catalog_schema_version", "catalog_version_mismatch"),
+                        ("body.sample_ref.catalog_revision", "catalog_revision_mismatch"),
+                        ("body.sample_ref.manifest_schema_version", "manifest_version_mismatch"),
+                        ("body.sample_ref.payload_sha256", "fixture_digest_mismatch"),
+                        ("body.consent.raw_image_sent", "raw_image_forbidden"),
+                        ("body.consent.raw_payload_sent", "raw_payload_forbidden"),
+                        ("body.cloud_evidence", "client_cloud_evidence_forbidden"),
+                    )
+                    if field in locations
+                ),
+                None,
+            )
+            if reason is not None:
+                details["reason"] = reason
+
         return JSONResponse(
             status_code=422,
             content={
@@ -66,7 +89,7 @@ def install_error_handlers(app: FastAPI) -> None:
                     "code": code,
                     "message": "请求字段无效",
                     "retryable": False,
-                    "details": {"fields": fields},
+                    "details": details,
                 }
             },
         )

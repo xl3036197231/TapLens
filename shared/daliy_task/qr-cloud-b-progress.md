@@ -1,8 +1,8 @@
 # B：二维码云端分析后端进度
 
-> 状态：实现与 B 自检完成，等待固定提交和 D 独立复审；尚未部署。
+> 状态：v2 实现与 B 自检完成，等待固定提交和 D 独立复审；尚未部署。
 
-## v2 服务端先取证合同草案（未实现）
+## v2 服务端先取证合同
 
 - 新增 `shared/interfaces/qr-cloud-analysis-v2.md`，定义“手机本地证据 → 后端确定性取证
   → 可选学校 AI”的顺序；AI 不获得工具调用权，也不能自行选择或操作沙箱。
@@ -13,7 +13,7 @@
 - 当前服务仍为 HTTP，任意用户二维码继续禁止上传图片和原始 payload；兼容路径仍只能
   标注为“云端 AI 研判（基于本地脱敏摘要）”，不能产生独立 `Cxx`。
 - 新增请求与成功状态 fixture，供 A 核对客户端可实现性、供 D 做合同审阅。
-- 本节只是设计草案，不改变本文件下方已实现 v1 的测试、部署或放行状态。
+- 本节记录合同冻结过程；其下的“v2 后端实现”才是当前候选代码状态。
 - A 对 `631a30a` 的首轮合同审阅为 `NEEDS_CHANGES`；后续草案明确 QR01 不走新接口、
   QR02–QR13 精确 UTF-8 哈希匹配、POST 前持久化字段、六状态与 404 恢复、顶层权威
   Token 用量及自定义模型二阶段流程。该修订仍需 A、D 按新固定提交复审。
@@ -31,6 +31,29 @@
   后续草案将镜像规则收紧为仅比较 `request_count`、`prompt_tokens`、
   `completion_tokens`、`total_tokens`、`model` 五字段投影，明确 `status` 只位于顶层且禁止
   客户端直接比较两个完整 JSON 对象。
+- D 对 `938006b` 的完整 bundle HMAC 合同复审 PASS；A 对 `551cbe1` 的
+  五字段用量投影与客户端可实现性复审 PASS。
+
+## v2 后端实现
+
+- 新增 `POST /api/v1/qr-analyses` 和
+  `GET /api/v1/qr-analyses/{analysis_id}/status`，QR01 仍只走既有 `/deep-scans`。
+- QR02–QR13 只接受固定 catalog 身份、原始 UTF-8 payload SHA-256 和脱敏 Lxx；
+  Schema、consent、catalog 修订、摘要与敏感文本检查全部在扣额度前完成。
+- 后端静态分析器不使用 DNS、HTTP、浏览器或系统 handler；不访问 fallback/APK/
+  商品页，不启动 App，不执行 Wi-Fi、短信、电话、邮件或联系人动作。
+- 先持久化完整强类型 `evidence_bundle`，再用任务身份封套整体 HMAC；只有
+  HMAC 通过后才能持久化 Provider dispatch 标记。任一来源声明、证据、执行标志、
+  limitation 或数组顺序被改动都在 Provider 前 fail-closed。
+- `(user_id, analysis_id)` 并发幂等与额度扣减在 SQLite 写锁中完成；重放、
+  输入冲突、未知结果和缓存过期均不会二次扣额度或派发 Provider。
+- 单 Worker 支持崩溃恢复：bundle 前可重做无副作用静态分析；已 finalized 则只重载
+  并验签；dispatch 后进入 `outcome_unknown` 且禁止再派发，允许同次调用的迟到守卫
+  成功或已知用量失败收敛。
+- 成功报告强制通过既有 Schema、analysis_id/created_at 原文、证据引用、
+  高风险不下调、Token 算术和敏感缓存守卫；顶层用量只与报告五字段投影比较。
+- 24 小时后清理 bundle/报告响应，30 天后压缩可恢复摘要，最小 HMAC 防重放
+  墓碑永久保留；备份和恢复都会剥离二维码 bundle/报告缓存与其 HMAC 元数据。
 
 ## 完成内容
 
@@ -93,8 +116,9 @@
 
 | 检查 | 结果 |
 |---|---|
-| 后端完整回归 | 242/242 PASS |
-| 本轮超时、幂等及 QR 目标矩阵 | 89/89 PASS |
+| 后端完整回归 | 279/279 PASS |
+| v2 隔离实现回归 | 37/37 PASS；含 QR02–QR13 12/12 静态矩阵 |
+| v2 + 备份隐私 + 既有 AI/QR 合同 | 72/72 PASS |
 | QR AI-only 测试收集 | 26 项 |
 | QR01 本机受控站 Playwright | PASS；仅绑定临时 `127.0.0.1` 端口 |
 | Python 编译检查 | PASS |
@@ -108,7 +132,8 @@
 
 ## 下一门禁
 
-1. B 提交并推送固定 SHA。
-2. D 独立复跑和审查精确映射、并发幂等、墓碑、Key 轮换、QR 脱敏拒绝及报告守卫。
-3. A 同步冻结请求格式并完成客户端测试，再交 D 审核。
+1. B 提交并推送实现固定 SHA。
+2. D 独立复跑和审查精确映射、并发幂等、墓碑、Key 轮换、bundle 完整签署、
+   崩溃/迟到终态、QR 脱敏拒绝、报告守卫与备份恢复。
+3. A 按 `551cbe1` 的冻结合同实现客户端，并将实现固定 SHA 交 D 复审。
 4. A、B、D 的固定版本合入同一 `main` 后才允许部署和最终设备验收。
