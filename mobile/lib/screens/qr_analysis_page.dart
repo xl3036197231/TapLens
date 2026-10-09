@@ -7,6 +7,7 @@ import '../qr/qr_analysis_client.dart';
 import '../qr/qr_analysis_coordinator.dart';
 import '../qr/qr_analysis_mock_transport.dart';
 import '../qr/qr_analysis_models.dart';
+import '../qr/qr_analysis_transport_factory.dart';
 import '../qr/qr_sample_catalog.dart';
 import '../services/auth_session.dart';
 import '../services/qr_payload_inspector.dart';
@@ -56,6 +57,8 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
   String? _error;
 
   bool get _isMock => _transport is QrAnalysisMockTransport;
+  bool get _isLocalFakeHttp =>
+      qrV2HttpFakeEnabled && _transport is HttpQrAnalysisTransport;
 
   @override
   void didChangeDependencies() {
@@ -140,8 +143,10 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
     if (_choice == _QrModelChoice.school) {
       aiConfirmed = await _confirm(
         title: '确认学校模型研判',
-        body: '任务进入服务端后会继续调用学校模型，可能消耗模型 Token。这里只发送固定样例引用和本地脱敏证据；学校 Key 不在手机端。',
-        confirmLabel: '确认调用学校模型',
+        body: _isLocalFakeHttp
+            ? '本次只调用本机确定性 Fake Provider，不访问学校模型，不产生真实模型 Token。这里只发送固定样例引用和本地脱敏证据。'
+            : '任务进入服务端后会继续调用学校模型，可能消耗模型 Token。这里只发送固定样例引用和本地脱敏证据；学校 Key 不在手机端。',
+        confirmLabel: _isLocalFakeHttp ? '确认本地 Fake 研判' : '确认调用学校模型',
       );
       if (!aiConfirmed || !mounted) return;
     }
@@ -343,10 +348,16 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
           children: [
             _NoticeCard(
               icon: Icons.science_outlined,
-              title: _isMock ? 'Mock 验收模式' : '固定样例分析',
+              title: _isMock
+                  ? 'Mock 验收模式'
+                  : _isLocalFakeHttp
+                      ? '本地 HTTP Fake Provider 联调'
+                      : '固定样例分析',
               body: _isMock
                   ? '当前只运行客户端 Mock：不会连接后端、创建真实云任务、调用学校模型或消耗 Token。页面中的云端证据和用量均为演示数据。'
-                  : '仓库固定样例的服务端静态分析：后端按样例编号和摘要读取仓库内容，不会重新扫描图片、访问目标或验证发布者。',
+                  : _isLocalFakeHttp
+                      ? '当前通过真实 HTTP 连接本机 B Fake Provider；会在隔离 SQLite 中创建本地 Mock 任务，但不访问学校模型或外网 Provider。'
+                      : '仓库固定样例的服务端静态分析：后端按样例编号和摘要读取仓库内容，不会重新扫描图片、访问目标或验证发布者。',
               color: theme.colorScheme.tertiaryContainer,
             ),
             const SizedBox(height: 14),
@@ -407,7 +418,13 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.cloud_upload_outlined),
-                label: Text(_isMock ? '演示固定样例云端流程（Mock）' : '开始仓库固定样例分析'),
+                label: Text(
+                  _isMock
+                      ? '演示固定样例云端流程（Mock）'
+                      : _isLocalFakeHttp
+                          ? '开始本地 HTTP Fake 分析'
+                          : '开始仓库固定样例分析',
+                ),
               ),
             ],
             if (_restoring) const LinearProgressIndicator(),

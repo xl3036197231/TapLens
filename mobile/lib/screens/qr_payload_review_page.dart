@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/local_evidence.dart';
 import '../qr/qr_analysis_attempt_store.dart';
 import '../qr/qr_analysis_client.dart';
+import '../qr/qr_analysis_transport_factory.dart';
 import '../qr/qr_sample_catalog.dart';
 import '../services/qr_payload_inspector.dart';
 import 'local_check_page.dart';
@@ -46,7 +47,7 @@ class QrPayloadReviewPage extends StatelessWidget {
             analysisId: analysisId,
             createdAtText: createdAtText,
             initialApiBaseUrl: initialApiBaseUrl,
-            transport: qrV2Transport,
+            transport: qrV2Transport ?? createQrAnalysisTransport(),
             attemptStore: qrAttemptStore,
           ),
         ),
