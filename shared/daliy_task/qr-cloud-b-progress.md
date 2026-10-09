@@ -23,6 +23,10 @@
 - 交付复审前的 B 二次自审进一步补齐 catalog 内容修订号、内部可信输入类型、bundle HMAC
   的完整覆盖与 Key 轮换、单 Worker 崩溃恢复、一次性配额/Provider 派发语义，并明确新接口
   不出现浏览器阶段；这些仍是合同设计，不代表 v2 已实现或部署。
+- D 对 `a4950a4` 的合同复审指出 HMAC 的“最低覆盖字段”仍可能漏签来源声明和 limitations。
+  后续草案改为签署“任务身份 + 完整强类型 evidence bundle”的规范 JSON 封套，明确完整
+  `fixture_binding`、items、execution、limitations 均不可遗漏，HMAC 元数据自身位于 bundle
+  外且不参与签署，并列出逐字段篡改必须 fail-closed 的实现回归矩阵。
 
 ## 完成内容
 

@@ -359,13 +359,41 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 体反序列化，也不能接收 handler 传入的普通字典。现有公开 `AiAnalyzeRequest` 对 Cxx 和
 `cloud_evidence` 的拒绝规则保持不变，不能为复用旧路由而放宽公开 Pydantic 校验器。
 
-bundle HMAC 的规范输入必须是确定性序列化后的完整可信绑定，至少覆盖：`user_id`、
-`analysis_id`、`task_id`、catalog schema/revision、sample ID、canonical payload digest、
-分析模式、local evidence digest、按顺序排列的全部 Lxx/Cxx 内容、全部 execution 布尔值、
-`generated_at` 和 `evidence_finalized_at`。数据库同时保存 `bundle_digest` 和
-`digest_key_version`；HMAC 本身不得返回客户端或写入日志。校验复用现有版本化摘要密钥和
-轮换窗口；历史密钥缺失、版本未知或摘要不一致时必须在 Provider 前 fail-closed，不能把
-旧 bundle 当作新证据重建。finalized 后 bundle 不可修改。
+bundle HMAC 不得使用字段白名单或“至少覆盖”语义。其规范输入必须是以下完整封套：
+
+```json
+{
+  "binding_version": 1,
+  "user_id": "当前任务所有者 UUID",
+  "analysis_id": "当前 analysis UUID",
+  "task_id": "当前 task UUID",
+  "evidence_finalized_at": "服务端规范 UTC 文本",
+  "evidence_bundle": {
+    "...": "完整的强类型 ServerEvidenceBundle 对象"
+  }
+}
+```
+
+其中 UUID 使用小写连字符规范文本，时间使用服务端规范 UTC 文本。`evidence_bundle` 必须以
+强类型模型校验后的**完整对象**整体参与签署；当前对象的全部字段是 `analysis_id`、
+`generated_at`、`mode`、**完整 `fixture_binding`**（包括 catalog/manifest 版本、修订号、payload 摘要、
+analyzer profile、`request_claim_matches_catalog`、`image_received`、
+`publisher_verified`）、按原顺序排列的全部 Lxx/Cxx、完整 `execution` 和完整
+`limitations`。强类型模型必须拒绝未知字段；将来模型新增字段时，该字段自动进入完整对象
+并参与签署，同时评估是否提升 `binding_version`。不得在签署前删除 false、null、空数组或
+被认为“仅用于展示”的字段。
+
+封套按 UTF-8 JSON 使用 `ensure_ascii=false`、对象键字典序、紧凑分隔符 `(',', ':')`
+确定性序列化；数组顺序保持不变。HMAC-SHA-256 结果存入数据库独立列 `bundle_digest`，密钥
+版本存入独立列 `digest_key_version`。这两个 HMAC 元数据字段不属于
+`ServerEvidenceBundle`，也不进入签署输入，以避免自引用；不得返回客户端或写入日志。
+校验复用现有版本化摘要密钥和轮换窗口；历史密钥缺失、版本未知或摘要不一致时必须在
+Provider 前 fail-closed，不能把旧 bundle 当作新证据重建。finalized 后 bundle 不可修改。
+
+实现回归至少逐项篡改 `user_id`、`task_id`、`fixture_binding.image_received`、
+`fixture_binding.publisher_verified`、任一 item 的 `detail`、任一 execution 布尔值、任一
+limitation 文本及 items/limitations 顺序；每一项都必须导致 HMAC 校验失败且 Provider
+调用数为 0。未改动的完整封套必须通过校验。
 
 ## 8. 后端编排与幂等
 
