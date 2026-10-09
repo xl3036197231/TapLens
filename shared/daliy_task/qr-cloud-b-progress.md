@@ -27,6 +27,10 @@
   后续草案改为签署“任务身份 + 完整强类型 evidence bundle”的规范 JSON 封套，明确完整
   `fixture_binding`、items、execution、limitations 均不可遗漏，HMAC 元数据自身位于 bundle
   外且不参与签署，并列出逐字段篡改必须 fail-closed 的实现回归矩阵。
+- A 对 `938006b` 的客户端可实现性复审指出顶层 `usage.status` 不属于报告 Token Schema；
+  后续草案将镜像规则收紧为仅比较 `request_count`、`prompt_tokens`、
+  `completion_tokens`、`total_tokens`、`model` 五字段投影，明确 `status` 只位于顶层且禁止
+  客户端直接比较两个完整 JSON 对象。
 
 ## 完成内容
 

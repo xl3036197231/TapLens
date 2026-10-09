@@ -220,8 +220,12 @@ userinfo、query 或 fragment 时客户端必须拒绝。写盘失败、读回�
 - `evidence_bundle` 只在顶层；静态/浏览器证据完成后必填，即使后续 AI 失败也要保留。
 - `report` 只在顶层；`succeeded` 必填，其他状态为 `null`。
 - 顶层 `usage` 是客户端读取模型用量的唯一权威位置。
-- 报告 Schema 要求的 `report.token_usage` 是顶层 `usage` 的镜像；两者不一致时客户端和
-  服务端守卫都必须拒绝报告。
+- 报告 Schema 要求的 `report.token_usage` 只镜像顶层 `usage` 的五字段投影：
+  `request_count`、`prompt_tokens`、`completion_tokens`、`total_tokens`、`model`。比较时必须
+  从顶层 `usage` 精确选取这五个字段后再与 `report.token_usage` 比较；五项任一不一致时
+  客户端和服务端守卫都必须拒绝报告。
+- `usage.status` 只属于顶层任务状态信息，不得写入 `report.token_usage`，也不参与上述
+  五字段投影比较。客户端不得直接比较两个完整 JSON 对象。
 - `ai_mode=none` 成功时，`usage.status=not_started`，报告为后端确定性规则报告，且
   `report.token_usage` 全零。
 - `ai_mode=school` 成功时，`usage.status=known` 且提供实际 Token；失败时根据 Provider
