@@ -41,7 +41,9 @@ def test_backup_excludes_guarded_ai_response_cache(tmp_path) -> None:
                 bundle_digest_key_version INTEGER,
                 evidence_finalized_at TEXT,
                 report_json TEXT,
-                cache_expires_at TEXT
+                cache_expires_at TEXT,
+                error_code TEXT,
+                retryable INTEGER NOT NULL
             )
             """
         )
@@ -52,9 +54,24 @@ def test_backup_excludes_guarded_ai_response_cache(tmp_path) -> None:
                 'succeeded', 'complete',
                 '{"items":[{"detail":"private qr evidence"}]}',
                 'bundle-hmac', 3, '2026-10-09T12:00:01Z',
-                '{"summary":"private qr report"}', '2099-01-01T00:00:00Z'
+                '{"summary":"private qr report"}', '2099-01-01T00:00:00Z',
+                NULL, 0
             )
             """
+        )
+        connection.executemany(
+            """
+            INSERT INTO qr_analysis_tasks VALUES (
+                ?, 'permanent-replay-tombstone', 3, ?, 'ai_dispatch',
+                '{"items":[{"detail":"private terminal evidence"}]}',
+                'bundle-hmac', 3, '2026-10-09T12:00:01Z',
+                NULL, '2099-01-01T00:00:00Z', ?, 0
+            )
+            """,
+            (
+                ("qr-analysis-failed", "failed", "AI_REPORT_REJECTED"),
+                ("qr-analysis-unknown", "outcome_unknown", "AI_OUTCOME_UNKNOWN"),
+            ),
         )
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -80,24 +97,32 @@ def test_backup_excludes_guarded_ai_response_cache(tmp_path) -> None:
         response, expires = connection.execute(
             "SELECT response_json, cache_expires_at FROM ai_analysis_calls"
         ).fetchone()
-        qr_row = connection.execute(
+        qr_rows = connection.execute(
             """
-            SELECT input_digest, digest_key_version, state, phase,
+            SELECT analysis_id, input_digest, digest_key_version, state, phase,
                    evidence_bundle_json, bundle_digest,
                    bundle_digest_key_version, evidence_finalized_at,
-                   report_json, cache_expires_at
-            FROM qr_analysis_tasks
+                   report_json, cache_expires_at, error_code, retryable
+            FROM qr_analysis_tasks ORDER BY analysis_id
             """
-        ).fetchone()
+        ).fetchall()
 
     assert manifest["ai_response_cache_included"] is False
     assert manifest["ai_response_cache_rows_removed"] == 1
     assert manifest["qr_response_cache_included"] is False
-    assert manifest["qr_response_cache_rows_removed"] == 1
+    assert manifest["qr_response_cache_rows_removed"] == 3
     assert response is None
     assert expires is None
-    assert qr_row[:4] == ("permanent-replay-tombstone", 3, "result_expired", "complete")
-    assert qr_row[4:] == (None, None, None, None, None, None)
+    assert len(qr_rows) == 3
+    for qr_row in qr_rows:
+        assert qr_row[1:5] == (
+            "permanent-replay-tombstone",
+            3,
+            "result_expired",
+            "complete",
+        )
+        assert qr_row[5:11] == (None, None, None, None, None, None)
+        assert qr_row[11:] == ("CLOUD_TASK_RESULT_EXPIRED", 0)
     assert b"guarded report" not in copied_database.read_bytes()
     assert b"private qr evidence" not in copied_database.read_bytes()
     assert b"private qr report" not in copied_database.read_bytes()
@@ -154,7 +179,9 @@ def test_restore_executes_cache_clearing_and_preserves_replay_tombstone(tmp_path
                 bundle_digest_key_version INTEGER,
                 evidence_finalized_at TEXT,
                 report_json TEXT,
-                cache_expires_at TEXT
+                cache_expires_at TEXT,
+                error_code TEXT,
+                retryable INTEGER NOT NULL
             )
             """
         )
@@ -164,7 +191,17 @@ def test_restore_executes_cache_clearing_and_preserves_replay_tombstone(tmp_path
                 'qr-analysis-1', 'qr-hmac-tombstone', 4,
                 'succeeded', 'complete', '{"private":"bundle"}',
                 'bundle-hmac', 4, '2026-10-09T12:00:01Z',
-                '{"private":"report"}', '2099-01-01T00:00:00Z'
+                '{"private":"report"}', '2099-01-01T00:00:00Z', NULL, 0
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO qr_analysis_tasks VALUES (
+                'qr-analysis-unknown', 'qr-hmac-tombstone', 4,
+                'outcome_unknown', 'ai_dispatch', '{"private":"bundle"}',
+                'bundle-hmac', 4, '2026-10-09T12:00:01Z',
+                NULL, '2099-01-01T00:00:00Z', 'AI_OUTCOME_UNKNOWN', 0
             )
             """
         )
@@ -214,21 +251,29 @@ def test_restore_executes_cache_clearing_and_preserves_replay_tombstone(tmp_path
             """
         ).fetchone()
         assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
-        qr_row = connection.execute(
+        qr_rows = connection.execute(
             """
-            SELECT input_digest, digest_key_version, state, phase,
+            SELECT analysis_id, input_digest, digest_key_version, state, phase,
                    evidence_bundle_json, bundle_digest,
                    bundle_digest_key_version, evidence_finalized_at,
-                   report_json, cache_expires_at
-            FROM qr_analysis_tasks WHERE analysis_id = 'qr-analysis-1'
+                   report_json, cache_expires_at, error_code, retryable
+            FROM qr_analysis_tasks ORDER BY analysis_id
             """
-        ).fetchone()
+        ).fetchall()
 
     assert response is None
     assert cache_expires is None
     assert (digest, key_version, state) == ("hmac-tombstone", 2, "succeeded")
-    assert qr_row[:4] == ("qr-hmac-tombstone", 4, "result_expired", "complete")
-    assert qr_row[4:] == (None, None, None, None, None, None)
+    assert len(qr_rows) == 2
+    for qr_row in qr_rows:
+        assert qr_row[1:5] == (
+            "qr-hmac-tombstone",
+            4,
+            "result_expired",
+            "complete",
+        )
+        assert qr_row[5:11] == (None, None, None, None, None, None)
+        assert qr_row[11:] == ("CLOUD_TASK_RESULT_EXPIRED", 0)
     assert (artifacts / "evidence.txt").read_text(encoding="utf-8") == (
         "archived evidence"
     )

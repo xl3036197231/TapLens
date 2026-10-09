@@ -55,11 +55,11 @@ try:
             removed_qr_response_cache = check.execute(
                 """
                 UPDATE qr_analysis_tasks
-                SET state = CASE WHEN state = 'succeeded' THEN 'result_expired' ELSE state END,
-                    phase = CASE WHEN state = 'succeeded' THEN 'complete' ELSE phase END,
+                SET state = 'result_expired', phase = 'complete',
                     evidence_bundle_json = NULL, bundle_digest = NULL,
                     bundle_digest_key_version = NULL, evidence_finalized_at = NULL,
-                    report_json = NULL, cache_expires_at = NULL
+                    report_json = NULL, cache_expires_at = NULL,
+                    error_code = 'CLOUD_TASK_RESULT_EXPIRED', retryable = 0
                 WHERE evidence_bundle_json IS NOT NULL OR report_json IS NOT NULL
                 """
             ).rowcount

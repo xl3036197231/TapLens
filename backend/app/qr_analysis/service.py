@@ -96,6 +96,11 @@ class QrAnalysisService:
                     for item in payload.local_evidence.evidence
                     for value in (item.kind, item.title, item.detail)
                 ]
+                + [
+                    value
+                    for hint in payload.local_evidence.risk_hints
+                    for value in (hint.code, hint.message)
+                ]
             )
         except ValueError as error:
             raise AppError(

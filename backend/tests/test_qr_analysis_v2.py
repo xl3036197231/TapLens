@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient, Response
+from pydantic import ValidationError
 
 from app.ai.provider import ProviderResult
 from app.core.config import Settings
@@ -151,6 +152,51 @@ def test_qr_v2_rejects_raw_payload_in_local_evidence_before_quota(tmp_path) -> N
 
     assert response.status_code == 422
     assert response.json()["error"]["details"] == {"reason": "raw_payload_forbidden"}
+    with app.state.database.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM qr_analysis_tasks").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM daily_quota_usage").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("field", ("code", "message"))
+def test_qr_v2_rejects_sensitive_risk_hint_before_quota(tmp_path, field) -> None:
+    app = build_app(tmp_path)
+    token = login(app, f"QrV2_Risk_Hint_{field}")
+    body = request_body()
+    body["local_evidence"]["risk_hints"] = [
+        {
+            "code": "LOCAL_REVIEW",
+            "risk_level": "high",
+            "message": "已脱敏本地风险提示",
+            "evidence_ids": ["L01"],
+        }
+    ]
+    body["local_evidence"]["risk_hints"][0][field] = "password=SUPERSECRET"
+
+    response = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["details"] == {"reason": "raw_payload_forbidden"}
+    with app.state.database.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM qr_analysis_tasks").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM daily_quota_usage").fetchone()[0] == 0
+
+
+def test_qr_v2_rejects_risk_hint_referencing_cloud_evidence_before_quota(tmp_path) -> None:
+    app = build_app(tmp_path)
+    token = login(app, "QrV2_Risk_Hint_Provenance")
+    body = request_body()
+    body["local_evidence"]["risk_hints"] = [
+        {
+            "code": "LOCAL_REVIEW",
+            "risk_level": "high",
+            "message": "已脱敏本地风险提示",
+            "evidence_ids": ["C01"],
+        }
+    ]
+
+    response = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+
+    assert response.status_code == 422
     with app.state.database.connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM qr_analysis_tasks").fetchone()[0] == 0
         assert connection.execute("SELECT COUNT(*) FROM daily_quota_usage").fetchone()[0] == 0
@@ -305,6 +351,46 @@ def test_qr_v2_hmac_tamper_fails_before_provider(tmp_path, mutation) -> None:
 
     with pytest.raises(ValueError, match="HMAC mismatch"):
         repository.verify_finalized_bundle(tampered)
+    assert provider.calls == []
+
+
+def test_qr_v2_bundle_rejects_unknown_fields_before_signing(tmp_path) -> None:
+    provider = QrV2Provider()
+    app = build_app(tmp_path, provider)
+    token = login(app, "QrV2_Strict_Bundle")
+    created = request(app, "POST", "/api/v1/qr-analyses", token=token, json=request_body())
+    repository = app.state.qr_analysis_repository
+    record = repository.start(UUID(created.json()["task_id"]))
+    executor = QrAnalysisExecutor(repository, app.state.qr_fixture_catalog, provider)
+    cloud, limitations = executor.analyzer.analyze(
+        app.state.qr_fixture_catalog.cases[record.sample_id]
+    )
+    local = record.local_evidence["evidence"][0]
+    from app.qr_analysis.schemas import ServerEvidenceItem
+
+    bundle = executor._bundle(
+        record,
+        [
+            ServerEvidenceItem(
+                id=local["id"],
+                source="local",
+                observation_mode="device_static",
+                kind=local["kind"],
+                title=local["title"],
+                detail=local["detail"],
+            ),
+            *cloud,
+        ],
+        limitations,
+    ).model_dump(mode="json")
+    bundle["unexpected_contract_field"] = "must be rejected"
+
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        repository.finalize_evidence(
+            task_id=record.task_id,
+            evidence_bundle=bundle,
+        )
+    assert repository.get_by_task(record.task_id).evidence_bundle is None
     assert provider.calls == []
 
 
@@ -464,6 +550,60 @@ def test_qr_v2_cleanup_keeps_tombstone_and_forbids_replay(tmp_path) -> None:
     replay = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
     assert status["state"] == "result_expired"
     assert status["report"] is None and status["evidence_bundle"] is None
+    assert replay.status_code == 409
+    assert replay.json()["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+
+
+def test_qr_v2_cleanup_expires_failed_evidence_cache(tmp_path) -> None:
+    provider = RejectingQrV2Provider()
+    app = build_app(tmp_path, provider)
+    token = login(app, "QrV2_Failed_Expiry")
+    body = request_body()
+    created = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+    run_worker_once(app, provider)
+    before = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert before["state"] == "failed"
+    assert before["evidence_bundle"] is not None
+    assert before["cache_expires_at"] is not None
+
+    app.state.qr_analysis_repository.cleanup(datetime.now(UTC) + timedelta(days=2))
+    after = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert after["state"] == "result_expired"
+    assert after["evidence_bundle"] is None
+    assert after["report"] is None
+    assert after["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+    replay = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+    assert replay.status_code == 409
+    assert replay.json()["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+
+
+def test_qr_v2_cleanup_expires_outcome_unknown_evidence_cache(tmp_path) -> None:
+    provider = QrV2Provider()
+    app = build_app(tmp_path, provider)
+    token = login(app, "QrV2_Unknown_Expiry")
+    body = request_body()
+    created = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+    repository = app.state.qr_analysis_repository
+    run_worker_once(app, provider, stop_after_finalize=True)
+    record = repository.get_by_task(UUID(created.json()["task_id"]))
+    repository.mark_provider_dispatch(record.task_id)
+    assert repository.recover_interrupted() == (0, 1)
+    before = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert before["state"] == "outcome_unknown"
+    assert before["evidence_bundle"] is not None
+    assert before["cache_expires_at"] is not None
+
+    repository.cleanup(datetime.now(UTC) + timedelta(days=2))
+    after = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert after["state"] == "result_expired"
+    assert after["actions"] == {"poll_status": False, "repeat_post": False}
+    assert after["evidence_bundle"] is None
+    assert after["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+    replay = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
     assert replay.status_code == 409
     assert replay.json()["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
 

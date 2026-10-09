@@ -9,7 +9,10 @@ from app.core.errors import AppError
 from app.qr_analysis.analyzer import StaticQrAnalyzer
 from app.qr_analysis.catalog import QrFixtureCatalog
 from app.qr_analysis.schemas import (
+    ServerEvidenceBundle,
     ServerEvidenceItem,
+    ServerExecutionSummary,
+    ServerFixtureBinding,
     TrustedQrAiInput,
     TrustedReportContext,
     evidence_summary,
@@ -124,34 +127,44 @@ class QrAnalysisExecutor:
                 return True
             raise
 
-    def _bundle(self, record, items: list[ServerEvidenceItem], limitations: list[str]) -> dict[str, object]:
-        return {
-            "analysis_id": str(record.analysis_id),
-            "generated_at": _iso(datetime.now(UTC)),
-            "mode": "repository_fixture_static",
-            "fixture_binding": {
-                "sample_id": record.sample_id,
-                "catalog_schema_version": record.catalog_schema_version,
-                "catalog_revision": record.catalog_revision,
-                "manifest_schema_version": record.manifest_schema_version,
-                "payload_sha256": record.payload_sha256,
-                "analyzer_profile": record.analyzer_profile,
-                "request_claim_matches_catalog": True,
-                "image_received": False,
-                "publisher_verified": False,
-            },
-            "items": [item.model_dump(mode="json") for item in items],
-            "execution": {
-                "target_accessed": False, "app_launched": False, "message_sent": False,
-                "call_placed": False, "network_joined": False, "contact_imported": False,
-                "file_downloaded": False, "form_submitted": False,
-            },
-            "limitations": limitations,
-        }
+    def _bundle(
+        self,
+        record,
+        items: list[ServerEvidenceItem],
+        limitations: list[str],
+    ) -> ServerEvidenceBundle:
+        return ServerEvidenceBundle(
+            analysis_id=record.analysis_id,
+            generated_at=datetime.now(UTC),
+            mode="repository_fixture_static",
+            fixture_binding=ServerFixtureBinding(
+                sample_id=record.sample_id,
+                catalog_schema_version=record.catalog_schema_version,
+                catalog_revision=record.catalog_revision,
+                manifest_schema_version=record.manifest_schema_version,
+                payload_sha256=record.payload_sha256,
+                analyzer_profile=record.analyzer_profile,
+                request_claim_matches_catalog=True,
+                image_received=False,
+                publisher_verified=False,
+            ),
+            items=items,
+            execution=ServerExecutionSummary(
+                target_accessed=False,
+                app_launched=False,
+                message_sent=False,
+                call_placed=False,
+                network_joined=False,
+                contact_imported=False,
+                file_downloaded=False,
+                form_submitted=False,
+            ),
+            limitations=limitations,
+        )
 
     def _trusted_input(self, record) -> TrustedQrAiInput:
         bundle = self.repository.verify_finalized_bundle(record)
-        items = [ServerEvidenceItem.model_validate(item) for item in bundle["items"]]
+        items = bundle.items
         hard = []
         high_ids = [item.id for item in items if item.kind in {"intent_package_mismatch", "http_claim_mismatch", "apk_url"}]
         if high_ids:
@@ -190,7 +203,3 @@ def deterministic_report(record, trusted: TrustedQrAiInput) -> dict[str, object]
     }
     validate_schema(report)
     return report
-
-
-def _iso(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")

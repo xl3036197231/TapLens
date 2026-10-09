@@ -12,6 +12,7 @@ from app.qr_analysis.models import (
     QrAnalysisState,
     QrReservation,
 )
+from app.qr_analysis.schemas import ServerEvidenceBundle
 from app.storage.database import Database
 from app.storage.ai_calls import assert_cache_safe
 
@@ -150,11 +151,13 @@ class QrAnalysisRepository:
         self,
         *,
         task_id: UUID,
-        evidence_bundle: dict[str, object],
+        evidence_bundle: ServerEvidenceBundle | dict[str, object],
         now: datetime | None = None,
     ) -> QrAnalysisRecord:
         timestamp = _utc(now)
-        assert_cache_safe(evidence_bundle)
+        typed_bundle = ServerEvidenceBundle.model_validate(evidence_bundle)
+        canonical_bundle = typed_bundle.model_dump(mode="json")
+        assert_cache_safe(canonical_bundle)
         with self.database.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM qr_analysis_tasks WHERE task_id = ?", (str(task_id),)).fetchone()
@@ -163,25 +166,28 @@ class QrAnalysisRepository:
             record = row_to_record(row)
             if record.state is not QrAnalysisState.IN_PROGRESS or record.phase is not QrAnalysisPhase.STATIC_ANALYSIS or record.evidence_bundle is not None:
                 raise QrInvalidTransitionError
-            envelope = self._bundle_envelope(record, evidence_bundle, timestamp)
+            self._validate_bundle_binding(record, typed_bundle)
+            envelope = self._bundle_envelope(record, canonical_bundle, timestamp)
             digest = self._hmac(envelope, self.active_version)
             cursor = connection.execute(
                 """
                 UPDATE qr_analysis_tasks SET evidence_bundle_json = ?, bundle_digest = ?,
-                    bundle_digest_key_version = ?, evidence_finalized_at = ?, updated_at = ?
+                    bundle_digest_key_version = ?, evidence_finalized_at = ?,
+                    cache_expires_at = ?, updated_at = ?
                 WHERE task_id = ? AND state = 'in_progress' AND phase = 'static_analysis'
                   AND evidence_bundle_json IS NULL
                 """,
                 (
-                    json.dumps(evidence_bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-                    digest, self.active_version, _iso(timestamp), _iso(timestamp), str(task_id),
+                    json.dumps(canonical_bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+                    digest, self.active_version, _iso(timestamp),
+                    _iso(timestamp + self.cache_ttl), _iso(timestamp), str(task_id),
                 ),
             )
             if cursor.rowcount != 1:
                 raise QrInvalidTransitionError
             return row_to_record(connection.execute("SELECT * FROM qr_analysis_tasks WHERE task_id = ?", (str(task_id),)).fetchone())
 
-    def verify_finalized_bundle(self, record: QrAnalysisRecord) -> dict[str, object]:
+    def verify_finalized_bundle(self, record: QrAnalysisRecord) -> ServerEvidenceBundle:
         if record.evidence_bundle is None or record.evidence_finalized_at is None or record.bundle_digest is None or record.bundle_digest_key_version is None:
             raise ValueError("evidence bundle is not finalized")
         envelope = self._bundle_envelope(record, record.evidence_bundle, record.evidence_finalized_at)
@@ -191,7 +197,9 @@ class QrAnalysisRepository:
             raise ValueError("bundle digest key is unavailable") from None
         if not hmac.compare_digest(candidate, record.bundle_digest):
             raise ValueError("evidence bundle HMAC mismatch")
-        return record.evidence_bundle
+        typed_bundle = ServerEvidenceBundle.model_validate(record.evidence_bundle)
+        self._validate_bundle_binding(record, typed_bundle)
+        return typed_bundle
 
     def mark_provider_dispatch(self, task_id: UUID, now: datetime | None = None) -> QrAnalysisRecord:
         timestamp = _utc(now)
@@ -289,8 +297,12 @@ class QrAnalysisRepository:
         with self.database.connect() as connection:
             cleared = connection.execute(
                 """UPDATE qr_analysis_tasks SET state='result_expired', phase='complete',
-                   evidence_bundle_json=NULL, report_json=NULL, cache_expires_at=NULL, updated_at=?
-                   WHERE state='succeeded' AND cache_expires_at IS NOT NULL AND cache_expires_at <= ?""",
+                   evidence_bundle_json=NULL, bundle_digest=NULL,
+                   bundle_digest_key_version=NULL, evidence_finalized_at=NULL,
+                   report_json=NULL, cache_expires_at=NULL,
+                   error_code='CLOUD_TASK_RESULT_EXPIRED', retryable=0, updated_at=?
+                   WHERE state IN ('succeeded', 'failed', 'outcome_unknown')
+                     AND cache_expires_at IS NOT NULL AND cache_expires_at <= ?""",
                 (_iso(timestamp), _iso(timestamp)),
             ).rowcount
             compacted = connection.execute(
@@ -330,6 +342,29 @@ class QrAnalysisRepository:
 
     def _bundle_envelope(self, record: QrAnalysisRecord, bundle: dict[str, object], finalized_at: datetime) -> dict[str, object]:
         return {"binding_version": 1, "user_id": str(record.user_id), "analysis_id": str(record.analysis_id), "task_id": str(record.task_id), "evidence_finalized_at": _iso(finalized_at), "evidence_bundle": bundle}
+
+    @staticmethod
+    def _validate_bundle_binding(
+        record: QrAnalysisRecord,
+        bundle: ServerEvidenceBundle,
+    ) -> None:
+        binding = bundle.fixture_binding
+        if bundle.analysis_id != record.analysis_id or (
+            binding.sample_id,
+            binding.catalog_schema_version,
+            binding.catalog_revision,
+            binding.manifest_schema_version,
+            binding.payload_sha256,
+            binding.analyzer_profile,
+        ) != (
+            record.sample_id,
+            record.catalog_schema_version,
+            record.catalog_revision,
+            record.manifest_schema_version,
+            record.payload_sha256,
+            record.analyzer_profile,
+        ):
+            raise ValueError("evidence bundle binding mismatch")
 
     def _hmac(self, value: dict[str, object], version: int) -> str:
         secret = self.secrets.get(version)
