@@ -33,11 +33,12 @@ class AiPayloadSanitizer {
     final hardRisks = payload['hard_risk_findings'];
     final reportContext = _reportContext(payload['report_context']);
     final qrSummary = _qrSummary(input['qr_summary']);
+    final isQrRequest = qrSummary != null;
 
     return {
       if (reportContext != null) 'report_context': reportContext,
       'analysis_input': {
-        'claims_text': _safeText(input['claims_text']),
+        'claims_text': _safeText(input['claims_text'], qr: isQrRequest),
         if (qrSummary != null) 'qr_summary': qrSummary,
         'targets': targets
             .whereType<Map<String, dynamic>>()
@@ -45,29 +46,29 @@ class AiPayloadSanitizer {
               (item) => {
                 'type': item['type'],
                 'value': _safeTarget(item['value']),
-                'label': _safeText(item['label']),
+                'label': _safeText(item['label'], qr: isQrRequest),
                 'redacted': true,
               },
             )
             .toList(),
       },
-      'local_evidence': _evidenceSummary(local, 'L'),
-      'cloud_evidence': _evidenceSummary(cloud, 'C'),
+      'local_evidence': _evidenceSummary(local, 'L', qr: isQrRequest),
+      'cloud_evidence': isQrRequest ? null : _evidenceSummary(cloud, 'C'),
       'hard_risk_findings': hardRisks is List
           ? hardRisks
-                .map((item) {
-                  if (item is Map<String, dynamic>) {
-                    return {
-                      'code': _safeText(item['code']),
-                      'risk_level': _safeText(item['risk_level']),
-                      'message': _safeText(item['message']),
-                      'evidence_ids': _safeIds(item['evidence_ids']),
-                    };
-                  }
-                  return _safeText(item);
-                })
-                .where((item) => item != null)
-                .toList()
+              .map((item) {
+                if (item is Map<String, dynamic>) {
+                  return {
+                    'code': _safeText(item['code'], qr: isQrRequest),
+                    'risk_level': _safeText(item['risk_level']),
+                    'message': _safeText(item['message'], qr: isQrRequest),
+                    'evidence_ids': _safeIds(item['evidence_ids']),
+                  };
+                }
+                return _safeText(item);
+              })
+              .where((item) => item != null)
+              .toList()
           : <String>[],
     };
   }
@@ -164,7 +165,11 @@ class AiPayloadSanitizer {
     return {'analysis_id': id, 'created_at': createdAt};
   }
 
-  static Map<String, dynamic>? _evidenceSummary(Object? source, String prefix) {
+  static Map<String, dynamic>? _evidenceSummary(
+    Object? source,
+    String prefix, {
+    bool qr = false,
+  }) {
     if (source == null) return null;
     if (source is! Map<String, dynamic>) {
       throw const AiClientException(
@@ -201,9 +206,9 @@ class AiPayloadSanitizer {
           .map(
             (item) => {
               'id': item['id'],
-              'kind': _safeText(item['kind']),
-              'title': _safeText(item['title']),
-              'detail': _safeText(item['detail']),
+              'kind': _safeText(item['kind'], qr: qr),
+              'title': _safeText(item['title'], qr: qr),
+              'detail': _safeText(item['detail'], qr: qr),
             },
           )
           .toList(),
@@ -212,9 +217,9 @@ class AiPayloadSanitizer {
             .whereType<Map<String, dynamic>>()
             .map(
               (item) => {
-                'code': _safeText(item['code']),
+                'code': _safeText(item['code'], qr: qr),
                 'risk_level': _safeText(item['risk_level']),
-                'message': _safeText(item['message']),
+                'message': _safeText(item['message'], qr: qr),
                 'evidence_ids': _safeIds(item['evidence_ids']),
               },
             )
@@ -254,7 +259,7 @@ class AiPayloadSanitizer {
     );
   }
 
-  static String? _safeText(Object? raw) {
+  static String? _safeText(Object? raw, {bool qr = false}) {
     if (raw is! String) return null;
     var value = raw;
     value = value.replaceAll(
@@ -292,6 +297,50 @@ class AiPayloadSanitizer {
           ? '[REDACTED_URL]'
           : uri.replace(query: '', fragment: '', userInfo: '').toString();
     });
+    if (qr) value = _safeQrText(value);
+    return value;
+  }
+
+  static String _safeQrText(String raw) {
+    var value = raw;
+    value = value.replaceAllMapped(
+      RegExp(
+        r'\b(?:student[_-]?id|account[_-]?id|user[_-]?id)\s*[:=]\s*[^\s&#;,}]+',
+        caseSensitive: false,
+      ),
+      (_) => '[IDENTIFIER_REDACTED]',
+    );
+    value = value.replaceAllMapped(
+      RegExp(r'目标包名\s*[:：]\s*[^\r\n]+', caseSensitive: false),
+      (_) => '目标包名：[已隐藏]',
+    );
+    value = value.replaceAll(
+      RegExp(r'BEGIN:VCARD[\s\S]*?(?:END:VCARD|$)', caseSensitive: false),
+      '[CONTACT_DATA_REDACTED]',
+    );
+    value = value.replaceAll(
+      RegExp(
+        r'(?:https?|intent)%3a%2f%2f[^\s<>"\u0027]+',
+        caseSensitive: false,
+      ),
+      '[LINK_REDACTED]',
+    );
+    value = value.replaceAll(
+      RegExp(r'\b[a-z][a-z0-9+.-]{1,20}://[^\s<>"\u0027]+',
+          caseSensitive: false),
+      '[LINK_REDACTED]',
+    );
+    value = value.replaceAll(
+      RegExp(
+        r'\b(?:intent|wifi|smsto|sms|tel|mailto):[^\s<>"\u0027]+',
+        caseSensitive: false,
+      ),
+      '[QR_ACTION_REDACTED]',
+    );
+    value = value.replaceAll(
+      RegExp(r'(?<![A-Za-z0-9])\+?\d[\d\s-]{5,}\d(?![A-Za-z0-9])'),
+      '[NUMBER_REDACTED]',
+    );
     return value;
   }
 }

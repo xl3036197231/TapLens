@@ -47,7 +47,7 @@ class QrAiReportInput {
     final targetValue =
         '${targetType == 'deep_link' ? 'taplens-deeplink' : 'taplens-qr'}:$payloadType';
 
-    final payload = AiPayloadSanitizer.sanitize({
+    final payload = <String, dynamic>{
       'report_context': {
         'analysis_id': analysisId,
         'created_at': createdAtText,
@@ -82,7 +82,7 @@ class QrAiReportInput {
       },
       'cloud_evidence': null,
       'hard_risk_findings': hardRisks,
-    });
+    };
 
     final hardRiskLevel = hardRisks.isEmpty ? null : 'high';
     final createdAt = DateTime.parse(createdAtText).toUtc();
