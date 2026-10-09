@@ -255,6 +255,9 @@ class QrAnalysisCoordinator {
     if (stored.taskId != null && stored.taskId != status.taskId) {
       throw const FormatException('状态响应 task_id 与本地记录不一致。');
     }
+    if (!_allowsStatusTransition(stored.serverState, status.state)) {
+      throw const FormatException('二维码云端状态发生非法回退；保留最近一次有效结果。');
+    }
     final updated = await attempts.update(
       stored.copyWith(
         taskId: status.taskId,
@@ -286,6 +289,41 @@ class QrAnalysisCoordinator {
       throw const FormatException('二维码状态路径不在 API 同源。');
     }
     return uri;
+  }
+
+  /// Status reads may skip intermediate states, but may never move backwards.
+  /// `outcome_unknown` can settle later because the provider outcome may arrive
+  /// after the initial dispatch timed out. Cached terminal results may later
+  /// become `result_expired`; that tombstone is final.
+  static bool _allowsStatusTransition(
+    QrAnalysisState? previous,
+    QrAnalysisState next,
+  ) {
+    if (previous == null || previous == next) return true;
+    return switch (previous) {
+      QrAnalysisState.queued => {
+          QrAnalysisState.inProgress,
+          QrAnalysisState.succeeded,
+          QrAnalysisState.failed,
+          QrAnalysisState.outcomeUnknown,
+          QrAnalysisState.resultExpired,
+        }.contains(next),
+      QrAnalysisState.inProgress => {
+          QrAnalysisState.succeeded,
+          QrAnalysisState.failed,
+          QrAnalysisState.outcomeUnknown,
+          QrAnalysisState.resultExpired,
+        }.contains(next),
+      QrAnalysisState.outcomeUnknown => {
+          QrAnalysisState.succeeded,
+          QrAnalysisState.failed,
+          QrAnalysisState.resultExpired,
+        }.contains(next),
+      QrAnalysisState.succeeded ||
+      QrAnalysisState.failed =>
+        next == QrAnalysisState.resultExpired,
+      QrAnalysisState.resultExpired => false,
+    };
   }
 
   static String createAnalysisId([Random? random]) {

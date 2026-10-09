@@ -375,6 +375,16 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
               ],
             ),
             const SizedBox(height: 14),
+            _InfoCard(
+              title: '本地规则预检（L01）',
+              lines: [
+                ('识别类型', widget.inspection.title),
+                ('可能行为', widget.inspection.behavior),
+                ('建议', widget.inspection.advice),
+                ('执行状态', '仅静态解析；TapLens 未执行载荷中的操作'),
+              ],
+            ),
+            const SizedBox(height: 14),
             Text('选择分析方式', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
             SegmentedButton<_QrModelChoice>(
