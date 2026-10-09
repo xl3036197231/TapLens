@@ -13,7 +13,10 @@ from app.tasks.executor import TaskExecutor
 from app.tasks.service import TaskService
 from app.qr_analysis.catalog import QrFixtureCatalog
 from app.qr_analysis.executor import QrAnalysisExecutor
-from app.qr_analysis.fake_provider import build_qr_analysis_provider
+from app.qr_analysis.fake_provider import (
+    build_qr_analysis_provider,
+    expire_qr_fake_results,
+)
 from app.storage.qr_analyses import QrAnalysisRepository
 
 
@@ -68,6 +71,7 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         qr_queued = qr_repository.list_queued(limit=10)
         for task in qr_queued:
             await qr_executor.execute(task.task_id)
+        expire_qr_fake_results(qr_repository, settings)
         now = datetime.now(UTC)
         expiring_artifacts = repository.list_due_for_expiry(now)
         service.expire_due(now)

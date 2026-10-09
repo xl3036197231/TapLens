@@ -26,6 +26,19 @@ Fake Provider 不进行任何网络请求，固定返回合法报告和用量
 `40 + 20 = 60`，模型名为 `taplens/qr-v2-fake`。配置在 staging 或 production
 会启动失败；真实 LLM 与 Fake Provider 也不能同时启用。
 
+补充的故障场景通过 `--scenario` 显式选择：
+
+| 场景 | HTTP GET 最终状态 | 稳定错误码 |
+| --- | --- | --- |
+| `success` | `succeeded` | 无 |
+| `failure` | `failed` | `AI_PROVIDER_UNAVAILABLE` |
+| `timeout` | `outcome_unknown` | `AI_OUTCOME_UNKNOWN` |
+| `result_expired` | `result_expired` | `CLOUD_TASK_RESULT_EXPIRED` |
+
+场景只能在二维码 Fake Provider 开启时配置；每个场景默认使用独立数据库。过期场景在
+Worker 完成确定性报告后推进测试时钟并执行与正式清理相同的 repository cleanup，不增加
+公开调试路由，也不允许客户端指定服务端故障状态。
+
 ## B 独立验证
 
 启动服务后执行：
@@ -37,12 +50,16 @@ Fake Provider 不进行任何网络请求，固定返回合法报告和用量
 2026-10-10 的进程级验证结果：
 
 ```text
-QR v2 HTTP Mock PASS; states=queued -> succeeded
+QR v2 HTTP Mock PASS; expected=succeeded; states=queued -> succeeded
+QR v2 HTTP Mock PASS; expected=failed; states=queued -> failed
+QR v2 HTTP Mock PASS; expected=outcome_unknown; states=queued -> outcome_unknown
+QR v2 HTTP Mock PASS; expected=result_expired; states=queued -> result_expired
 Provider=taplens/qr-v2-fake; network_model_calls=0
 ```
 
 冒烟脚本实际执行注册、登录、`POST /api/v1/qr-analyses`、状态轮询，并核对
-`Location`、`Retry-After`、成功终态、顶层五字段用量与报告用量镜像。
+`Location`、`Retry-After`、预期状态、永久禁止重复 POST、稳定错误码、过期后的报告与
+证据清除，以及成功状态的顶层五字段用量与报告用量镜像。
 
 ## A/B 联调矩阵
 

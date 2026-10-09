@@ -1,7 +1,10 @@
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 
 from app.ai.provider import AiProvider, ProviderResult, SchoolOpenAiProvider
 from app.core.config import Settings
+from app.core.errors import AppError
+from app.storage.qr_analyses import QrAnalysisRepository
 
 
 class DeterministicQrFakeProvider:
@@ -9,7 +12,23 @@ class DeterministicQrFakeProvider:
 
     model = "taplens/qr-v2-fake"
 
+    def __init__(self, scenario: str = "success") -> None:
+        self.scenario = scenario
+
     async def analyze(self, payload: dict[str, object]) -> ProviderResult:
+        if self.scenario == "failure":
+            raise AppError(
+                code="AI_PROVIDER_UNAVAILABLE",
+                message="本地 Fake Provider 模拟稳定失败",
+                status_code=503,
+            )
+        if self.scenario == "timeout":
+            raise AppError(
+                code="AI_PROVIDER_TIMEOUT",
+                message="本地 Fake Provider 模拟结果未知",
+                status_code=504,
+                retryable=True,
+            )
         trusted = deepcopy(payload)
         context = trusted["report_context"]
         analysis_input = trusted["analysis_input"]
@@ -77,7 +96,25 @@ class DeterministicQrFakeProvider:
 
 def build_qr_analysis_provider(settings: Settings) -> AiProvider | None:
     if settings.qr_fake_provider_enabled:
-        return DeterministicQrFakeProvider()
+        return DeterministicQrFakeProvider(settings.qr_fake_provider_scenario)
     if settings.llm_enabled:
         return SchoolOpenAiProvider(settings)
     return None
+
+
+def expire_qr_fake_results(
+    repository: QrAnalysisRepository,
+    settings: Settings,
+    *,
+    now: datetime | None = None,
+) -> int:
+    if not (
+        settings.qr_fake_provider_enabled
+        and settings.qr_fake_provider_scenario == "result_expired"
+    ):
+        return 0
+    timestamp = (now or datetime.now(UTC)) + timedelta(
+        hours=settings.ai_response_cache_hours + 1
+    )
+    cleared, _ = repository.cleanup(timestamp)
+    return cleared

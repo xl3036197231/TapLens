@@ -86,6 +86,21 @@ cd backend
 .venv/bin/python scripts/smoke_qr_v2_mock.py
 ```
 
+异常状态使用独立场景启动，并在冒烟脚本中声明预期状态：
+
+```bash
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario failure
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state failed
+
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario timeout
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state outcome_unknown
+
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario result_expired
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state result_expired
+```
+
+每个场景默认使用独立 SQLite 文件。切换场景前停止上一组 API/Worker，避免端口冲突。
+
 客户端连接 `http://127.0.0.1:8000`；真机局域网联调时可显式传入
 `--host 0.0.0.0`，并将客户端 origin 配置为运行后端电脑的局域网地址。不要把该模式
 部署到 ECS，也不要把 `TAPLENS_QR_FAKE_PROVIDER_ENABLED=true` 写入 staging 或

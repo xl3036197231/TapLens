@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     test_allowed_origins: str = ""
     llm_enabled: bool = False
     qr_fake_provider_enabled: bool = False
+    qr_fake_provider_scenario: Literal[
+        "success", "failure", "timeout", "result_expired"
+    ] = "success"
     llm_base_url: str = ""
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
@@ -94,6 +97,8 @@ class Settings(BaseSettings):
             raise ValueError("staging and production forbid qr_fake_provider_enabled")
         if self.llm_enabled and self.qr_fake_provider_enabled:
             raise ValueError("llm_enabled and qr_fake_provider_enabled are mutually exclusive")
+        if not self.qr_fake_provider_enabled and self.qr_fake_provider_scenario != "success":
+            raise ValueError("qr_fake_provider_scenario requires qr_fake_provider_enabled")
         self.public_base_url = self.public_base_url.rstrip("/")
         self.test_allowed_origins = ",".join(dict.fromkeys(normalized_test_origins))
         if self.llm_enabled:

@@ -16,9 +16,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
+        "--scenario",
+        choices=("success", "failure", "timeout", "result_expired"),
+        default="success",
+    )
+    parser.add_argument(
         "--database",
         type=Path,
-        default=BACKEND_ROOT / "data/qr-v2-mock.db",
+        default=None,
     )
     return parser.parse_args()
 
@@ -36,17 +41,19 @@ def stop(processes: list[subprocess.Popen[bytes]]) -> None:
 
 def main() -> int:
     args = parse_args()
-    args.database.parent.mkdir(parents=True, exist_ok=True)
+    database = args.database or BACKEND_ROOT / f"data/qr-v2-mock-{args.scenario}.db"
+    database.parent.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     environment.update(
         TAPLENS_ENVIRONMENT="development",
         TAPLENS_HOST=args.host,
         TAPLENS_PORT=str(args.port),
-        TAPLENS_DATABASE_PATH=str(args.database.resolve()),
+        TAPLENS_DATABASE_PATH=str(database.resolve()),
         TAPLENS_PUBLIC_BASE_URL=f"http://{args.host}:{args.port}",
         TAPLENS_JWT_SECRET="qr-v2-mock-only-jwt-secret-32-bytes-minimum",
         TAPLENS_LLM_ENABLED="false",
         TAPLENS_QR_FAKE_PROVIDER_ENABLED="true",
+        TAPLENS_QR_FAKE_PROVIDER_SCENARIO=args.scenario,
     )
     commands = [
         [

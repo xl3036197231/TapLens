@@ -15,7 +15,10 @@ from app.core.config import Settings
 from app.main import create_app
 from app.qr_analysis.catalog import QrFixtureCatalog
 from app.qr_analysis.executor import QrAnalysisExecutor
-from app.qr_analysis.fake_provider import build_qr_analysis_provider
+from app.qr_analysis.fake_provider import (
+    build_qr_analysis_provider,
+    expire_qr_fake_results,
+)
 from app.qr_analysis.models import QrAnalysisState
 
 
@@ -319,6 +322,71 @@ def test_qr_v2_configured_fake_provider_completes_without_network(tmp_path) -> N
     }
 
 
+@pytest.mark.parametrize(
+    ("scenario", "expected_state", "expected_error"),
+    (
+        ("failure", "failed", "AI_PROVIDER_UNAVAILABLE"),
+        ("timeout", "outcome_unknown", "AI_OUTCOME_UNKNOWN"),
+    ),
+)
+def test_qr_v2_configured_fake_provider_exposes_failure_states_over_api(
+    tmp_path, scenario, expected_state, expected_error
+) -> None:
+    settings = Settings(
+        environment="test",
+        database_path=tmp_path / "taplens.db",
+        jwt_secret=TEST_SECRET,
+        qr_fake_provider_enabled=True,
+        qr_fake_provider_scenario=scenario,
+    )
+    app = create_app(settings)
+    app.state.database.initialize()
+    token = login(app, f"QrV2_Fake_{scenario}")
+    created = request(
+        app,
+        "POST",
+        "/api/v1/qr-analyses",
+        token=token,
+        json=request_body(),
+    )
+
+    run_worker_once(app, build_qr_analysis_provider(settings))
+    status = request(app, "GET", created.json()["status_path"], token=token).json()
+
+    assert status["state"] == expected_state
+    assert status["error"]["code"] == expected_error
+    assert status["actions"]["repeat_post"] is False
+    assert status["usage"] == {"status": "unknown"}
+
+
+def test_qr_v2_configured_fake_provider_exposes_result_expired_over_api(tmp_path) -> None:
+    settings = Settings(
+        environment="test",
+        database_path=tmp_path / "taplens.db",
+        jwt_secret=TEST_SECRET,
+        qr_fake_provider_enabled=True,
+        qr_fake_provider_scenario="result_expired",
+    )
+    app = create_app(settings)
+    app.state.database.initialize()
+    token = login(app, "QrV2_Fake_Result_Expired")
+    body = request_body()
+    created = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+
+    run_worker_once(app, build_qr_analysis_provider(settings))
+    assert expire_qr_fake_results(app.state.qr_analysis_repository, settings) == 1
+    status = request(app, "GET", created.json()["status_path"], token=token).json()
+    replay = request(app, "POST", "/api/v1/qr-analyses", token=token, json=body)
+
+    assert status["state"] == "result_expired"
+    assert status["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+    assert status["report"] is None
+    assert status["evidence_bundle"] is None
+    assert status["actions"] == {"poll_status": False, "repeat_post": False}
+    assert replay.status_code == 409
+    assert replay.json()["error"]["code"] == "CLOUD_TASK_RESULT_EXPIRED"
+
+
 def test_qr_v2_fake_provider_cannot_be_combined_with_real_llm() -> None:
     with pytest.raises(ValueError, match="mutually exclusive"):
         Settings(
@@ -329,6 +397,15 @@ def test_qr_v2_fake_provider_cannot_be_combined_with_real_llm() -> None:
             llm_base_url="https://provider.example.test/v1",
             llm_api_key="fake-key",
             llm_model="fake-model",
+        )
+
+
+def test_qr_v2_fake_scenario_requires_fake_provider() -> None:
+    with pytest.raises(ValueError, match="requires qr_fake_provider_enabled"):
+        Settings(
+            environment="test",
+            jwt_secret=TEST_SECRET,
+            qr_fake_provider_scenario="failure",
         )
 
 
