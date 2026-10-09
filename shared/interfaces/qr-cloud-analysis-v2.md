@@ -46,26 +46,35 @@ payload。固定样例由服务端读取仓库副本；未来若启用正式 HTT
 固定样例请求使用：
 
 - `sample_id`：`QR01`–`QR13` 中的固定 ID；
+- `catalog_schema_version`：服务端静态分析目录版本，v2 固定为 `2.0`；
 - `manifest_schema_version`：客户端所使用清单的版本；
 - `payload_sha256`：清单中 canonical payload 的 UTF-8 原始字节 SHA-256，小写十六进制；
 - `mode`：必须与服务端清单中该样例的允许模式一致。
 
 客户端固定样例识别规则：
 
-1. 构建时从 manifest 生成 QR02–QR13 的 `payload_sha256 → sample_id` 只读索引，并用测试
+1. 构建时从 `shared/fixtures/qr/qr-cloud-fixture-catalog-v2.json` 生成 QR02–QR13 的
+   `payload_sha256 → sample_id` 只读索引，并用测试
    保证生成结果未漂移；无需把 canonical payload 作为新的运行时请求字段。
 2. 哈希输入是扫码器返回的**完整原始解码文本的 UTF-8 原始字节**。
 3. 计算前不得 `trim`、大小写转换、URL decode、换行转换、Unicode 规范化或 URL 规范化。
 4. 只有摘要与索引完全匹配才选择固定 `sample_id`；否则必须进入
    `client_sanitized_summary` 兼容路径。
-5. `manifest_schema_version` 来自生成索引，不得由页面自由填写。
+5. `catalog_schema_version` 和 `manifest_schema_version` 来自生成索引，不得由页面自由填写。
 
-服务端必须使用自身仓库清单重新计算摘要。摘要不一致、样例不存在或模式不一致时，在
+服务端 canonical payload 的唯一运行时来源是
+`shared/fixtures/qr/qr-cloud-fixture-catalog-v2.json`。该目录固定包含 QR02–QR13、分析器
+profile、网络/外部动作 deny 策略和 payload SHA-256；其 `source_manifest` 字段钉定生成它的
+集成主线与 manifest 版本。实现测试必须逐项核对目录 payload 哈希，并在集成 main 已包含
+QR12/QR13 manifest 和 PNG 后才允许启用这两项。
+
+服务端必须使用自身目录重新计算摘要。摘要不一致、样例不存在或模式不一致时，在
 创建 Worker 任务或调用 Provider 前拒绝。服务端不能使用客户端上传的预览文字替代
 canonical payload。
 
-摘要匹配只能证明“客户端声明的解码结果与固定 fixture 相同”，不能证明服务端看过用户
-扫描的图片、验证了图片来源或识别了真实世界发布者。所有 `repository_fixture_static`
+请求匹配只能证明“请求中的公开 sample_id、版本和摘要字段与服务端固定目录条目一致”，
+不能证明客户端发生过解码或扫码，也不能证明服务端看过用户扫描的图片、验证了图片来源
+或识别了真实世界发布者。所有 `repository_fixture_static`
 证据必须标注为“仓库固定样例的服务端静态解析”，不得写成“云端重新扫描二维码图片”。
 
 ## 4. 创建接口
@@ -83,6 +92,7 @@ canonical payload。
   "created_at": "2026-10-09T12:00:00.000000Z",
   "sample_ref": {
     "sample_id": "QR02",
+    "catalog_schema_version": "2.0",
     "manifest_schema_version": "1.0",
     "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7"
   },
@@ -111,7 +121,7 @@ canonical payload。
 约束：
 
 - `schema_version` 固定为 `2.0`；未知字段严格拒绝。
-- `analysis_id`、规范化 `created_at`、`sample_ref`、`mode`、`ai_mode` 和本地证据摘要全部
+- `analysis_id`、规范化 `created_at`、完整 `sample_ref`、`mode`、`ai_mode` 和本地证据摘要全部
   进入幂等 HMAC。
 - `ai_mode` 只能为 `none` 或 `school`。自定义模型继续由手机直连，不能把用户 Key 发送
   到后端。
@@ -147,7 +157,7 @@ canonical payload。
 - `created_at` 的完整原始 RFC 3339 文本；
 - 规范化 API origin；
 - 确定性 `status_path=/api/v1/qr-analyses/{analysis_id}/status`；
-- `sample_id`、`manifest_schema_version`、`payload_sha256`；
+- `sample_id`、`catalog_schema_version`、`manifest_schema_version`、`payload_sha256`；
 - `mode`、`ai_mode`；
 - consent 布尔值；
 - `request_body_sha256`：实际将发送的 UTF-8 JSON 正文字节 SHA-256；
@@ -206,7 +216,7 @@ userinfo、query 或 fragment 时客户端必须拒绝。写盘失败、读回�
 `report.created_at` 必须逐字复用创建请求中的原始 `created_at`，不能只按同一时刻重新
 格式化。状态 `updated_at` 和证据 `generated_at` 则使用服务端规范 UTC 文本。
 
-GET 返回 404 `QR_ANALYSIS_NOT_FOUND` 或任务属于其他用户时，不增加第七种 state。客户端
+GET 返回 404 `CLOUD_TASK_NOT_FOUND` 或任务属于其他用户时，不增加第七种 state。客户端
 必须保留本地防重记录、显示“状态待核实”并继续禁止 POST；只有用户显式放弃旧上下文后
 才能开始新的、重新确认的分析。
 
@@ -245,7 +255,9 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
   "mode": "repository_fixture_static",
   "fixture_binding": {
     "sample_id": "QR02",
-    "payload_digest_matched": true,
+    "catalog_schema_version": "2.0",
+    "manifest_schema_version": "1.0",
+    "request_claim_matches_catalog": true,
     "image_received": false,
     "publisher_verified": false
   },
@@ -298,9 +310,29 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 - `observation_mode` 只能为 `device_static`、`server_static`、`controlled_browser`。
 - `server_static` 不得声称访问、执行或验证了真实目标。
 - `controlled_browser` 只用于确实经过浏览器 Worker 的证据；当前仅 QR01。
-- `fixture_binding` 必须明确图片未上传、发布者未验证；摘要匹配不能升级为来源认证。
+- `fixture_binding` 必须明确它只是请求声明与目录匹配、图片未上传、发布者未验证；目录
+  匹配不能升级为客户端解码证明、扫码证明或来源认证。
 - 证据 `detail` 必须脱敏、可展示、可持久化，不能包含上述禁止值。
 - AI 只能引用 bundle 中存在的 ID；模型新增、改写或遗漏证据 ID 时守卫拒绝缓存。
+
+### 可信 Cxx 内部路径
+
+公开的 `/api/v1/qr-analyses` 创建 Schema 不定义 `cloud_evidence` 或 Cxx 字段；公开的
+`/api/v1/ai/analyze` 继续按 v1 规则拒绝二维码请求中的客户端 Cxx/cloud_evidence。后端
+只能通过以下内部路径把 Cxx 交给 Provider 和报告守卫：
+
+1. 静态分析器返回进程内的强类型 `ServerEvidenceBundle`，调用方不能传入任意字典替代；
+2. 服务层验证任务 owner、analysis ID、fixture catalog 版本/摘要、任务 phase 和分析器
+   profile 后，在同一事务中持久化脱敏 bundle、bundle HMAC 和 `evidence_finalized_at`；
+3. 内部 AI 组装器只按 `(user_id, analysis_id, task_id)` 从仓库重新加载已 finalized 的
+   bundle，并校验 HMAC；不得接收 API handler 提供的 cloud evidence 参数；
+4. 组装器从该 bundle 推导允许的 Lxx/Cxx 集合，再调用现有报告守卫；Provider 返回的
+   evidence ID 必须与集合完全一致，不能新增或改写 Cxx；
+5. Provider 派发标记必须晚于 bundle finalized 事务提交。bundle 缺失、未 finalized、HMAC
+   不一致或任务身份不一致时，在 Provider 前以 `CLOUD_EVIDENCE_BUILD_FAILED` 终止。
+
+因此“内容看起来像 C01”不是可信来源；只有由后端分析器生成、事务持久化并经 HMAC/任务
+身份复核的 bundle 才能进入内部 AI 路径。
 
 ## 8. 后端编排与幂等
 
@@ -320,7 +352,7 @@ canonical payload 指向淘宝，但不得访问淘宝。只有单独经 D 放�
 - Provider 派发前必须已有完整、持久化的 `evidence_bundle`。
 - AI 不得获得工具调用能力，也不得决定是否访问 URL。
 - `(user_id, analysis_id)` 是唯一业务幂等键；改变任何绑定输入返回
-  `QR_ANALYSIS_INPUT_CONFLICT`。
+  `CLOUD_ANALYSIS_INPUT_CONFLICT`。
 - 相同请求重放返回原任务/缓存，不能再次解析、扣额度或派发 Provider。
 - Provider 派发后的超时进入 `outcome_unknown`，禁止第二次派发。
 - 24 小时后清理报告缓存；30 天后压缩可恢复元数据；HMAC 防重放墓碑永久保留。
@@ -347,22 +379,28 @@ UI 文案按路径固定为：
 
 ## 9. 错误合同
 
+规范示例见 `shared/fixtures/qr/qr-cloud-analysis-v2-errors.json`；每个 `error` 对象必须通过
+`shared/contracts/common.schema.json#/$defs/error`。
+
 | HTTP | code | retryable | 含义 |
 |---|---|---|---|
-| 400 | `QR_ANALYSIS_MODE_BLOCKED` | false | 样例不允许所选分析模式 |
-| 401 | `AUTH_REQUIRED` | false | 登录无效 |
-| 409 | `QR_ANALYSIS_IN_PROGRESS` | false | 已有相同分析正在进行，只读 GET |
-| 409 | `QR_ANALYSIS_INPUT_CONFLICT` | false | ID 已绑定不同输入，需新上下文和再次确认 |
-| 409 | `QR_OUTCOME_UNKNOWN` | false | Provider 结果待核实，只读 GET |
-| 409 | `QR_RESULT_EXPIRED` | false | 结果已清理，禁止重新分析或计费 |
-| 422 | `QR_FIXTURE_NOT_FOUND` | false | 固定样例不存在 |
-| 422 | `QR_FIXTURE_DIGEST_MISMATCH` | false | 客户端清单与服务端不一致 |
-| 422 | `QR_RAW_PAYLOAD_FORBIDDEN` | false | 当前 HTTP 合同禁止图片或原始 payload |
-| 503 | `QR_ANALYZER_UNAVAILABLE` | true | 未派发 Provider 的分析器暂时不可用 |
+| 400/422 | `CLOUD_REQUEST_INVALID` | false | 模式、fixture、版本、摘要或字段无效；`details.reason` 为稳定原因枚举 |
+| 401 | `AUTH_TOKEN_MISSING` / `AUTH_TOKEN_INVALID` / `AUTH_TOKEN_EXPIRED` | false | 登录凭据对应错误 |
+| 409 | `CLOUD_TASK_INVALID_STATE` | false | 已有相同分析正在进行，只读 GET |
+| 409 | `CLOUD_ANALYSIS_INPUT_CONFLICT` | false | ID 已绑定不同输入，需新上下文和再次确认 |
+| 409 | `AI_OUTCOME_UNKNOWN` | false | Provider 结果待核实，只读 GET |
+| 409 | `CLOUD_TASK_RESULT_EXPIRED` | false | 结果已清理，禁止重新分析或计费 |
+| 404 | `CLOUD_TASK_NOT_FOUND` | false | 状态不存在或不属于当前用户；继续禁止 POST |
+| 503 | `CLOUD_EVIDENCE_BUILD_FAILED` | true | 未派发 Provider 的分析器或证据构建失败 |
 
-错误响应继续使用统一 `error.code/message/retryable/details` 结构。所有 409 必须返回
+`CLOUD_REQUEST_INVALID` 的 `details.reason` 只能为 `mode_blocked`、`fixture_not_found`、
+`catalog_version_mismatch`、`manifest_version_mismatch`、`fixture_digest_mismatch`、
+`raw_image_forbidden`、`raw_payload_forbidden` 或 `client_cloud_evidence_forbidden`。
+
+错误响应继续使用现有统一 `error.code/message/retryable/details` 结构和已登记的责任前缀，
+不新增 `QR_*` 前缀。所有 409 必须返回
 `status_path` 和 `poll_after_seconds`；客户端不得因 `retryable=true` 自动重复 POST。
-`QR_ANALYZER_UNAVAILABLE` 只能在用户重新确认并建立新的分析上下文后人工重试。
+`CLOUD_EVIDENCE_BUILD_FAILED` 只能在用户重新确认并建立新的分析上下文后人工重试。
 
 ## 10. 隐私、日志与持久化
 

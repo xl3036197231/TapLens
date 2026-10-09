@@ -85,7 +85,7 @@
         },
         "cache_expires_at": null,
         "error": {
-          "code": "QR_ANALYZER_UNAVAILABLE",
+          "code": "CLOUD_EVIDENCE_BUILD_FAILED",
           "message": "二维码静态分析器暂时不可用",
           "retryable": true,
           "details": null
@@ -116,7 +116,9 @@
           "mode": "repository_fixture_static",
           "fixture_binding": {
             "sample_id": "QR02",
-            "payload_digest_matched": true,
+            "catalog_schema_version": "2.0",
+            "manifest_schema_version": "1.0",
+            "request_claim_matches_catalog": true,
             "image_received": false,
             "publisher_verified": false
           },
@@ -194,7 +196,9 @@
           "mode": "repository_fixture_static",
           "fixture_binding": {
             "sample_id": "QR02",
-            "payload_digest_matched": true,
+            "catalog_schema_version": "2.0",
+            "manifest_schema_version": "1.0",
+            "request_claim_matches_catalog": true,
             "image_received": false,
             "publisher_verified": false
           },
@@ -236,7 +240,7 @@
         },
         "cache_expires_at": null,
         "error": {
-          "code": "QR_OUTCOME_UNKNOWN",
+          "code": "AI_OUTCOME_UNKNOWN",
           "message": "模型请求结果待核实",
           "retryable": false,
           "details": null
@@ -273,7 +277,7 @@
         },
         "cache_expires_at": null,
         "error": {
-          "code": "QR_RESULT_EXPIRED",
+          "code": "CLOUD_TASK_RESULT_EXPIRED",
           "message": "缓存结果已清除",
           "retryable": false,
           "details": null
@@ -285,7 +289,7 @@
       "http_status": 404,
       "body": {
         "error": {
-          "code": "QR_ANALYSIS_NOT_FOUND",
+          "code": "CLOUD_TASK_NOT_FOUND",
           "message": "未找到二维码分析状态",
           "retryable": false,
           "details": null

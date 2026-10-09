@@ -1,0 +1,106 @@
+{
+  "fixture_version": "2.0",
+  "source": "qr-cloud-analysis-v2-contract",
+  "contains_secrets": false,
+  "normative": true,
+  "examples": [
+    {
+      "name": "fixture_digest_mismatch",
+      "http_status": 422,
+      "body": {
+        "error": {
+          "code": "CLOUD_REQUEST_INVALID",
+          "message": "固定样例摘要与服务端目录不一致",
+          "retryable": false,
+          "details": {
+            "reason": "fixture_digest_mismatch"
+          }
+        }
+      }
+    },
+    {
+      "name": "in_progress",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "CLOUD_TASK_INVALID_STATE",
+          "message": "二维码分析仍在进行，请查询状态",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/qr-analyses/00000000-0000-4000-8000-000000000202/status",
+            "poll_after_seconds": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "input_conflict",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "CLOUD_ANALYSIS_INPUT_CONFLICT",
+          "message": "analysis_id 已绑定到不同二维码分析输入",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/qr-analyses/00000000-0000-4000-8000-000000000202/status",
+            "poll_after_seconds": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "provider_outcome_unknown",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "AI_OUTCOME_UNKNOWN",
+          "message": "模型请求结果待核实",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/qr-analyses/00000000-0000-4000-8000-000000000202/status",
+            "poll_after_seconds": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "result_expired",
+      "http_status": 409,
+      "body": {
+        "error": {
+          "code": "CLOUD_TASK_RESULT_EXPIRED",
+          "message": "缓存结果已清除",
+          "retryable": false,
+          "details": {
+            "status_path": "/api/v1/qr-analyses/00000000-0000-4000-8000-000000000202/status",
+            "poll_after_seconds": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "not_found_or_other_owner",
+      "http_status": 404,
+      "body": {
+        "error": {
+          "code": "CLOUD_TASK_NOT_FOUND",
+          "message": "未找到二维码分析状态",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "evidence_build_failed",
+      "http_status": 503,
+      "body": {
+        "error": {
+          "code": "CLOUD_EVIDENCE_BUILD_FAILED",
+          "message": "二维码云端证据生成失败",
+          "retryable": true,
+          "details": null
+        }
+      }
+    }
+  ]
+}

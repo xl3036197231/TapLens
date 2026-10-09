@@ -1,0 +1,117 @@
+{
+  "schema_version": "2.0",
+  "source_manifest": {
+    "path": "shared/datasets/qr/manifest.json",
+    "schema_version": "1.0",
+    "integration_commit": "20b8848e24dd3db657b1c8bf53670d5e884b206d"
+  },
+  "cases": [
+    {
+      "id": "QR02",
+      "payload": "intent://scan/#Intent;scheme=taplens;package=com.example.otherapp;S.browser_fallback_url=https%3A%2F%2Ffallback.example.test%2Fwelcome;end",
+      "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7",
+      "analyzer_profile": "intent",
+      "network_policy": "deny",
+      "external_action_policy": "deny",
+      "expected_claim": {
+        "expected_package_name": "com.taplens.app"
+      }
+    },
+    {
+      "id": "QR03",
+      "payload": "WIFI:T:WPA;S:TapLens-Training-Only;P:NOT_A_REAL_PASSWORD;;",
+      "payload_sha256": "6e9798e79f7b78ba5f3720475c67c10869ac128e0e9c399fbb5a9eb05a69a591",
+      "analyzer_profile": "wifi",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR04",
+      "payload": "SMSTO:+00000000000:TapLens training only",
+      "payload_sha256": "97e85aebf1a920655b9d7a13144663feea4f1a527ae4c1a72cc63b7bbecf39a9",
+      "analyzer_profile": "sms",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR05",
+      "payload": "tel:+00000000000",
+      "payload_sha256": "32b924edf7c39def612dd31bfb4cfff258919e4bbc79b9969fce7356a76c4ca8",
+      "analyzer_profile": "phone",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR06",
+      "payload": "mailto:demo@example.test?subject=TapLens%20training",
+      "payload_sha256": "6dacc289a3fef5841bd220c836188dddd6a8c025c8bf33720734b44826ddd01f",
+      "analyzer_profile": "email",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR07",
+      "payload": "BEGIN:VCARD\nVERSION:3.0\nFN:Example Person\nTEL:+00000000000\nEMAIL:demo@example.test\nEND:VCARD",
+      "payload_sha256": "7ca1232f6c22b7d73f4e3426872c0ae0a8f84525fdb3ffdded55c38f786b6e27",
+      "analyzer_profile": "vcard",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR08",
+      "payload": "https://download.example.test/taplens-demo.apk",
+      "payload_sha256": "7ca5ec8b2a9d565166bbb64b0b5fc6f74ee644802e65b1c1ac543ce9a83180f8",
+      "analyzer_profile": "apk_url",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR09",
+      "payload": "market://details?id=com.example.taplensdemo",
+      "payload_sha256": "9b7265ceb64cebcd22e77e157a8b2923c271e9b4e3b0688b7ca53bf6f197154c",
+      "analyzer_profile": "app_store",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR10",
+      "payload": "TapLens training sample: plain text only",
+      "payload_sha256": "16f727cb44de4452cb93dc3ba5c0142bcd204ad173bb2b99e94a85e681b46a20",
+      "analyzer_profile": "plain_text",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR11",
+      "payload": "://broken",
+      "payload_sha256": "f192762c94bd914d8d79c1d34087f34ee9443d4f3e5b25aaa91ecf99d185d4b0",
+      "analyzer_profile": "invalid",
+      "network_policy": "deny",
+      "external_action_policy": "deny"
+    },
+    {
+      "id": "QR12",
+      "payload": "https://item.taobao.com/item.htm?id=638523167031",
+      "payload_sha256": "2314a9cdb61ef5312425c89395a9048ed03ae9697babb14bf51c72b675c091e3",
+      "analyzer_profile": "http_claim_mismatch",
+      "network_policy": "deny",
+      "external_action_policy": "deny",
+      "expected_claim": {
+        "claimed_app": "哔哩哔哩",
+        "actual_target_class": "taobao_product_url"
+      }
+    },
+    {
+      "id": "QR13",
+      "payload": "https://item.taobao.com/item.htm?id=574113508033",
+      "payload_sha256": "2565651db1ab2fd9e50617dc0d99b51d45e5f198b099e4c5373abe78c7fd4118",
+      "analyzer_profile": "http_claim_mismatch",
+      "network_policy": "deny",
+      "external_action_policy": "deny",
+      "expected_claim": {
+        "claimed_app": "哔哩哔哩",
+        "actual_target_class": "taobao_product_url"
+      }
+    }
+  ]
+}

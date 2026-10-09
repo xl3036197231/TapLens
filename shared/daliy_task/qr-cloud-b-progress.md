@@ -17,6 +17,9 @@
 - A 对 `631a30a` 的首轮合同审阅为 `NEEDS_CHANGES`；后续草案明确 QR01 不走新接口、
   QR02–QR13 精确 UTF-8 哈希匹配、POST 前持久化字段、六状态与 404 恢复、顶层权威
   Token 用量及自定义模型二阶段流程。该修订仍需 A、D 按新固定提交复审。
+- D 对旧固定提交 `631a30a` 的审阅也为 `NEEDS_CHANGES`。后续草案复用现有统一错误码，
+  增加 QR02–QR13 服务端 canonical fixture catalog，弱化公开摘要的证明语义，并定义只有
+  finalized、HMAC 校验通过的后端证据 bundle 才能把 Cxx 送入 Provider/报告守卫。
 
 ## 完成内容
 
