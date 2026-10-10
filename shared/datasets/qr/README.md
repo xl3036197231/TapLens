@@ -17,6 +17,17 @@ QR12 和 QR13 的商品链接来自厂家公开产品页，商品当前可访问
 | QR12 | FIX-DL-008 | 宣称哔哩哔哩教程，payload 指向淘宝门磁传感器商品 | [厂家产品页](https://www.sd123iot.com/ProductDetail/6202900.html) |
 | QR13 | FIX-DL-009 | 宣称哔哩哔哩测评，payload 指向淘宝温湿度传感器商品 | [厂家产品页](https://www.sd123iot.com/ProductDetail/4403291.html) |
 
+## QR12/QR13 配对样例说明
+
+这两组是“虚构的宣传场景 + 真实公开商品链接”的组合，二维码中编码的商品链接和商品 ID 并非虚构；哔哩哔哩教程/测评话术则是为了演示声明与实际目标不一致而设计的场景。
+
+| 二维码 | 二维码中的商品 ID | 配对 Intent 声明的目标包名 | 预期差异 |
+|---|---|---|---|
+| QR12 | `638523167031`（门磁传感器） | `com.taobao.taobao` | 宣传称哔哩哔哩教程，配对 Deep Link 指向淘宝应用/商品 |
+| QR13 | `574113508033`（温湿度传感器） | `com.taobao.taobao` | 宣传称哔哩哔哩测评，配对 Deep Link 指向淘宝应用/商品 |
+
+Deep Link fixture 中的应用声明以 `tv.danmaku.bili` 表示哔哩哔哩；与 Intent 目标包名 `com.taobao.taobao` 不一致。Deep Link 还带有商品 HTTPS fallback，TapLens 的分析流程不启动 Intent、不访问商品网址，也不验证商品当前是否可购买。云端只接收经脱敏的固定样例引用和本地摘要。
+
 `mobile/test/ai/day2_site/qr-demo.html` 是离线样例展板，不是 TapLens 业务页面或后端。可在仓库根目录运行：
 
 ```powershell

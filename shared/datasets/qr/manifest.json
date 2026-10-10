@@ -278,5 +278,59 @@
       "allow_cloud": true,
       "cloud_analysis_mode": "ai_only_sanitized_summary"
     }
+  ],
+  "supplemental_cases": [
+    {
+      "id": "QR12",
+      "related_deep_link_fixture_id": "FIX-DL-008",
+      "scene": {
+        "surface": "社团群 · 视频教程分享卡",
+        "headline": "哔哩哔哩｜门磁安装教程",
+        "body": "3 分钟看懂 NB-IoT 门磁安装步骤，扫码观看完整视频。",
+        "scan_prompt": "扫码观看哔哩哔哩教程",
+        "tone": "community"
+      },
+      "claimed_app": "哔哩哔哩",
+      "expected_package_name": "tv.danmaku.bili",
+      "target_app": "淘宝",
+      "source_product_url": "https://item.taobao.com/item.htm?id=638523167031",
+      "source_reference_url": "https://www.sd123iot.com/ProductDetail/6202900.html",
+      "product_label": "NB-IoT 门磁传感器 SD123-N503",
+      "expected_preview": "淘宝商品网页 · item.taobao.com/item.htm · 商品 ID 638523167031",
+      "png": "png/qr12-bilibili-claim-taobao-door-sensor.png",
+      "payload": "https://item.taobao.com/item.htm?id=638523167031",
+      "expected_type": "http_url",
+      "possible_action": "普通扫码器在用户确认后会尝试打开淘宝商品网页；手机也可能提示交给淘宝应用处理",
+      "risk_explanation": "宣传的哔哩哔哩与实际淘宝商品网址不一致；网页是否可访问及商品当前状态需在使用设备上核验。",
+      "taplens_action": "先预览完整目标域名及商品 ID，提示宣传与实际目标不一致；由用户明确选择是否访问。",
+      "local_route": "analyzeLocalEvidence",
+      "allow_cloud": false
+    },
+    {
+      "id": "QR13",
+      "related_deep_link_fixture_id": "FIX-DL-009",
+      "scene": {
+        "surface": "视频推荐页 · 科技测评卡",
+        "headline": "哔哩哔哩｜温湿度传感器测评",
+        "body": "LoRa 温湿度传感器上手体验与实测演示，扫码观看完整测评。",
+        "scan_prompt": "扫码观看哔哩哔哩测评",
+        "tone": "store"
+      },
+      "claimed_app": "哔哩哔哩",
+      "expected_package_name": "tv.danmaku.bili",
+      "target_app": "淘宝",
+      "source_product_url": "https://item.taobao.com/item.htm?id=574113508033",
+      "source_reference_url": "https://www.sd123iot.com/ProductDetail/4403291.html",
+      "product_label": "LoRa 温湿度传感器 SD123-L501",
+      "expected_preview": "淘宝商品网页 · item.taobao.com/item.htm · 商品 ID 574113508033",
+      "png": "png/qr13-bilibili-claim-taobao-temperature-sensor.png",
+      "payload": "https://item.taobao.com/item.htm?id=574113508033",
+      "expected_type": "http_url",
+      "possible_action": "普通扫码器在用户确认后会尝试打开淘宝商品网页；手机也可能提示交给淘宝应用处理",
+      "risk_explanation": "卡片声称视频平台，实际载荷却是淘宝商品网址；商品链接由厂家公开页面提供，访问结果仍需单独核验。",
+      "taplens_action": "先预览完整目标域名及商品 ID，提示宣传与实际目标不一致；由用户明确选择是否访问。",
+      "local_route": "analyzeLocalEvidence",
+      "allow_cloud": false
+    }
   ]
 }
