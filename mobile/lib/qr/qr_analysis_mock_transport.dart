@@ -2,14 +2,19 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'qr_analysis_client.dart';
+import 'qr_analysis_models.dart';
 
 /// Development-only end-to-end transport. It emits clearly marked simulated
 /// evidence and never opens a socket, calls an AI provider, or reads a Key.
 class QrAnalysisMockTransport implements QrAnalysisTransport {
+  @override
+  QrAnalysisTransportMode get mode => QrAnalysisTransportMode.clientMock;
+
   Map<String, dynamic>? _request;
   Map<String, dynamic>? _status;
   int _pollCount = 0;
   int postCount = 0;
+  int getCount = 0;
 
   @override
   Future<QrAnalysisHttpResponse> post({
@@ -42,6 +47,7 @@ class QrAnalysisMockTransport implements QrAnalysisTransport {
     required Uri statusUri,
     required String accessToken,
   }) async {
+    getCount++;
     final request = _request;
     if (request == null) {
       return _response(404, {

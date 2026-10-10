@@ -256,6 +256,9 @@ class _StatusCountingTransport implements QrAnalysisTransport {
   _StatusCountingTransport(this.delegate);
 
   @override
+  QrAnalysisTransportMode get mode => delegate.mode;
+
+  @override
   Future<QrAnalysisHttpResponse> post({
     required Uri apiOrigin,
     required String accessToken,

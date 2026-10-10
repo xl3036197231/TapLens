@@ -81,6 +81,7 @@ class QrAnalysisCoordinator {
       analysisId: analysisId,
       createdAtText: createdAtText,
       apiOrigin: apiOrigin.origin,
+      transportMode: client.transport.mode,
       statusPath: statusPath,
       sample: sample,
       aiMode: aiMode,
@@ -96,8 +97,15 @@ class QrAnalysisCoordinator {
       analysisId: analysisId,
     );
     if (existing != null) {
+      if (existing.localState == QrLocalAttemptState.abandoned) {
+        throw const QrAnalysisStoreException(
+          '此分析上下文已结束；请使用新的分析编号重新确认。',
+        );
+      }
       if (existing.requestBodySha256 != bodyDigest ||
           existing.createdAtText != createdAtText ||
+          existing.apiOrigin != apiOrigin.origin ||
+          existing.transportMode != client.transport.mode ||
           existing.sample.payloadSha256 != sample.payloadSha256 ||
           existing.clientModelChoice != clientModelChoice) {
         throw const QrAnalysisApiException(

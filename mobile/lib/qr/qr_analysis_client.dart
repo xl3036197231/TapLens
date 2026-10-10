@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'qr_analysis_models.dart';
+
 class QrAnalysisHttpResponse {
   final int statusCode;
   final Map<String, String> headers;
@@ -32,6 +34,8 @@ class QrAnalysisHttpResponse {
 }
 
 abstract interface class QrAnalysisTransport {
+  QrAnalysisTransportMode get mode;
+
   Future<QrAnalysisHttpResponse> post({
     required Uri apiOrigin,
     required String accessToken,
@@ -48,9 +52,13 @@ abstract interface class QrAnalysisTransport {
 /// while the current deliverable is fixture-only; tests inject it explicitly.
 class HttpQrAnalysisTransport implements QrAnalysisTransport {
   final http.Client client;
+  @override
+  final QrAnalysisTransportMode mode;
 
-  HttpQrAnalysisTransport({http.Client? client})
-      : client = client ?? http.Client();
+  HttpQrAnalysisTransport({
+    http.Client? client,
+    this.mode = QrAnalysisTransportMode.http,
+  }) : client = client ?? http.Client();
 
   @override
   Future<QrAnalysisHttpResponse> post({
@@ -90,6 +98,9 @@ class HttpQrAnalysisTransport implements QrAnalysisTransport {
 }
 
 class FixtureQrAnalysisTransport implements QrAnalysisTransport {
+  @override
+  QrAnalysisTransportMode get mode => QrAnalysisTransportMode.fixtureTest;
+
   final List<QrAnalysisHttpResponse> statusResponses;
   final List<Uint8List> postedBodies = [];
   final List<Uri> queriedUris = [];

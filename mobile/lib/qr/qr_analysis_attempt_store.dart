@@ -96,12 +96,16 @@ class QrAnalysisAttemptRepository {
   Future<QrAnalysisAttemptRecord?> latestForSample({
     required String ownerId,
     required String sampleId,
+    required String apiOrigin,
+    required QrAnalysisTransportMode transportMode,
   }) async {
     final matches = (await store.readAll())
         .where(
           (record) =>
               record.ownerId == ownerId &&
               record.sample.sampleId == sampleId &&
+              record.apiOrigin == apiOrigin &&
+              record.transportMode == transportMode &&
               record.localState == QrLocalAttemptState.prepared,
         )
         .toList()
@@ -111,10 +115,14 @@ class QrAnalysisAttemptRepository {
 
   Future<QrAnalysisAttemptRecord?> latestPendingForSampleAnyOwner({
     required String sampleId,
+    required String apiOrigin,
+    required QrAnalysisTransportMode transportMode,
   }) async {
     final matches = (await store.readAll())
         .where((record) =>
             record.sample.sampleId == sampleId &&
+            record.apiOrigin == apiOrigin &&
+            record.transportMode == transportMode &&
             record.localState == QrLocalAttemptState.prepared &&
             (record.serverState == null || !record.serverState!.isTerminal))
         .toList()
@@ -171,6 +179,7 @@ class QrAnalysisAttemptRepository {
     final old = records[index];
     if (old.createdAtText != updated.createdAtText ||
         old.apiOrigin != updated.apiOrigin ||
+        old.transportMode != updated.transportMode ||
         old.statusPath != updated.statusPath ||
         old.requestBodySha256 != updated.requestBodySha256 ||
         old.sample.payloadSha256 != updated.sample.payloadSha256 ||

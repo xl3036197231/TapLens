@@ -212,7 +212,7 @@ void main() {
       expect(transport.postCount, 0);
     });
 
-    test('existing prepared record after restart only performs GET', () async {
+    test('existing HTTP record after restart only performs GET', () async {
       final store = MemoryQrAnalysisAttemptStore();
       final firstTransport = _TrackingTransport([]);
       await _coordinator(store, firstTransport).createOrResume(
@@ -244,6 +244,137 @@ void main() {
       expect(afterRestart.getCount, 1);
       expect(resumed.notFound, isTrue);
       expect((await store.readAll()).single.createdAtText, _createdAt);
+    });
+
+    test(
+        'attempt lookup isolates owner, sample, API origin, and transport mode',
+        () async {
+      final repository = QrAnalysisAttemptRepository(
+        MemoryQrAnalysisAttemptStore(),
+      );
+      final sample = samples['QR02']!;
+      final mock = _attempt(
+        sample,
+        transportMode: QrAnalysisTransportMode.clientMock,
+        apiOrigin: 'https://taplens.mock.invalid',
+      );
+      final fake = _attempt(
+        sample,
+        transportMode: QrAnalysisTransportMode.httpFake,
+        apiOrigin: 'http://192.168.1.8:8000',
+      ).copyWith(taskId: '00000000-0000-4000-8000-000000000303');
+      final production = _attempt(
+        sample,
+        transportMode: QrAnalysisTransportMode.http,
+        apiOrigin: 'https://api.example.test',
+      ).copyWith(taskId: '00000000-0000-4000-8000-000000000304');
+      await repository.store.writeAll([mock, fake, production]);
+
+      expect(
+        (await repository.latestForSample(
+          ownerId: 'fixture-user',
+          sampleId: sample.sampleId,
+          apiOrigin: 'https://taplens.mock.invalid',
+          transportMode: QrAnalysisTransportMode.clientMock,
+        ))
+            ?.transportMode,
+        QrAnalysisTransportMode.clientMock,
+      );
+      expect(
+        (await repository.latestForSample(
+          ownerId: 'fixture-user',
+          sampleId: sample.sampleId,
+          apiOrigin: 'http://192.168.1.8:8000',
+          transportMode: QrAnalysisTransportMode.httpFake,
+        ))
+            ?.transportMode,
+        QrAnalysisTransportMode.httpFake,
+      );
+      expect(
+        (await repository.latestForSample(
+          ownerId: 'fixture-user',
+          sampleId: sample.sampleId,
+          apiOrigin: 'https://api.example.test',
+          transportMode: QrAnalysisTransportMode.http,
+        ))
+            ?.transportMode,
+        QrAnalysisTransportMode.http,
+      );
+      expect(
+        await repository.latestForSample(
+          ownerId: 'fixture-user',
+          sampleId: sample.sampleId,
+          apiOrigin: 'http://192.168.1.9:8000',
+          transportMode: QrAnalysisTransportMode.httpFake,
+        ),
+        isNull,
+      );
+      expect(
+        await repository.latestForSample(
+          ownerId: 'another-user',
+          sampleId: sample.sampleId,
+          apiOrigin: 'https://taplens.mock.invalid',
+          transportMode: QrAnalysisTransportMode.clientMock,
+        ),
+        isNull,
+      );
+      expect(
+        await repository.latestForSample(
+          ownerId: 'fixture-user',
+          sampleId: samples['QR03']!.sampleId,
+          apiOrigin: 'https://taplens.mock.invalid',
+          transportMode: QrAnalysisTransportMode.clientMock,
+        ),
+        isNull,
+      );
+    });
+
+    test('legacy attempt migration does not guess an HTTP transport mode', () {
+      final legacyMock = _attempt(
+        samples['QR02']!,
+        transportMode: QrAnalysisTransportMode.clientMock,
+        apiOrigin: 'https://taplens.mock.invalid',
+      ).toJson()
+        ..remove('transport_mode')
+        ..['record_version'] = 1;
+      final migratedMock = QrAnalysisAttemptRecord.fromJson(legacyMock);
+      expect(migratedMock.transportMode, QrAnalysisTransportMode.clientMock);
+      expect(migratedMock.toJson()['record_version'], 2);
+
+      final legacyHttp = _attempt(samples['QR02']!).toJson()
+        ..remove('transport_mode')
+        ..['record_version'] = 1;
+      final migratedHttp = QrAnalysisAttemptRecord.fromJson(legacyHttp);
+      expect(migratedHttp.transportMode, QrAnalysisTransportMode.legacyUnknown);
+    });
+
+    test('abandoned Mock analysis never queries or posts again', () async {
+      final store = MemoryQrAnalysisAttemptStore();
+      final transport = _TrackingTransport([]);
+      final oldRecord = _attempt(
+        samples['QR02']!,
+        transportMode: QrAnalysisTransportMode.clientMock,
+        apiOrigin: 'https://taplens.mock.invalid',
+      ).copyWith(localState: QrLocalAttemptState.abandoned);
+      await store.writeAll([oldRecord]);
+
+      await expectLater(
+        _coordinator(store, transport).createOrResume(
+          ownerId: 'fixture-user',
+          accessToken: 'test-token',
+          analysisId: _analysisId,
+          createdAtText: _createdAt,
+          sample: samples['QR02']!,
+          aiMode: QrAnalysisAiMode.school,
+          clientModelChoice: 'school',
+          cloudAnalysisConfirmed: true,
+          aiCallConfirmed: true,
+          localEvidence: _safeEvidence(),
+        ),
+        throwsA(isA<QrAnalysisStoreException>()),
+      );
+      expect(transport.postCount, 0);
+      expect(transport.getCount, 0);
     });
 
     test('unknown POST outcome is followed by GET and never retried', () async {
@@ -424,12 +555,17 @@ Map<String, dynamic> _safeEvidence() => {
       ],
     };
 
-QrAnalysisAttemptRecord _attempt(QrFixedSample sample) =>
+QrAnalysisAttemptRecord _attempt(
+  QrFixedSample sample, {
+  QrAnalysisTransportMode transportMode = QrAnalysisTransportMode.http,
+  String apiOrigin = 'https://api.example.test',
+}) =>
     QrAnalysisAttemptRecord(
       ownerId: 'fixture-user',
       analysisId: _analysisId,
       createdAtText: _createdAt,
-      apiOrigin: 'https://api.example.test',
+      apiOrigin: apiOrigin,
+      transportMode: transportMode,
       statusPath: '/api/v1/qr-analyses/$_analysisId/status',
       sample: sample,
       aiMode: QrAnalysisAiMode.school,
@@ -484,6 +620,9 @@ class _TrackingTransport implements QrAnalysisTransport {
   final List<Uint8List> postedBodies = [];
 
   _TrackingTransport(this.events);
+
+  @override
+  QrAnalysisTransportMode get mode => QrAnalysisTransportMode.fixtureTest;
 
   @override
   Future<QrAnalysisHttpResponse> post({

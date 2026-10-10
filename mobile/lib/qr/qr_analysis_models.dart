@@ -5,6 +5,40 @@ import 'qr_sample_index.g.dart';
 
 enum QrAnalysisAiMode { none, school }
 
+/// Identifies which server boundary a persisted attempt belongs to. A local
+/// client mock must never be replayed against an HTTP Fake or production API.
+enum QrAnalysisTransportMode {
+  clientMock,
+  httpFake,
+  http,
+  fixtureTest,
+  legacyUnknown,
+}
+
+extension QrAnalysisTransportModeValue on QrAnalysisTransportMode {
+  String get value => switch (this) {
+        QrAnalysisTransportMode.clientMock => 'client_mock',
+        QrAnalysisTransportMode.httpFake => 'http_fake',
+        QrAnalysisTransportMode.http => 'http',
+        QrAnalysisTransportMode.fixtureTest => 'fixture_test',
+        QrAnalysisTransportMode.legacyUnknown => 'legacy_unknown',
+      };
+
+  static QrAnalysisTransportMode? parse(Object? value) => switch (value) {
+        'client_mock' => QrAnalysisTransportMode.clientMock,
+        'http_fake' => QrAnalysisTransportMode.httpFake,
+        'http' => QrAnalysisTransportMode.http,
+        'fixture_test' => QrAnalysisTransportMode.fixtureTest,
+        'legacy_unknown' => QrAnalysisTransportMode.legacyUnknown,
+        _ => null,
+      };
+
+  static QrAnalysisTransportMode fromLegacyApiOrigin(String apiOrigin) =>
+      apiOrigin == 'https://taplens.mock.invalid'
+          ? QrAnalysisTransportMode.clientMock
+          : QrAnalysisTransportMode.legacyUnknown;
+}
+
 enum QrAnalysisState {
   queued,
   inProgress,
@@ -196,6 +230,7 @@ class QrAnalysisAttemptRecord {
   final String analysisId;
   final String createdAtText;
   final String apiOrigin;
+  final QrAnalysisTransportMode transportMode;
   final String statusPath;
   final QrFixedSample sample;
   final QrAnalysisAiMode aiMode;
@@ -209,11 +244,12 @@ class QrAnalysisAttemptRecord {
   final String updatedAtText;
 
   const QrAnalysisAttemptRecord({
-    this.recordVersion = 1,
+    this.recordVersion = 2,
     required this.ownerId,
     required this.analysisId,
     required this.createdAtText,
     required this.apiOrigin,
+    required this.transportMode,
     required this.statusPath,
     required this.sample,
     required this.aiMode,
@@ -240,6 +276,7 @@ class QrAnalysisAttemptRecord {
         analysisId: analysisId,
         createdAtText: createdAtText,
         apiOrigin: apiOrigin,
+        transportMode: transportMode,
         statusPath: statusPath,
         sample: sample,
         aiMode: aiMode,
@@ -254,11 +291,12 @@ class QrAnalysisAttemptRecord {
       );
 
   Map<String, dynamic> toJson() => {
-        'record_version': recordVersion,
+        'record_version': 2,
         'owner_id': ownerId,
         'analysis_id': analysisId,
         'created_at': createdAtText,
         'api_origin': apiOrigin,
+        'transport_mode': transportMode.value,
         'status_path': statusPath,
         'sample_ref': sample.toJson(),
         'mode': 'repository_fixture_static',
@@ -282,6 +320,7 @@ class QrAnalysisAttemptRecord {
       'analysis_id',
       'created_at',
       'api_origin',
+      'transport_mode',
       'status_path',
       'sample_ref',
       'mode',
@@ -294,8 +333,17 @@ class QrAnalysisAttemptRecord {
       'server_state',
       'updated_at',
     };
+    final storedVersion = json['record_version'];
+    final legacyVersion =
+        storedVersion == 1 && !json.containsKey('transport_mode');
+    final transportMode = legacyVersion
+        ? QrAnalysisTransportModeValue.fromLegacyApiOrigin(
+            json['api_origin'] is String ? json['api_origin'] as String : '',
+          )
+        : QrAnalysisTransportModeValue.parse(json['transport_mode']);
     if (json.keys.toSet().difference(allowed).isNotEmpty ||
-        json['record_version'] != 1 ||
+        (storedVersion != 1 && storedVersion != 2) ||
+        (!legacyVersion && storedVersion != 2) ||
         json['mode'] != 'repository_fixture_static') {
       throw const FormatException('本地二维码分析记录包含不允许的字段。');
     }
@@ -336,6 +384,9 @@ class QrAnalysisAttemptRecord {
         !_isRfc3339(createdAt) ||
         origin is! String ||
         !_isOrigin(origin) ||
+        transportMode == null ||
+        (transportMode == QrAnalysisTransportMode.clientMock &&
+            origin != 'https://taplens.mock.invalid') ||
         statusPath != '/api/v1/qr-analyses/$analysisId/status' ||
         digest is! String ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(digest) ||
@@ -353,10 +404,12 @@ class QrAnalysisAttemptRecord {
       throw const FormatException('本地二维码分析记录无效。');
     }
     return QrAnalysisAttemptRecord(
+      recordVersion: 2,
       ownerId: owner,
       analysisId: analysisId,
       createdAtText: createdAt,
       apiOrigin: origin,
+      transportMode: transportMode,
       statusPath: statusPath as String,
       sample: sample,
       aiMode: aiMode,

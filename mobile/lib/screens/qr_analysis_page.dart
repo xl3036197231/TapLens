@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/local_evidence.dart';
 import '../qr/qr_analysis_attempt_store.dart';
 import '../qr/qr_analysis_client.dart';
 import '../qr/qr_analysis_coordinator.dart';
-import '../qr/qr_analysis_mock_transport.dart';
 import '../qr/qr_analysis_models.dart';
 import '../qr/qr_analysis_transport_factory.dart';
 import '../qr/qr_sample_catalog.dart';
@@ -40,7 +40,7 @@ class QrAnalysisPage extends StatefulWidget {
 
 class _QrAnalysisPageState extends State<QrAnalysisPage> {
   late final QrAnalysisTransport _transport =
-      widget.transport ?? QrAnalysisMockTransport();
+      widget.transport ?? createQrAnalysisTransport();
   late final QrAnalysisAttemptStore _attemptStore =
       widget.attemptStore ?? const MethodChannelQrAnalysisAttemptStore();
   late final QrAnalysisAttemptRepository _attempts =
@@ -53,12 +53,21 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
   bool _restoring = true;
   bool _notFound = false;
   bool _customMockComplete = false;
+  late String _analysisId;
+  late String _createdAtText;
   String? _message;
   String? _error;
 
-  bool get _isMock => _transport is QrAnalysisMockTransport;
+  bool get _isMock => _transport.mode == QrAnalysisTransportMode.clientMock;
   bool get _isLocalFakeHttp =>
-      qrV2HttpFakeEnabled && _transport is HttpQrAnalysisTransport;
+      _transport.mode == QrAnalysisTransportMode.httpFake;
+
+  @override
+  void initState() {
+    super.initState();
+    _analysisId = widget.analysisId;
+    _createdAtText = widget.createdAtText;
+  }
 
   @override
   void didChangeDependencies() {
@@ -77,14 +86,19 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
     final session = TapLensSessionScope.maybeOf(context);
     final ownerId = session?.activeLogin?.userId ?? 'mock-demo-user';
     try {
+      final apiOrigin = _apiOrigin();
       final existing = await _attempts.latestForSample(
         ownerId: ownerId,
         sampleId: widget.sample.sampleId,
+        apiOrigin: apiOrigin.origin,
+        transportMode: _transport.mode,
       );
       if (!mounted) return;
       if (existing == null && session?.activeLogin == null && !_isMock) {
         final pending = await _attempts.latestPendingForSampleAnyOwner(
           sampleId: widget.sample.sampleId,
+          apiOrigin: apiOrigin.origin,
+          transportMode: _transport.mode,
         );
         if (pending != null) {
           setState(() {
@@ -96,6 +110,27 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
         }
       }
       if (existing == null) return;
+      if (existing.transportMode == QrAnalysisTransportMode.clientMock) {
+        await _attempts.update(
+          existing.copyWith(
+            localState: QrLocalAttemptState.abandoned,
+            updatedAtText: DateTime.now().toUtc().toIso8601String(),
+          ),
+        );
+        if (!mounted) return;
+        setState(() {
+          _record = null;
+          _status = null;
+          _notFound = false;
+          _analysisId = LocalEvidence.createAnalysisId();
+          _createdAtText = DateTime.now().toUtc().toIso8601String();
+          _choice = _QrModelChoice.rulesOnly;
+          _message = existing.serverState == QrAnalysisState.succeeded
+              ? '上次客户端 Mock 演示已完成。演示状态只保存在原进程中；本次不会查询服务器，已准备新的本地演示上下文。'
+              : '上次客户端 Mock 会话已结束。恢复时不会查询服务器或重复提交，已准备新的本地演示上下文。';
+        });
+        return;
+      }
       setState(() {
         _record = existing;
         _choice = switch (existing.aiMode) {
@@ -118,17 +153,21 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
   }
 
   QrAnalysisCoordinator _coordinator() {
-    final origin = _isMock
-        ? Uri.parse('https://taplens.mock.invalid')
-        : normalizeApiOrigin(
-            TapLensSessionScope.maybeOf(context)?.apiBaseUrl ??
-                widget.initialApiBaseUrl ??
-                '',
-          );
     return QrAnalysisCoordinator(
-      client: QrAnalysisApiClient(transport: _transport, apiOrigin: origin),
+      client: QrAnalysisApiClient(
+        transport: _transport,
+        apiOrigin: _apiOrigin(),
+      ),
       attempts: _attempts,
     );
+  }
+
+  Uri _apiOrigin() {
+    if (_isMock) return Uri.parse('https://taplens.mock.invalid');
+    final raw = TapLensSessionScope.maybeOf(context)?.apiBaseUrl ??
+        widget.initialApiBaseUrl ??
+        '';
+    return normalizeApiOrigin(raw);
   }
 
   Future<void> _begin() async {
@@ -175,8 +214,8 @@ class _QrAnalysisPageState extends State<QrAnalysisPage> {
       final result = await _coordinator().createOrResume(
         ownerId: login?.userId ?? 'mock-demo-user',
         accessToken: login?.accessToken ?? 'mock-only-token-not-sent',
-        analysisId: widget.analysisId,
-        createdAtText: widget.createdAtText,
+        analysisId: _analysisId,
+        createdAtText: _createdAtText,
         sample: widget.sample,
         aiMode: aiMode,
         clientModelChoice: switch (_choice) {

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:taplens_mobile/qr/qr_analysis_client.dart';
 import 'package:taplens_mobile/qr/qr_analysis_mock_transport.dart';
+import 'package:taplens_mobile/qr/qr_analysis_models.dart';
 import 'package:taplens_mobile/qr/qr_analysis_transport_factory.dart';
 
 void main() {
@@ -8,8 +9,10 @@ void main() {
     final transport = createQrAnalysisTransport();
     if (qrV2HttpFakeEnabled) {
       expect(transport, isA<HttpQrAnalysisTransport>());
+      expect(transport.mode, QrAnalysisTransportMode.httpFake);
     } else {
       expect(transport, isA<QrAnalysisMockTransport>());
+      expect(transport.mode, QrAnalysisTransportMode.clientMock);
     }
   });
 }
