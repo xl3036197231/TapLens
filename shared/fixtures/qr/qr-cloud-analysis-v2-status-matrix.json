@@ -1,0 +1,306 @@
+{
+  "fixture_version": "2.0",
+  "source": "qr-cloud-analysis-v2-contract",
+  "endpoint": "GET /api/v1/qr-analyses/{analysis_id}/status",
+  "contains_secrets": false,
+  "normative": true,
+  "succeeded_fixture": "qr-cloud-analysis-v2-status.json",
+  "examples": [
+    {
+      "name": "queued",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "queued",
+        "phase": "fixture_resolution",
+        "terminal": false,
+        "actions": {
+          "poll_status": true,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-09T12:00:00Z",
+        "poll_after_seconds": 2,
+        "evidence_bundle": null,
+        "report": null,
+        "usage": {
+          "status": "not_started"
+        },
+        "cache_expires_at": null,
+        "error": null
+      }
+    },
+    {
+      "name": "in_progress",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "in_progress",
+        "phase": "static_analysis",
+        "terminal": false,
+        "actions": {
+          "poll_status": true,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-09T12:00:01Z",
+        "poll_after_seconds": 2,
+        "evidence_bundle": null,
+        "report": null,
+        "usage": {
+          "status": "not_started"
+        },
+        "cache_expires_at": null,
+        "error": null
+      }
+    },
+    {
+      "name": "failed_before_provider",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "failed",
+        "phase": "static_analysis",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-09T12:00:02Z",
+        "poll_after_seconds": null,
+        "evidence_bundle": null,
+        "report": null,
+        "usage": {
+          "status": "not_started"
+        },
+        "cache_expires_at": null,
+        "error": {
+          "code": "CLOUD_EVIDENCE_BUILD_FAILED",
+          "message": "二维码静态分析器暂时不可用",
+          "retryable": true,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "failed_after_provider_with_known_usage",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "failed",
+        "phase": "ai_dispatch",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-09T12:00:08Z",
+        "poll_after_seconds": null,
+        "evidence_bundle": {
+          "analysis_id": "00000000-0000-4000-8000-000000000202",
+          "generated_at": "2026-10-09T12:00:01Z",
+          "mode": "repository_fixture_static",
+          "fixture_binding": {
+            "sample_id": "QR02",
+            "catalog_schema_version": "2.0",
+            "catalog_revision": "2026-10-09.1",
+            "manifest_schema_version": "1.0",
+            "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7",
+            "analyzer_profile": "intent",
+            "request_claim_matches_catalog": true,
+            "image_received": false,
+            "publisher_verified": false
+          },
+          "items": [
+            {
+              "id": "L01",
+              "source": "local",
+              "observation_mode": "device_static",
+              "kind": "qr_payload",
+              "title": "Android Intent 静态预览",
+              "detail": "识别为 Android Intent；手机未启动应用或访问 fallback。"
+            },
+            {
+              "id": "C01",
+              "source": "cloud",
+              "observation_mode": "server_static",
+              "kind": "intent_package_mismatch",
+              "title": "目标包名不匹配",
+              "detail": "固定样例声明的目标包名与 TapLens 预期包名不同。"
+            }
+          ],
+          "execution": {
+            "target_accessed": false,
+            "app_launched": false,
+            "message_sent": false,
+            "call_placed": false,
+            "network_joined": false,
+            "contact_imported": false,
+            "file_downloaded": false,
+            "form_submitted": false
+          },
+          "limitations": [
+            "静态服务端解析不能证明目标应用的真实运行行为。"
+          ]
+        },
+        "report": null,
+        "usage": {
+          "status": "known",
+          "request_count": 1,
+          "prompt_tokens": 100,
+          "completion_tokens": 100,
+          "total_tokens": 200,
+          "model": "cuc/deepseek"
+        },
+        "cache_expires_at": null,
+        "error": {
+          "code": "AI_REPORT_REJECTED",
+          "message": "模型报告未通过守卫",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "outcome_unknown",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "outcome_unknown",
+        "phase": "ai_dispatch",
+        "terminal": false,
+        "actions": {
+          "poll_status": true,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-09T12:02:01Z",
+        "poll_after_seconds": 5,
+        "evidence_bundle": {
+          "analysis_id": "00000000-0000-4000-8000-000000000202",
+          "generated_at": "2026-10-09T12:00:01Z",
+          "mode": "repository_fixture_static",
+          "fixture_binding": {
+            "sample_id": "QR02",
+            "catalog_schema_version": "2.0",
+            "catalog_revision": "2026-10-09.1",
+            "manifest_schema_version": "1.0",
+            "payload_sha256": "6e56b07173e9fb55910b174340eff287b2f3d619002e2306b72bc3f7820850f7",
+            "analyzer_profile": "intent",
+            "request_claim_matches_catalog": true,
+            "image_received": false,
+            "publisher_verified": false
+          },
+          "items": [
+            {
+              "id": "L01",
+              "source": "local",
+              "observation_mode": "device_static",
+              "kind": "qr_payload",
+              "title": "Android Intent 静态预览",
+              "detail": "识别为 Android Intent；手机未启动应用或访问 fallback。"
+            },
+            {
+              "id": "C01",
+              "source": "cloud",
+              "observation_mode": "server_static",
+              "kind": "intent_package_mismatch",
+              "title": "目标包名不匹配",
+              "detail": "固定样例声明的目标包名与 TapLens 预期包名不同。"
+            }
+          ],
+          "execution": {
+            "target_accessed": false,
+            "app_launched": false,
+            "message_sent": false,
+            "call_placed": false,
+            "network_joined": false,
+            "contact_imported": false,
+            "file_downloaded": false,
+            "form_submitted": false
+          },
+          "limitations": [
+            "静态服务端解析不能证明目标应用的真实运行行为。"
+          ]
+        },
+        "report": null,
+        "usage": {
+          "status": "unknown"
+        },
+        "cache_expires_at": null,
+        "error": {
+          "code": "AI_OUTCOME_UNKNOWN",
+          "message": "模型请求结果待核实",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "result_expired",
+      "http_status": 200,
+      "body": {
+        "schema_version": "2.0",
+        "analysis_id": "00000000-0000-4000-8000-000000000202",
+        "task_id": "00000000-0000-4000-8000-000000000302",
+        "mode": "repository_fixture_static",
+        "ai_mode": "school",
+        "state": "result_expired",
+        "phase": "complete",
+        "terminal": true,
+        "actions": {
+          "poll_status": false,
+          "repeat_post": false
+        },
+        "updated_at": "2026-10-10T12:00:09Z",
+        "poll_after_seconds": null,
+        "evidence_bundle": null,
+        "report": null,
+        "usage": {
+          "status": "known",
+          "request_count": 1,
+          "prompt_tokens": 100,
+          "completion_tokens": 100,
+          "total_tokens": 200,
+          "model": "cuc/deepseek"
+        },
+        "cache_expires_at": null,
+        "error": {
+          "code": "CLOUD_TASK_RESULT_EXPIRED",
+          "message": "缓存结果已清除",
+          "retryable": false,
+          "details": null
+        }
+      }
+    },
+    {
+      "name": "not_found_or_other_owner",
+      "http_status": 404,
+      "body": {
+        "error": {
+          "code": "CLOUD_TASK_NOT_FOUND",
+          "message": "未找到二维码分析状态",
+          "retryable": false,
+          "details": null
+        }
+      }
+    }
+  ]
+}

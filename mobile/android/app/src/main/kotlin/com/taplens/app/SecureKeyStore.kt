@@ -20,10 +20,12 @@ object SecureKeyStore {
     private const val aiKeyAlias = "taplens.ai.key"
     private const val sessionKeyAlias = "taplens.auth.session"
     private const val aiAttemptsKeyAlias = "taplens.ai.attempts"
+    private const val qrAnalysisAttemptsKeyAlias = "taplens.qr.analysis.attempts"
     private const val preferencesName = "taplens_secure_storage"
     private const val encryptedValue = "deepseek_api_key"
     private const val encryptedSession = "auth_session"
     private const val encryptedAiAttempts = "ai_attempt_metadata"
+    private const val encryptedQrAnalysisAttempts = "qr_analysis_attempt_metadata"
     private const val transformation = "AES/GCM/NoPadding"
     private const val keystoreName = "AndroidKeyStore"
 
@@ -110,6 +112,32 @@ object SecureKeyStore {
 
     fun clearAiAttempts(context: Context) {
         preferences(context).edit().remove(encryptedAiAttempts).apply()
+    }
+
+    fun saveQrAnalysisAttempts(context: Context, value: String) {
+        require(value.length <= 65536) { "QR attempt metadata is too large" }
+        val preferences = preferences(context)
+        val encrypted = encrypt(value, qrAnalysisAttemptsKeyAlias)
+        AiAttemptDurability.commitAndVerify(
+            expected = value,
+            commit = {
+                preferences.edit()
+                    .putString(encryptedQrAnalysisAttempts, encrypted)
+                    .commit()
+            },
+            readBack = {
+                preferences.getString(encryptedQrAnalysisAttempts, null)?.let {
+                    decrypt(it, qrAnalysisAttemptsKeyAlias)
+                }
+            },
+        )
+    }
+
+    fun readQrAnalysisAttempts(context: Context): String? {
+        val stored = preferences(context)
+            .getString(encryptedQrAnalysisAttempts, null) ?: return null
+        return decrypt(stored, qrAnalysisAttemptsKeyAlias)
+            ?: throw IllegalStateException("QR attempt metadata cannot be decrypted")
     }
 
     private fun encrypt(value: String, alias: String): String {
