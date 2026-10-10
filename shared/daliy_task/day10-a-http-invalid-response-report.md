@@ -3,7 +3,7 @@
 ## 固定起点和边界
 
 - A 分支：`feat/a-qr-v2-client`。
-- 固定起点：`4e5f85d4bc9c09e8d3432022f5305c7b99bb6f18`。
+- 本轮固定起点：`e67c1bfedbbb3487cff9752a33a73c8d4f7068a3`。
 - 本记录中的“本地 HTTP stub”是 A 测试在 `127.0.0.1` 启动的临时 `HttpServer`，请求经过生产 `HttpQrAnalysisTransport`；它不属于 B 的 FastAPI/Fake Provider，也不读取 B 的真实故障服务。
 - 普通 `flutter test` 默认不启用 HTTP stub。只有显式传入 `TAPLENS_QR_V2_HTTP_STUB_TEST=true` 才会打开本地 socket 测试。
 - 没有部署 ECS、创建真实云任务、访问二维码目标或调用学校模型。
@@ -11,6 +11,7 @@
 ## 本次改动
 
 - `mobile/test/qr/qr_analysis_http_stub_test.dart`：新增 26 条 loopback HTTP transport 负面用例，以及 1 条页面 fixture/widget 回退用例。
+- `mobile/test/qr/qr_analysis_http_failure_integration_test.dart`：新增显式开关控制的 B FastAPI HTTP Fake 故障联调测试。它使用生产 `HttpQrAnalysisTransport`，临时文件适配器模拟防重元数据在 APP 重启后的恢复；测试默认跳过。
 - `mobile/lib/qr/qr_analysis_coordinator.dart`：解析状态后检查本地已保存的状态转换；非法回退时不更新本地状态。允许跳过中间状态，允许 `outcome_unknown` 收敛到最终状态，已缓存的成功/失败状态只能继续保持或变成 `result_expired`。
 - `mobile/lib/screens/qr_analysis_page.dart`：二维码 v2 页面持续展示本地 L01 规则预检，云端报告无效或解析失败时仍能查看识别类型、可能行为、建议和“未执行”状态。
 
@@ -58,13 +59,33 @@
 
 ## B 真实 HTTP Fake 故障场景
 
-| 场景 | 固定 B 故障 SHA | HTTP 复测 | 状态 |
-|---|---|---|---|
-| `failed` | 尚未收到 | 未运行 | **待 B 提供固定提交；未标记完成** |
-| `outcome_unknown` | 尚未收到 | 未运行 | **待 B 提供固定提交；未标记完成** |
-| `result_expired` | 尚未收到 | 未运行 | **待 B 提供固定提交；未标记完成** |
+固定使用 B 分支 `feat/b-backend-bootstrap` 的 `f564317c5f29af9333cc43f9ff33d86f829c5b53`，即 B 提供 HTTP Fake 故障场景的提交。每个场景都单独启动 FastAPI/Worker，完成后停止服务，再启动下一个场景。客户端经真实 `HttpQrAnalysisTransport` 访问 `127.0.0.1:8000`；Fake Provider 被本地配置固定为非联网实现，未部署 ECS、未创建真实云任务、未连接真实模型。
 
-上表是待联调项，不能被 A 的 loopback stub、既有纯 fixture 状态解析测试或 B 先前的服务端单元测试替代。
+| B HTTP Fake 场景 | HTTP 响应 | 客户端最终状态 / 错误 | terminal / poll_status / repeat_post | POST / GET | 重进与重启恢复 | 结果 |
+|---|---|---|---|---:|---|---|
+| `failure` | POST `202`；GET `200` ×3 | `failed` / `AI_PROVIDER_UNAVAILABLE` | `true / false / false` | `1 / 3` | 页面重进后 GET；新协调器和重新打开的持久化记录后 GET；均未 POST | **PASS** |
+| `timeout` | POST `202`；GET `200` ×3 | `outcome_unknown` / `AI_OUTCOME_UNKNOWN` | `false / true / false` | `1 / 3` | 页面重进后 GET；新协调器和重新打开的持久化记录后 GET；均未 POST | **PASS** |
+| `result_expired` | POST `202`；GET `200` ×3 | `result_expired` / `CLOUD_TASK_RESULT_EXPIRED` | `true / false / false` | `1 / 3` | 页面重进后 GET；新协调器和重新打开的持久化记录后 GET；均未 POST | **PASS** |
+
+三种情形中，GET 计数均为：首次取回最终状态 1 次、页面/协调器重建后 1 次、从文件重新读取本地绑定记录（APP 重启模拟）后 1 次。状态解析器同时校验服务端 `poll_status` 与 `repeat_post=false`。`result_expired` 响应中的 `report` 和 `evidence_bundle` 均为 `null`；L01 本地证据仍由本地调用方持有，不随云端缓存清除。APP 重启行为在 Flutter 集成测试中通过文件存储适配器模拟，不冒称为 Android 真机进程杀停测试。
+
+每次测试命令仅选择一个场景，例如：
+
+```powershell
+# B worktree 的 backend 目录中，逐场景启动并在每次完成后停止
+$env:PYTHONPATH = (Get-Location).Path
+.\.venv\Scripts\python.exe scripts\run_qr_v2_mock.py --scenario failure
+
+# A worktree 的 mobile 目录中，以真实 HTTP transport 运行对应客户端验收
+flutter test --no-pub test\qr\qr_analysis_http_failure_integration_test.dart `
+  --dart-define=TAPLENS_QR_V2_HTTP_FAILURE_INTEGRATION=true `
+  --dart-define=TAPLENS_QR_V2_HTTP_FAILURE_SCENARIO=failure `
+  --dart-define=TAPLENS_QR_V2_HTTP_BASE=http://127.0.0.1:8000
+```
+
+将两条命令中的 `failure` 依次替换为 `timeout` 和 `result_expired`。Windows 本地运行的临时 B `.venv` 额外安装了 `tzdata`，以提供 `Asia/Shanghai` IANA 时区数据；该运行环境和数据库都在 B worktree，不属于提交内容。
+
+本表只记录 B `f564317` FastAPI HTTP Fake 的实际响应；与后文 A loopback stub 结果分开统计，彼此不能替代。
 
 ## 复现命令
 
@@ -80,8 +101,9 @@ flutter test --no-pub test/qr/qr_analysis_http_stub_test.dart `
 
 | 命令 | 结果 |
 |---|---|
-| 显式运行 `qr_analysis_http_stub_test.dart` | 27/27 passed（26 条真实 loopback HTTP transport 负面/状态回退用例；1 条本地 fixture widget 用例） |
-| 默认 `flutter test --no-pub` | 144 passed，29 skipped；HTTP stub 默认保持关闭 |
+| 显式运行 `qr_analysis_http_stub_test.dart`（前一固定提交已通过，本轮未重跑） | 27/27 passed（26 条真实 loopback HTTP transport 负面/状态回退用例；1 条本地 fixture widget 用例） |
+| B HTTP Fake 真实 transport 故障联调（本轮） | 3/3 passed：`failure`、`timeout`、`result_expired`；每场景 POST 1 次、GET 3 次 |
+| 默认 `flutter test --no-pub` | 144 passed，30 skipped；新增 HTTP Fake 测试和旧 HTTP stub 测试均默认关闭 |
 | `flutter analyze --no-pub` | PASS，No issues found |
 
-本地 loopback stub 不等同于 B 的 FastAPI HTTP Fake。没有执行 B 的真实 `failed`、`outcome_unknown`、`result_expired`；等待 B 给出故障场景固定 SHA 后再单独复测。
+本轮 A 固定提交以 `e67c1bf` 为起点；B `f564317` 的三个 HTTP Fake 故障场景均已完成。未部署 ECS、未创建真实云任务、未访问二维码目标、未调用学校模型。下一步可将新的 A 固定 SHA 与 B `f564317` 一起交 D 进行最终复审。
