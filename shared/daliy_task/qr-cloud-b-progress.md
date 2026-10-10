@@ -1,6 +1,59 @@
 # B：二维码云端分析后端进度
 
-> 状态：实现与 B 自检完成，等待固定提交和 D 独立复审；尚未部署。
+> 状态：v2 实现与 B 自检完成，等待固定提交和 D 独立复审；尚未部署。
+
+## v2 服务端先取证合同
+
+- 新增 `shared/interfaces/qr-cloud-analysis-v2.md`，定义“手机本地证据 → 后端确定性取证
+  → 可选学校 AI”的顺序；AI 不获得工具调用权，也不能自行选择或操作沙箱。
+- QR01 保留现有受控网页 fixture；QR02–QR13 固定样例拟使用 `sample_id + payload_sha256`
+  绑定服务端仓库 canonical payload，由无外网、无外部动作的静态分析器生成 `Cxx`。
+- 摘要匹配只表示客户端声明的解码结果与仓库 fixture 一致，不表示服务端收到或解码了
+  图片，也不认证发布者。
+- 当前服务仍为 HTTP，任意用户二维码继续禁止上传图片和原始 payload；兼容路径仍只能
+  标注为“云端 AI 研判（基于本地脱敏摘要）”，不能产生独立 `Cxx`。
+- 新增请求与成功状态 fixture，供 A 核对客户端可实现性、供 D 做合同审阅。
+- 本节记录合同冻结过程；其下的“v2 后端实现”才是当前候选代码状态。
+- A 对 `631a30a` 的首轮合同审阅为 `NEEDS_CHANGES`；后续草案明确 QR01 不走新接口、
+  QR02–QR13 精确 UTF-8 哈希匹配、POST 前持久化字段、六状态与 404 恢复、顶层权威
+  Token 用量及自定义模型二阶段流程。该修订仍需 A、D 按新固定提交复审。
+- D 对旧固定提交 `631a30a` 的审阅也为 `NEEDS_CHANGES`。后续草案复用现有统一错误码，
+  增加 QR02–QR13 服务端 canonical fixture catalog，弱化公开摘要的证明语义，并定义只有
+  finalized、HMAC 校验通过的后端证据 bundle 才能把 Cxx 送入 Provider/报告守卫。
+- 交付复审前的 B 二次自审进一步补齐 catalog 内容修订号、内部可信输入类型、bundle HMAC
+  的完整覆盖与 Key 轮换、单 Worker 崩溃恢复、一次性配额/Provider 派发语义，并明确新接口
+  不出现浏览器阶段；这些仍是合同设计，不代表 v2 已实现或部署。
+- D 对 `a4950a4` 的合同复审指出 HMAC 的“最低覆盖字段”仍可能漏签来源声明和 limitations。
+  后续草案改为签署“任务身份 + 完整强类型 evidence bundle”的规范 JSON 封套，明确完整
+  `fixture_binding`、items、execution、limitations 均不可遗漏，HMAC 元数据自身位于 bundle
+  外且不参与签署，并列出逐字段篡改必须 fail-closed 的实现回归矩阵。
+- A 对 `938006b` 的客户端可实现性复审指出顶层 `usage.status` 不属于报告 Token Schema；
+  后续草案将镜像规则收紧为仅比较 `request_count`、`prompt_tokens`、
+  `completion_tokens`、`total_tokens`、`model` 五字段投影，明确 `status` 只位于顶层且禁止
+  客户端直接比较两个完整 JSON 对象。
+- D 对 `938006b` 的完整 bundle HMAC 合同复审 PASS；A 对 `551cbe1` 的
+  五字段用量投影与客户端可实现性复审 PASS。
+
+## v2 后端实现
+
+- 新增 `POST /api/v1/qr-analyses` 和
+  `GET /api/v1/qr-analyses/{analysis_id}/status`，QR01 仍只走既有 `/deep-scans`。
+- QR02–QR13 只接受固定 catalog 身份、原始 UTF-8 payload SHA-256 和脱敏 Lxx；
+  Schema、consent、catalog 修订、摘要与敏感文本检查全部在扣额度前完成。
+- 后端静态分析器不使用 DNS、HTTP、浏览器或系统 handler；不访问 fallback/APK/
+  商品页，不启动 App，不执行 Wi-Fi、短信、电话、邮件或联系人动作。
+- 先持久化完整强类型 `evidence_bundle`，再用任务身份封套整体 HMAC；只有
+  HMAC 通过后才能持久化 Provider dispatch 标记。任一来源声明、证据、执行标志、
+  limitation 或数组顺序被改动都在 Provider 前 fail-closed。
+- `(user_id, analysis_id)` 并发幂等与额度扣减在 SQLite 写锁中完成；重放、
+  输入冲突、未知结果和缓存过期均不会二次扣额度或派发 Provider。
+- 单 Worker 支持崩溃恢复：bundle 前可重做无副作用静态分析；已 finalized 则只重载
+  并验签；dispatch 后进入 `outcome_unknown` 且禁止再派发，允许同次调用的迟到守卫
+  成功或已知用量失败收敛。
+- 成功报告强制通过既有 Schema、analysis_id/created_at 原文、证据引用、
+  高风险不下调、Token 算术和敏感缓存守卫；顶层用量只与报告五字段投影比较。
+- 24 小时后清理 bundle/报告响应，30 天后压缩可恢复摘要，最小 HMAC 防重放
+  墓碑永久保留；备份和恢复都会剥离二维码 bundle/报告缓存与其 HMAC 元数据。
 
 ## 完成内容
 
@@ -63,20 +116,24 @@
 
 | 检查 | 结果 |
 |---|---|
-| 后端完整回归 | 242/242 PASS |
-| 本轮超时、幂等及 QR 目标矩阵 | 89/89 PASS |
+| 后端完整回归 | 279/279 PASS |
+| v2 隔离实现回归 | 37/37 PASS；含 QR02–QR13 12/12 静态矩阵 |
+| v2 + 备份隐私 + 既有 AI/QR 合同 | 72/72 PASS |
 | QR AI-only 测试收集 | 26 项 |
 | QR01 本机受控站 Playwright | PASS；仅绑定临时 `127.0.0.1` 端口 |
 | Python 编译检查 | PASS |
 | `git diff --check` | PASS |
 | Provider 120 秒 / Nginx 135 秒边界 | PASS；httpx 请求扩展及部署静态门禁已校验，候选 Nginx 配置通过同镜像 `nginx -t` |
 | QR12/QR13 原始目标预派发拒绝 | 2/2 PASS；Provider 调用数为 0 |
+| v2 合同 fixture 自审 | PASS；JSON、统一错误 Schema、报告 Schema、六状态、证据引用、Token 算术及 created_at 原文绑定通过 |
+| v2 服务端目录来源 | PASS；QR02–QR13 12/12 与 `20b8848` 的 `cases + supplemental_cases` payload 及 UTF-8 SHA-256 一致 |
 | 真实学校模型调用 | 未调用 |
 | 新云任务 / ECS 部署 | 未创建、未部署 |
 
 ## 下一门禁
 
-1. B 提交并推送固定 SHA。
-2. D 独立复跑和审查精确映射、并发幂等、墓碑、Key 轮换、QR 脱敏拒绝及报告守卫。
-3. A 同步冻结请求格式并完成客户端测试，再交 D 审核。
+1. B 提交并推送实现固定 SHA。
+2. D 独立复跑和审查精确映射、并发幂等、墓碑、Key 轮换、bundle 完整签署、
+   崩溃/迟到终态、QR 脱敏拒绝、报告守卫与备份恢复。
+3. A 按 `551cbe1` 的冻结合同实现客户端，并将实现固定 SHA 交 D 复审。
 4. A、B、D 的固定版本合入同一 `main` 后才允许部署和最终设备验收。

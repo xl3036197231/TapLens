@@ -9,10 +9,13 @@ from app.api.health import router as health_router
 from app.api.quota import router as quota_router
 from app.api.deep_scans import router as deep_scans_router
 from app.api.ai import router as ai_router
+from app.api.qr_analyses import router as qr_analyses_router
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handlers
 from app.storage.database import Database
 from app.storage.ai_calls import AiCallCleanupWorker, AiCallRepository
+from app.storage.qr_analyses import QrAnalysisRepository
+from app.qr_analysis.catalog import QrFixtureCatalog
 
 
 @asynccontextmanager
@@ -49,12 +52,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cache_hours=resolved_settings.ai_response_cache_hours,
         compact_days=resolved_settings.ai_compact_days,
     )
+    application.state.qr_analysis_repository = QrAnalysisRepository(
+        application.state.database,
+        digest_secrets=resolved_settings.ai_digest_secret_map,
+        active_digest_key_version=resolved_settings.ai_digest_active_key_version,
+        cache_hours=resolved_settings.ai_response_cache_hours,
+        compact_days=resolved_settings.ai_compact_days,
+    )
+    application.state.qr_fixture_catalog = QrFixtureCatalog()
     install_error_handlers(application)
     application.include_router(health_router, prefix="/api/v1")
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(quota_router, prefix="/api/v1")
     application.include_router(deep_scans_router, prefix="/api/v1")
     application.include_router(ai_router, prefix="/api/v1")
+    application.include_router(qr_analyses_router, prefix="/api/v1")
     return application
 
 

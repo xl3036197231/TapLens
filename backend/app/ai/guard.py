@@ -7,13 +7,14 @@ from referencing import Registry, Resource
 from app.ai.provider import ProviderResult
 from app.ai.schemas import AiAnalyzeRequest
 from app.core.errors import AppError
+from app.qr_analysis.schemas import TrustedQrAiInput
 
 
 CONTRACTS = Path(__file__).resolve().parents[3] / "shared" / "contracts"
 
 
 def validate_and_finalize_report(
-    payload: AiAnalyzeRequest,
+    payload: AiAnalyzeRequest | TrustedQrAiInput,
     result: ProviderResult,
     *,
     expected_created_at_text: str | None = None,

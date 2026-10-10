@@ -11,6 +11,13 @@ from app.storage.database import Database
 from app.storage.tasks import TaskRepository
 from app.tasks.executor import TaskExecutor
 from app.tasks.service import TaskService
+from app.qr_analysis.catalog import QrFixtureCatalog
+from app.qr_analysis.executor import QrAnalysisExecutor
+from app.qr_analysis.fake_provider import (
+    build_qr_analysis_provider,
+    expire_qr_fake_results,
+)
+from app.storage.qr_analyses import QrAnalysisRepository
 
 
 async def run(*, once: bool, poll_seconds: float) -> None:
@@ -42,15 +49,33 @@ async def run(*, once: bool, poll_seconds: float) -> None:
         ),
         public_base_url=settings.public_base_url,
     )
+    qr_repository = QrAnalysisRepository(
+        database,
+        digest_secrets=settings.ai_digest_secret_map,
+        active_digest_key_version=settings.ai_digest_active_key_version,
+        cache_hours=settings.ai_response_cache_hours,
+        compact_days=settings.ai_compact_days,
+    )
+    qr_executor = QrAnalysisExecutor(
+        qr_repository,
+        QrFixtureCatalog(),
+        build_qr_analysis_provider(settings),
+    )
     repository.requeue_running()
+    qr_repository.recover_interrupted()
 
     while True:
         queued = repository.list_queued(limit=10)
         for task in queued:
             await executor.execute(task.id)
+        qr_queued = qr_repository.list_queued(limit=10)
+        for task in qr_queued:
+            await qr_executor.execute(task.task_id)
+        expire_qr_fake_results(qr_repository, settings)
         now = datetime.now(UTC)
         expiring_artifacts = repository.list_due_for_expiry(now)
         service.expire_due(now)
+        qr_repository.cleanup(now)
         for task_id in expiring_artifacts:
             (settings.artifact_directory / f"{task_id}.png").unlink(missing_ok=True)
         if once:

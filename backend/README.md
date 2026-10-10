@@ -69,6 +69,43 @@ cd backend
 
 本地只处理当前队列并退出可使用`.venv/bin/python scripts/run_worker.py --once`。正式环境必须配置`TAPLENS_PUBLIC_BASE_URL`，使证据中的截图地址指向对外HTTPS服务。
 
+## 二维码 v2 HTTP Mock 联调
+
+二维码 v2 客户端联调使用独立的确定性 Fake Provider。它不访问网络、不读取模型
+Key，并且在 staging/production 配置中会被强制拒绝。启动 API 与单 Worker：
+
+```bash
+cd backend
+.venv/bin/python scripts/run_qr_v2_mock.py
+```
+
+另一个终端执行真实 HTTP 冒烟测试：
+
+```bash
+cd backend
+.venv/bin/python scripts/smoke_qr_v2_mock.py
+```
+
+异常状态使用独立场景启动，并在冒烟脚本中声明预期状态：
+
+```bash
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario failure
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state failed
+
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario timeout
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state outcome_unknown
+
+.venv/bin/python scripts/run_qr_v2_mock.py --scenario result_expired
+.venv/bin/python scripts/smoke_qr_v2_mock.py --expected-state result_expired
+```
+
+每个场景默认使用独立 SQLite 文件。切换场景前停止上一组 API/Worker，避免端口冲突。
+
+客户端连接 `http://127.0.0.1:8000`；真机局域网联调时可显式传入
+`--host 0.0.0.0`，并将客户端 origin 配置为运行后端电脑的局域网地址。不要把该模式
+部署到 ECS，也不要把 `TAPLENS_QR_FAKE_PROVIDER_ENABLED=true` 写入 staging 或
+production 环境。
+
 ## 局域网手机联调
 
 开发机和手机处于同一可信 Wi-Fi 时，可让服务监听 `0.0.0.0:8000`，并由 A 把 Flutter 的开发环境基础地址配置为 `http://<开发机局域网IP>:8000/api/v1`。完整环境变量、启动命令、注册到轮询流程及失败场景见 `shared/interfaces/backend-lan-integration.md`。该方式仅用于开发联调，不是公网部署方案。

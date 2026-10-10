@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir -r requirements-deploy.txt \
 COPY backend/app ./app
 COPY backend/scripts ./scripts
 COPY shared/contracts /srv/taplens/shared/contracts
+COPY shared/fixtures/qr/qr-cloud-fixture-catalog-v2.json /srv/taplens/shared/fixtures/qr/qr-cloud-fixture-catalog-v2.json
 
 RUN mkdir -p /var/lib/taplens/artifacts
 
